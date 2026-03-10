@@ -9,7 +9,7 @@ Parent platform for all "make money online" child projects. This workspace (`~/c
   mmo-platform/          ← you are here (shared @mmo/* packages, future)
   333Method/             ← Audit&Fix: SERP → score → proposal → outreach pipeline (ACTIVE)
   2Step/                 ← Video review outreach: prospect → video → DM/email (BUILDING)
-  333Method-infra/       ← NixOS infrastructure + infra plans
+  distributed-infra/     ← NixOS infrastructure + infra plans
   mmo.code-workspace     ← VSCode multi-root workspace file
 ```
 
