@@ -1,0 +1,23 @@
+{
+  "name": "@mmo/core",
+  "version": "0.1.0",
+  "description": "Core utilities — logger, error-handler, db, load-env, adaptive-concurrency",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./logger.js": "./logger.js",
+    "./error-handler.js": "./error-handler.js",
+    "./db.js": "./db.js",
+    "./load-env.js": "./load-env.js",
+    "./adaptive-concurrency.js": "./adaptive-concurrency.js",
+    "./circuit-breaker.js": "./circuit-breaker.js",
+    "./rate-limiter.js": "./rate-limiter.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "bottleneck": "^2.19.5",
+    "dotenv": "^17.2.3",
+    "opossum": "^9.0.0"
+  }
+}

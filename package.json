@@ -1,0 +1,13 @@
+{
+  "name": "mmo-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared services platform for outreach business projects (333Method, 2Step, etc.)",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

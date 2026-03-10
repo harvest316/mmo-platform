@@ -1,0 +1,15 @@
+{
+  "name": "@mmo/orchestrator",
+  "version": "0.1.0",
+  "description": "Claude Max batch orchestrator — claude -p batch runner, conservation mode",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./claude-batch.js": "./claude-batch.js",
+    "./claude-store.js": "./claude-store.js"
+  },
+  "dependencies": {
+    "@mmo/core": "^0.1.0"
+  }
+}

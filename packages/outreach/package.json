@@ -1,0 +1,23 @@
+{
+  "name": "@mmo/outreach",
+  "version": "0.1.0",
+  "description": "Multi-channel outreach — email, sms, form, spintax, compliance, sheets",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./email.js": "./email.js",
+    "./sms.js": "./sms.js",
+    "./form.js": "./form.js",
+    "./spintax.js": "./spintax.js",
+    "./compliance.js": "./compliance.js",
+    "./outreach-guard.js": "./outreach-guard.js",
+    "./sheets.js": "./sheets.js"
+  },
+  "dependencies": {
+    "@mmo/core": "^0.1.0",
+    "googleapis": "^171.4.0",
+    "resend": "^6.8.0",
+    "twilio": "^5.12.0"
+  }
+}

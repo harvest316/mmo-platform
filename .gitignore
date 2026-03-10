@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.secrets
+.env.agents
+.wrangler/
+.browser-profiles/
+logs/
+*.log
+*.db
+*.db-journal
+*.db-wal

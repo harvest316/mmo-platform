@@ -1,0 +1,20 @@
+{
+  "name": "@mmo/browser",
+  "version": "0.1.0",
+  "description": "Stealth browser automation — bot detection evasion, profiles, contact extraction",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./stealth-browser.js": "./stealth-browser.js",
+    "./html-contact-extractor.js": "./html-contact-extractor.js",
+    "./browser-notifications.js": "./browser-notifications.js"
+  },
+  "dependencies": {
+    "@mmo/core": "^0.1.0",
+    "playwright": "^1.48.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "user-agents": "^1.1.669"
+  }
+}

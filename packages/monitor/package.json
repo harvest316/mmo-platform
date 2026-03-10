@@ -1,0 +1,14 @@
+{
+  "name": "@mmo/monitor",
+  "version": "0.1.0",
+  "description": "Monitoring framework — cron, process guardian, AFK health checks",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./process-guardian.js": "./process-guardian.js"
+  },
+  "dependencies": {
+    "@mmo/core": "^0.1.0"
+  }
+}
