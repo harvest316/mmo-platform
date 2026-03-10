@@ -1,63 +1,80 @@
-# CLAUDE.md — mmo-platform (Shared Services)
+# CLAUDE.md — mmo-platform
 
-## Overview
+Parent platform for all "make money online" child projects. This workspace (`~/code/mmo.code-workspace`) shows all projects simultaneously. You are likely working across multiple of them in a single session.
 
-Parent platform providing shared services to child business projects (333Method, 2Step, future GhostHunter, etc.). Uses npm workspaces monorepo with `@mmo/` package scope.
-
-## Architecture
+## Workspace Layout
 
 ```
-mmo-platform/
-  packages/
-    core/          # @mmo/core — logger, error-handler, db, load-env, adaptive-concurrency
-    outreach/      # @mmo/outreach — email, sms, form, spintax, compliance, sheets
-    browser/       # @mmo/browser — stealth browser, profiles, contact extraction
-    monitor/       # @mmo/monitor — cron framework, process guardian, AFK checks
-    orchestrator/  # @mmo/orchestrator — claude -p batch runner, conservation mode
-  services/
-    overseer/      # Unified AFK monitoring across all child projects
-    dashboard/     # Unified dashboard (later)
-  website/         # auditandfix.com (sales pages, workers)
+~/code/
+  mmo-platform/          ← you are here (shared @mmo/* packages, future)
+  333Method/             ← Audit&Fix: SERP → score → proposal → outreach pipeline (ACTIVE)
+  2Step/                 ← Video review outreach: prospect → video → DM/email (BUILDING)
+  333Method-infra/       ← NixOS infrastructure + infra plans
+  mmo.code-workspace     ← VSCode multi-root workspace file
 ```
 
-## Child Projects
+Each child project has its own `CLAUDE.md` with full context. **Read the relevant project's CLAUDE.md first** before working in that project.
 
-- **333Method** (`~/code/333Method/`) — Audit&Fix website audits
-- **2Step** (`~/code/2Step/`) — Video review cold outreach
-- **333Method-infra** (`~/code/333Method-infra/`) — NixOS infrastructure
+## Active Projects
 
-Children depend on shared packages via `file:` protocol:
-```json
-{ "@mmo/core": "file:../mmo-platform/packages/core" }
+### 333Method (`~/code/333Method/`)
+Full SERP-to-outreach automation. Pipeline: Keywords → SERPs → Assets → Scoring → Enrich → Proposals → Outreach → Replies.
+- DB: `db/sites.db`
+- AFK orchestrator runs on NixOS host via systemd (not managed from VSCode)
+- Agent system: disabled (`AGENT_SYSTEM_ENABLED=false`)
+- See `333Method/CLAUDE.md` for full details (comprehensive — read it)
+
+### 2Step (`~/code/2Step/`)
+Video-based cold outreach. Finds businesses with strong Google reviews, creates free 30-45s AI video, sends as demo.
+- DB: `db/2step.db` — 15 prospects loaded (pest control, Sydney, 2026-03-10)
+- Google Sheet: `1iuWVqG_bCA1R1VWN8i0Bb2qwXY8bQuav695f2PrLV-g` (populated)
+- Close: $625 setup + $99/month retainer
+- Split test: Arm A (InVideo, manual) / Arm B (Holo, manual) / Arm C (Creatomate API)
+- See `2Step/CLAUDE.md` for full details
+
+## Shared Secrets (Temporary Bridge)
+
+Until Phase 2 extraction, child projects load secrets from 333Method:
+
+```
+2Step/src/utils/load-env.js loads:
+  1. ~/code/2Step/.env              (project-specific)
+  2. ~/code/333Method/.env.secrets  (Twilio, Resend, etc.)
+  3. ~/code/333Method/.env          (GOOGLE_SHEETS_*, ZENROWS_*, etc.)
 ```
 
-## Package Extraction Status
+Phase 2: centralise to `~/code/mmo-platform/.env.secrets`.
 
-Packages are being extracted from `333Method/src/` into this monorepo. During extraction:
-1. Copy module from 333Method to the appropriate package
-2. Update exports in package.json
-3. Update 333Method imports to use `@mmo/package-name`
-4. Update 2Step imports to use `@mmo/package-name`
-5. Run both projects' test suites — ensure nothing breaks
+## mmo-platform Package Extraction (Phase 2 — not started)
 
-## Development
+Packages exist as stubs only. No actual code has been moved from 333Method yet.
 
-```bash
-npm install              # Workspace-aware install (all packages)
-npm test                 # Run all package tests
-npm run lint             # Lint all packages
-```
+| Package | What goes in it | Source in 333Method |
+|---------|----------------|---------------------|
+| `@mmo/core` | logger, error-handler, db, load-env, adaptive-concurrency | `src/utils/` |
+| `@mmo/outreach` | email, sms, form, spintax, compliance, outreach-guard, sheets | `src/outreach/`, `src/utils/` |
+| `@mmo/browser` | stealth-browser, html-contact-extractor, browser-notifications | `src/utils/` |
+| `@mmo/monitor` | cron framework, process-guardian | `src/cron/` |
+| `@mmo/orchestrator` | claude-batch, claude-store | `scripts/` |
 
-## Quality
+**Do not start extraction without user direction** — it's a multi-hour refactor touching both projects.
 
-Same standards as child projects:
-- 85%+ test coverage target
-- ESLint + Prettier
-- Never commit secrets
-- Run tests before committing
+## AFK Monitoring
 
-## Documentation
+The 333Method AFK orchestrator runs on the **NixOS host** via systemd timer — independent of which VSCode workspace is open. Claude Code sessions are separate:
 
-- `docs/TODO.md` — Platform-level tasks
-- Each package has its own README when extracted
-- Child projects reference this platform in their CLAUDE.md
+- **333Method AFK session**: monitors `333Method/` pipeline, runs `monitoring-checks.sh` every 30 min
+- **2Step session**: separate Claude Code session for 2Step work
+
+When user goes AFK and asks for monitoring across both projects, a single Claude Code session can monitor both by checking both DBs and log dirs. No unified overseer exists yet (Phase 2).
+
+## Autonomy Preferences
+
+Same as 333Method: operate autonomously for local, reversible actions.
+Always confirm before: git push, deleting files, external communications.
+
+## VSCode Tips
+
+- Open workspace: `File → Open Workspace from File → ~/code/mmo.code-workspace`
+- Each project folder appears in the sidebar — click to switch project context
+- Claude Code memory path is based on the workspace root; re-read project CLAUDE.md files each session
