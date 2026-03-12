@@ -1,13 +1,68 @@
-.direnv/
+# Dependencies
 node_modules/
+npm-debug.log*
+
+# Environment variables
 .env
 .env.secrets
 .env.agents
-.wrangler/
-.browser-profiles/
+.env.local
+.env.*.local
+# .env.example IS tracked (placeholder values only)
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+db/backups/
+
+# Logs
 logs/
 *.log
-*.db
-*.db-journal
-*.db-wal
+
+# OS files
+.DS_Store
+._*
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+.claude/
+*.swp
+*~
+
+# Coverage / quality reports
+coverage/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.cache
+
+# Direnv
+.direnv/
+# .envrc IS tracked for nix-shell setup
+
+# Browser profiles (login sessions)
+.browser-profiles/
+
+# Wrangler (Cloudflare Workers)
+.wrangler/
+
+# Backup files
+*.backup
+*.bak
+
+# Claude scheduled tasks lock
 .claude/scheduled_tasks.lock
