@@ -10,3 +10,4 @@ logs/
 *.db
 *.db-journal
 *.db-wal
+.claude/scheduled_tasks.lock
