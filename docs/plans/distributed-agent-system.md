@@ -1,7 +1,7 @@
 # Distributed Agent System Design
 
 **Generated:** 2026-02-15
-**Updated:** 2026-03-13 — Moved from 333Method to mmo-platform (cross-project concern). Merged Claude Max update. Phase 0 + Part 20 marked obsolete. Added Part 22 (Multi-Project Architecture).
+**Updated:** 2026-03-14 — Added Part 23 (Tool Integrations: Agency Agents, PromptFoo, MiroFish, Impeccable, OpenViking, Heretic). Added Part 24 (Software Inventory: FOSS status, licensing, audits). CAI commercial license flagged. Redis → Valkey. Better Stack → Grafana Loki. OpenViking deferred. | 2026-03-13 — Moved from 333Method to mmo-platform (cross-project concern). Merged Claude Max update. Phase 0 + Part 20 marked obsolete. Added Part 22 (Multi-Project Architecture).
 **Status:** Planning Document
 **Source:** Agent Task Output
 
@@ -1540,6 +1540,8 @@ MCP communication uses **WebSocket + JSON-RPC 2.0** for:
 - Overkill for agent system
 
 ### Redis Hosting Comparison
+
+> **Implementation choice (2026-03-14): Use Valkey** — BSD-3-Clause, Linux Foundation backed, drop-in Redis 7.2 protocol-compatible replacement. Redis changed to SSPL (non-OSI) in March 2024; Redis 8 reverted to AGPL-3.0 in 2025, but Valkey (BSD) eliminates all copyleft concerns for future commercial products. All Redis references in this document should be read as Valkey. See [github.com/valkey-io/valkey](https://github.com/valkey-io/valkey). Cost comparisons below still apply — Upstash supports Valkey.
 
 #### 1. Upstash Redis (Serverless) - WINNER
 
@@ -3151,8 +3153,9 @@ external network perspective against the VPS. Runs against a staging clone, neve
   Neurogrid, HackTheBox top 500 worldwide in one week, Rank 1 in Dragos OT CTF during peak
   hours. 3,600× faster than humans on scanning; 11× overall in human+AI workflows.
 - **Coverage:** Port scanning, CVE exploitation chains, misconfiguration, credential stuffing
-- **License:** Open source (aliasrobotics/cai)
+- **License:** Non-commercial research only (not fully FOSS for commercial use) — see `aliasrobotics/cai` on GitHub
 - **Trigger:** Monthly (1st of month, 4am) against staging VPS only
+- ⚠️ **License note (2026-03-14):** Commercial use requires a paid license from Alias Robotics (aliasrobotics.com/cai). Obtain before first production run. **PentAGI** ([github.com/vxcontrol/pentagi](https://github.com/vxcontrol/pentagi), MIT) is a FOSS fallback — covers full kill chain with 20+ bundled tools — but has no published CTF benchmark data to compare against CAI's 99.04% validated score.
 
 ### Integration Architecture
 
@@ -4105,6 +4108,8 @@ that can issue arbitrary host syscalls. IronClaw eliminates that attack surface 
 **The audit sidecar shifts from primary trust mechanism to secondary defence-in-depth.**
 
 ### M2: Off-Host Audit Trail Is More Trustworthy with IronClaw
+
+> **Note (2026-03-14):** Better Stack is proprietary SaaS. For a fully FOSS stack, replace with **Grafana Loki** (AGPL-3.0, [github.com/grafana/loki](https://github.com/grafana/loki)) — self-hosted Docker container on the VPS, already integrated with our Grafana deployment. Replace `rsyslog → TLS 6514 → Better Stack` with `Promtail → HTTP push → Loki`. Grafana Loki is a first-class Grafana datasource with no per-seat cost.
 
 The Better Stack pipeline runs at kernel/host level, completely outside Docker:
 
@@ -6556,3 +6561,212 @@ Key constraints when distributing `claude -p` work:
 | **Monthly total** | **~$200-500/mo** | **~$200/mo flat (subscription)** |
 
 The subscription cost is fixed regardless of volume. Scaling up means more `claude -p` invocations, not more API spend.
+
+### Model Version Management
+
+OpenRouter and the Anthropic SDK require exact model IDs — there is no auto-resolving "latest" alias. To avoid model strings scattered across the codebase, 333Method uses three canonical env vars (OpenRouter format):
+
+```
+CLAUDE_SONNET_MODEL=anthropic/claude-sonnet-4-6
+CLAUDE_HAIKU_MODEL=anthropic/claude-haiku-4-5
+CLAUDE_OPUS_MODEL=anthropic/claude-opus-4
+```
+
+Every Claude call in `src/` and `scripts/` falls back to these vars before its hardcoded default. Anthropic SDK scripts (which need the bare model ID without the `anthropic/` prefix) strip it at call time:
+
+```js
+const MODEL = process.env.SAGE_AUTOFIX_MODEL
+  || (process.env.CLAUDE_SONNET_MODEL || 'anthropic/claude-sonnet-4-6').replace('anthropic/', '');
+```
+
+`src/utils/llm-provider.js`'s `MODEL_MAP` translates OpenRouter model names to Anthropic SDK names for the direct-API fallback path — this must be kept in sync when adding new model entries.
+
+**Orchestrator responsibility:** When a new Claude model generation ships, the orchestrator (or a dedicated model-update agent) should:
+
+1. Check Anthropic release notes / OpenRouter model list for new `claude-sonnet-*`, `claude-haiku-*`, `claude-opus-*` entries
+2. Update `CLAUDE_SONNET_MODEL`, `CLAUDE_HAIKU_MODEL`, `CLAUDE_OPUS_MODEL` in each project's `.env`
+3. Add the new model IDs to `MODEL_MAP` in `src/utils/llm-provider.js`
+4. Add pricing entries to `src/utils/llm-usage-tracker.js`'s `MODEL_PRICING` map
+5. Commit and restart affected pipeline services
+
+This is a ~10-minute mechanical task per model generation — suitable for a scheduled agent check (monthly, or triggered by a Anthropic changelog webhook).
+
+---
+
+## Part 23: Proposed Tool Integrations (Added 2026-03-14)
+
+Six tools evaluated for integration into the mmo-platform ecosystem.
+
+---
+
+### 23.1 Agency Agents
+
+- **What:** 61 markdown agent templates across 11 divisions (Engineering, Design, Marketing, Paid Media, Sales, Product, Testing, Support, Project Management, Spatial Computing, Specialized). Each agent has role definition, workflow, deliverables, and success metrics.
+- **GitHub:** [github.com/msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents) — MIT license
+- **FOSS:** ✅ MIT
+- **Security audit:** None published
+
+**Use case:** Revise and expand the current 6-agent DevOps system with battle-tested role templates. Immediately useful for the marketing funnel:
+
+| Step | Agent | Division |
+|------|-------|----------|
+| Strategy | Growth Hacker | Marketing |
+| Strategy | Social Media Strategist | Marketing |
+| Strategy | SEO Specialist | Marketing |
+| Ad content | Ad Creative Strategist | Paid Media |
+| Ad content | Brand Guardian | Design |
+| Ad content | Content Creator | Marketing |
+| Launch | PPC Campaign Strategist | Paid Media |
+| Launch | Paid Social Strategist | Paid Media |
+| Launch | LinkedIn Content Creator | Marketing |
+| Optimise | Tracking & Measurement Specialist | Paid Media |
+| Optimise | Paid Media Auditor | Paid Media |
+| Outreach | Outbound Strategist | Sales |
+| Outreach | Proposal Strategist | Sales |
+
+**Integration:** Install all 61 agents at user level (`~/.claude/agents/`) — available across all projects, loaded on demand only (zero runtime cost). `cp -r agency-agents/* ~/.claude/agents/`
+
+**Status (2026-03-14): ✅ Installed**
+
+---
+
+### 23.2 PromptFoo
+
+- **What:** Automated LLM prompt testing, red teaming, model comparison, and CI/CD integration. Handles prompt injection testing via its red-teaming module (OWASP LLM Top 10, PII leakage, prompt injection chains).
+- **GitHub:** [github.com/promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) — MIT license
+- **FOSS:** ✅ MIT
+- **Security audit:** None published
+
+**Use case:** Automated regression testing for all 18 prompt templates in `prompts/`. Catches quality regressions before deploy. Red-team mode tests prompt injection via `<untrusted_content>` vectors. Model comparison validates Sonnet vs Haiku routing.
+
+**Integration:** `npm install --save-dev promptfoo` in 333Method. Config at `config/promptfoo.yaml`. Script: `npm run test:prompts`.
+
+**Status (2026-03-14): ✅ Installed + initial eval run complete**
+
+---
+
+### 23.3 MiroFish
+
+- **What:** Swarm intelligence world simulator. Builds a parallel digital world from seed data using GraphRAG, populates with autonomous AI agents, generates emergent predictions. Python 3.11-3.12 + Vue.js frontend. Created by a USTC student.
+- **GitHub:** [github.com/666ghj/MiroFish](https://github.com/666ghj/MiroFish) — AGPL-3.0 license
+- **FOSS:** ✅ AGPL-3.0
+- **Security audit:** None published
+
+**Use case:** Simulate strategic decisions before committing (e.g., "if we target pest control in Sydney with this offer and price, what happens over 90 days given these competitors?"). Validates 2Step and 333Method GTM strategies. Standalone tool — no pipeline integration needed.
+
+**Integration:** Standalone Python app. Run ad-hoc for strategic decisions. Requires any OpenAI-compatible LLM backend.
+
+**Status: Staged — run as needed for major strategy decisions**
+
+---
+
+### 23.4 Impeccable
+
+- **What:** Design language skill for AI coding assistants — 1 skill, 17 commands, curated anti-patterns. Teaches Claude Code to avoid generic "AI slop" aesthetics (overused fonts, poor contrast, card nesting, dated animations). Builds on Anthropic's original `frontend-design` skill.
+- **GitHub:** [github.com/pbakaus/impeccable](https://github.com/pbakaus/impeccable) — Apache-2.0 license
+- **FOSS:** ✅ Apache-2.0
+- **Security audit:** None published
+
+**Use case:** Improve dashboard-v2 (React SPA) and auditandfix.com frontend quality. Anti-patterns directly applicable to current dashboard components. Does **not** conflict with Agency Agents — Impeccable is a skill (design knowledge), Agency Agents provides role definitions. They complement: Agency Agents' UI Designer + Impeccable = designer with explicit design vocabulary.
+
+**Integration:** Install at user level (`~/.claude/`) so available across all projects. Use `/i-` prefixed bundle to avoid naming conflicts.
+
+**Status (2026-03-14): ✅ Installed**
+
+---
+
+### 23.5 OpenViking
+
+- **What:** Context database for AI agents using a filesystem-like paradigm with L0/L1/L2 tiered semantic loading. Python SDK + HTTP server (port 1933). Reduces token usage by retrieving only relevant context slices instead of loading all context flat.
+- **GitHub:** [github.com/volcengine/OpenViking](https://github.com/volcengine/OpenViking) — Apache-2.0 license (ByteDance/Volcengine)
+- **FOSS:** ✅ Apache-2.0
+- **Security audit:** None published
+
+**Token savings analysis:**
+
+| Scenario | Dynamic context | OpenViking saves |
+|----------|----------------|-----------------|
+| Current (7 static .md files, 94KB total) | ~0KB dynamic | Minimal (~10-20%) |
+| +marketing knowledge base (200KB) | ~200KB | ~85% per call |
+| +competitor intel + proposal examples (500KB) | ~500KB | ~96% per call |
+
+**Current system saves ~$1/day if agent system were enabled** — not worth 6-8h integration effort. Break-even: once dynamic context regularly exceeds 200KB/call.
+
+**Integration when ready (local Docker first, VPS later):**
+1. Add `openviking` to `modules/containers.nix` (port 1933, same pattern as other services)
+2. Node.js HTTP client in `src/agents/utils/context-loader.js` (~30 lines)
+3. Migrate context files to OpenViking schema
+4. Same NixOS container config deploys unchanged to VPS
+
+**Status: ⏸ Deferred — see TODO.md. Add context size logging to orchestrator; revisit when dynamic context >200KB/call.**
+
+---
+
+### 23.6 Heretic
+
+- **What:** Removes safety alignment from local transformer LLMs via directional ablation ("abliteration") — modifies model weights offline to produce an uncensored local model.
+- **GitHub:** [github.com/CardinalBlack/heretic-llm-jailbreaker](https://github.com/CardinalBlack/heretic-llm-jailbreaker) — AGPL-3.0 license
+- **FOSS:** ✅ AGPL-3.0
+- **Security audit:** None published
+
+**Use case — TBD:** Potential: run uncensored local models for internal red-teaming (generate adversarial inputs to test proposal and reply prompt quality) without API costs or content filters. Not a production tool; offline weight modification only.
+
+**Status: ⏸ Parked — no integration path identified. Revisit when local model infrastructure is available (Part 17 USB worker nodes).**
+
+---
+
+## Part 24: Software Inventory — FOSS Status, Licensing & Security Audits (Added 2026-03-14)
+
+### 24.1 Non-FOSS Issues Found
+
+Three tools in this plan have licensing issues requiring action before production:
+
+| # | Software | Issue | Action |
+|---|----------|-------|--------|
+| 1 | **CAI (Alias Robotics)** | Non-commercial research license — commercial use requires paid license | Obtain commercial license from aliasrobotics.com before production. PentAGI (MIT) is FOSS fallback but unvalidated. |
+| 2 | **Better Stack** | Proprietary SaaS (log aggregation) | Replace with **Grafana Loki** (AGPL-3.0) — self-hosted, already using Grafana. See §M2 note. |
+| 3 | **Redis** | Was SSPL (not OSI-approved) March 2024 | Use **Valkey** (BSD-3-Clause) throughout. See Redis Hosting Comparison note in Part 3. |
+
+### 24.2 Full Software Inventory
+
+All third-party software referenced in this plan:
+
+| Software | License | Source | FOSS | Last Security Audit |
+|----------|---------|--------|------|---------------------|
+| PostgreSQL | PostgreSQL License (permissive, OSI) | [github.com/postgres/postgres](https://github.com/postgres/postgres) | ✅ | Continuous via core team; no single public audit |
+| **Valkey** (Redis replacement) | BSD-3-Clause | [github.com/valkey-io/valkey](https://github.com/valkey-io/valkey) | ✅ | Linux Foundation governed; no formal audit |
+| Grafana | AGPL-3.0 | [github.com/grafana/grafana](https://github.com/grafana/grafana) | ✅ | [Cure53, 2023](https://grafana.com/security/security-report/) |
+| Grafana Loki | AGPL-3.0 | [github.com/grafana/loki](https://github.com/grafana/loki) | ✅ | Part of Grafana security program |
+| Prometheus | Apache-2.0 | [github.com/prometheus/prometheus](https://github.com/prometheus/prometheus) | ✅ | CNCF graduated — no standalone public audit |
+| IronClaw | Apache-2.0 / MIT dual | [github.com/nearai/ironclaw](https://github.com/nearai/ironclaw) | ✅ | No formal audit — WASM + HMAC design review |
+| Shannon | AGPL-3.0 (Lite) / Pro (enterprise) | [github.com/KeygraphHQ/shannon](https://github.com/KeygraphHQ/shannon) | ✅ (Lite) | No formal audit |
+| Strix | Apache-2.0 | [github.com/usestrix/strix](https://github.com/usestrix/strix) | ✅ | No formal audit |
+| CAI (Alias Robotics) | Non-commercial research ⚠️ | [github.com/aliasrobotics/cai](https://github.com/aliasrobotics/cai) | ⚠️ | No formal audit |
+| PentAGI (CAI fallback) | MIT | [github.com/vxcontrol/pentagi](https://github.com/vxcontrol/pentagi) | ✅ | No formal audit |
+| NetBird | BSD-3-Clause | [github.com/netbirdio/netbird](https://github.com/netbirdio/netbird) | ✅ | WireGuard audited 2019 (underlying protocol) |
+| Rosenpass | MIT / Apache-2.0 dual | [github.com/rosenpass/rosenpass](https://github.com/rosenpass/rosenpass) | ✅ | [Cure53, 2023](https://github.com/rosenpass/rosenpass/blob/main/audit/) |
+| RustDesk | AGPL-3.0 | [github.com/rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) | ✅ | No formal audit |
+| LiteLLM | MIT | [github.com/BerriAI/litellm](https://github.com/BerriAI/litellm) | ✅ | No formal audit (marked obsolete in this plan) |
+| ClamAV | GPL-2.0 | [github.com/Cisco-Talos/clamav](https://github.com/Cisco-Talos/clamav) | ✅ | Cisco-maintained; no public third-party audit |
+| Docker Engine | Apache-2.0 | [github.com/moby/moby](https://github.com/moby/moby) | ✅ | [containerd audited by Cure53, 2023](https://containerd.io/docs/security/) |
+| Playwright | Apache-2.0 | [github.com/microsoft/playwright](https://github.com/microsoft/playwright) | ✅ | No formal audit |
+| NixOS / nixpkgs | MIT | [github.com/NixOS/nixpkgs](https://github.com/NixOS/nixpkgs) | ✅ | Reproducible builds reduce supply chain risk; no single audit |
+| MCP (Model Context Protocol) | Open standard (Linux Foundation) | [github.com/modelcontextprotocol](https://github.com/modelcontextprotocol) | ✅ | Anthropic internal review; no third-party audit |
+| sops | Mozilla Public License 2.0 | [github.com/getsops/sops](https://github.com/getsops/sops) | ✅ | [Cure53, 2023](https://github.com/getsops/sops/blob/master/audit/) |
+| Agency Agents | MIT | [github.com/msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents) | ✅ | No formal audit (markdown templates only) |
+| PromptFoo | MIT | [github.com/promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | ✅ | No formal audit |
+| Impeccable | Apache-2.0 | [github.com/pbakaus/impeccable](https://github.com/pbakaus/impeccable) | ✅ | No formal audit (skill files only) |
+| OpenViking | Apache-2.0 | [github.com/volcengine/OpenViking](https://github.com/volcengine/OpenViking) | ✅ | No formal audit |
+| MiroFish | AGPL-3.0 | [github.com/666ghj/MiroFish](https://github.com/666ghj/MiroFish) | ✅ | No formal audit |
+| Heretic | AGPL-3.0 | [github.com/CardinalBlack/heretic-llm-jailbreaker](https://github.com/CardinalBlack/heretic-llm-jailbreaker) | ✅ | No formal audit |
+
+### 24.3 Audit Coverage Summary
+
+Most tools have no formal third-party security audits. Notable exceptions:
+
+- **Rosenpass** — Cure53 audit (2023) ✅ — the only purpose-built quantum-safe key exchange in the plan
+- **Grafana** — Cure53 audit (2023) ✅
+- **containerd** (Docker foundation) — Cure53 audit (2023) ✅
+- **sops** — Cure53 audit (2023) ✅
+
+**Recommendation:** For the three highest-risk components (IronClaw agent runtime, CAI pen tester, NetBird VPN), commission a third-party audit before using in production with real customer data. In the interim, rely on the architectural controls described in Parts 6–13 and Part O.
