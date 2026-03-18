@@ -84,6 +84,10 @@ CREATE TABLE IF NOT EXISTS messages (
     -- Template tracking
     template_id TEXT,
 
+    -- Sequence tracking (8-touch cadence for 2Step)
+    sequence_step INTEGER,          -- 1-8 touch position in the outreach sequence
+    scheduled_send_at TEXT,         -- ISO datetime when this message becomes eligible to send
+
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -97,6 +101,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_sent ON messages(sent_at) WHERE sent_at 
 CREATE INDEX IF NOT EXISTS idx_messages_intent ON messages(intent) WHERE intent IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(message_type);
 CREATE INDEX IF NOT EXISTS idx_messages_contact_uri ON messages(contact_uri);
+CREATE INDEX IF NOT EXISTS idx_messages_scheduled ON messages(scheduled_send_at) WHERE scheduled_send_at IS NOT NULL AND sent_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_messages_sequence ON messages(project, site_id, sequence_step) WHERE sequence_step IS NOT NULL;
 
 -- =============================================================================
 -- contacts: canonical identity for every business across all projects
