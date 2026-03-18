@@ -1,7 +1,7 @@
 # Distributed Agent System Design
 
 **Generated:** 2026-02-15
-**Updated:** 2026-03-14 — Added Part 23 (Tool Integrations: Agency Agents, PromptFoo, MiroFish, Impeccable, OpenViking, Heretic). Added Part 24 (Software Inventory: FOSS status, licensing, audits). CAI commercial license flagged. Redis → Valkey. Better Stack → Grafana Loki. OpenViking deferred. | 2026-03-13 — Moved from 333Method to mmo-platform (cross-project concern). Merged Claude Max update. Phase 0 + Part 20 marked obsolete. Added Part 22 (Multi-Project Architecture).
+**Updated:** 2026-03-17 — Part L updated: AgentFlow extraction cancelled; old 6-agent system replaced by Agency Agents (orchestrator batches + Tier C interactive sessions). Part L migration table revised. | 2026-03-14 — Added Part 23 (Tool Integrations: Agency Agents, PromptFoo, MiroFish, Impeccable, OpenViking, Heretic). Added Part 24 (Software Inventory: FOSS status, licensing, audits). CAI commercial license flagged. Redis → Valkey. Better Stack → Grafana Loki. OpenViking deferred. | 2026-03-13 — Moved from 333Method to mmo-platform (cross-project concern). Merged Claude Max update. Phase 0 + Part 20 marked obsolete. Added Part 22 (Multi-Project Architecture).
 **Status:** Planning Document
 **Source:** Agent Task Output
 
@@ -3963,6 +3963,10 @@ Part 12 recommended Hetzner. Hostinger is pre-paid — moot for now.
 
 ## Part L: AgentFlow as Separate GitHub Project (Added 2026-02-23)
 
+> **Update 2026-03-17 — Agency Agents supersede this plan.** The old 6-agent system
+> (`src/agents/`) has been replaced by **Agency Agents** running as orchestrator batch types.
+> The extraction described below is no longer needed. See summary at the end of this section.
+
 ### Context
 
 Part 4 sketched `@agentflow/core` as an npm package concept. This part makes it concrete: a
@@ -4074,6 +4078,55 @@ system is decoupled from SQLite before being split into a separate repo.
 - `modules/containers-worker.nix` — new, imported by `hosts/worker-usb/configuration.nix`
 - Update `hosts/production/configuration.nix` to import `containers-vps.nix`
 - Update `hosts/worker-usb/configuration.nix` to import `containers-worker.nix`
+
+### Agency Agents Replacement (2026-03-17)
+
+The original Part L plan — extracting `src/agents/` into a standalone `@agentflow/core` npm package
+— is superseded by the Agency Agents implementation. Here is what changed and what it means for
+the distributed plan:
+
+**What happened:**
+- The old 6-agent system (`src/agents/`) was disabled (`AGENT_SYSTEM_ENABLED=false`) and has been
+  replaced by orchestrator batch types with Agency Agent role prompts.
+- `monitor.js`, `triage.js`, `developer.js`, `qa.js`, `security.js`, `architect.js` → replaced by
+  `monitor_health`, `triage_errors`, `fix_code` (Tier C), `verify_fix` (Tier C), `security_audit`
+  (Tier C), and `design_review` (Tier C) batch types in `scripts/claude-orchestrator.sh`.
+- `src/agents/runner.js`, `base-agent.js`, `src/agents/utils/`, `src/agents/contexts/` — no longer
+  needed. These files still exist on disk but are not executed.
+
+**What this simplifies in the distributed plan:**
+
+1. **No `@agentflow/core` extraction.** The old agents were ~2,000 lines of custom scaffolding
+   that replicated what Agency Agents provide as a built-in. There is nothing to extract.
+
+2. **PostgreSQL migration trigger unchanged.** The `agent_tasks` table is still needed as the work
+   queue for Agency Agent results (fix tasks, triage findings). PostgreSQL migration still unblocks
+   multi-machine coordination — just without a separate AgentFlow service.
+
+3. **Task claiming simplifies.** Instead of distributing an agent runner daemon, task claiming is
+   batch-level: the orchestrator on each machine claims a batch type (e.g., one machine runs
+   `code_review`, another runs `fix_code`). Locking is a single DB row per batch type.
+
+4. **No separate VPS service for AgentFlow.** The orchestrator IS the agent system. Deploy the
+   same `scripts/claude-orchestrator.sh` + `scripts/claude-batch.js` to each VPS. No separate
+   npm package or process.
+
+5. **`agent_tasks` table stays in place.** It is the hand-off point between pipe-mode analysis
+   batches (Tier A: find issues → write tasks) and interactive fix sessions (Tier C: read tasks →
+   apply fixes). No schema change needed.
+
+6. **`src/agents/` cleanup deferred.** The disabled agent code is ~16K LOC. It can be deleted in a
+   single commit once confirmed no references remain active. Not blocking anything.
+
+**Part L migration table — revised status:**
+
+| Phase | Original Plan                          | Revised Status                                    |
+| ----- | -------------------------------------- | ------------------------------------------------- |
+| 1     | Keep agents in 333Method, document plan | Done — agents replaced by Agency Agent batches   |
+| 2     | Extract `src/agents/` → agentflow repo | **Cancelled** — nothing to extract               |
+| 3     | Publish `@agentflow/core` to npm       | **Cancelled** — orchestrator IS the agent system |
+| 4     | Run both projects under AgentFlow VPS  | **Simplified** — deploy orchestrator to each VPS |
+| 5     | Open-source AgentFlow                  | **Cancelled** — not applicable                   |
 
 ---
 
@@ -4504,9 +4557,9 @@ Accept that a sufficiently sophisticated compromise may be undetectable until af
 
 **RTO target:** < 4 hours from decision to resume (all steps documented, no manual guesswork).
 
-**Current posture:** Backup cron exists (Part backup.nix). No credential rotation playbook written or rehearsed. ⚠️
+**Current posture:** Backup cron exists (Part backup.nix). Credential rotation playbook written 2026-03-18. ✅
 
-**TODO:** Write `scripts/credential-rotation-playbook.md`; add a calendar reminder to rehearse quarterly (test the non-sensitive restore path at minimum).
+**Playbook:** `333Method/scripts/credential-rotation-playbook.md` — covers rotation schedule, per-service steps, emergency rotation order, restore-path testing, and IRONCLAW isolation note. Rehearse quarterly (test non-sensitive restore path at minimum).
 
 ### O6: Real-Time Anti-Malware on Agent and Pipeline Hosts
 
