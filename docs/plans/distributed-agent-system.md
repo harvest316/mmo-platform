@@ -4386,6 +4386,8 @@ Accept that a sufficiently sophisticated compromise may be undetectable until af
 
 **Playbook:** `333Method/scripts/credential-rotation-playbook.md` — covers rotation schedule, per-service steps, emergency rotation order, restore-path testing, and IRONCLAW isolation note. Rehearse quarterly (test non-sensitive restore path at minimum).
 
+**Automation potential (~30–40%):** Key generation stays manual (most dashboards have no rotation API), but detection and verification can be scripted. Planned when orchestrator is stable: `check-rotation-schedule.js` (monthly cron — flags overdue credentials via human-review queue) and `verify-credentials.js` (weekly cron — test-calls each active key). Twilio rotation is fully scriptable via secondary auth token API. See playbook Automation section for full breakdown.
+
 ### O6: Real-Time Anti-Malware on Agent and Pipeline Hosts
 
 An up-to-date anti-malware solution running on the VPS catches information stealers, credential harvesting malware, and other threats that operate below the application layer — threats that WASM sandboxing, iptables rules, and audit logs cannot detect:
