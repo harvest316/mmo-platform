@@ -14,22 +14,39 @@
 
   systemd.user.services.dev-precache = {
     description = "Pre-warm direnv/nix-shell caches and update dev tools";
-    path = with pkgs; [ direnv nix git bash nodejs coreutils ];
+    path = with pkgs; [ direnv nix git bash nodejs coreutils util-linux ];
     serviceConfig = {
       Type = "oneshot";
       Nice = 19;
       Environment = "HOME=/home/jason";
+      StandardOutput = "journal";
+      StandardError = "journal";
     };
     script = ''
+      echo "dev-precache: starting"
+
       # Update wrangler
-      npm update -g wrangler 2>&1 | logger -t dev-precache || true
+      if command -v npm >/dev/null 2>&1; then
+        echo "dev-precache: updating wrangler..."
+        npm update -g wrangler 2>&1 || echo "dev-precache: wrangler update failed (non-fatal)"
+      else
+        echo "dev-precache: npm not found in PATH"
+      fi
 
       # Pre-warm direnv caches
+      # Touch the manual-reload trigger so nix_direnv_manual_reload
+      # forces a full Nix re-evaluation (otherwise it just sources
+      # the existing cache and exits in <1s)
       for dir in /home/jason/code/333Method /home/jason/code/2Step /home/jason/code/distributed-infra /home/jason/code/mmo-platform; do
         if [ -f "$dir/.envrc" ]; then
-          cd "$dir" && direnv exec . true 2>&1 | logger -t dev-precache || true
+          echo "dev-precache: warming $dir..."
+          mkdir -p "$dir/.direnv"
+          touch "$dir/.direnv/.manual-reload-trigger"
+          (cd "$dir" && direnv exec . true 2>&1) || echo "dev-precache: FAILED $dir"
         fi
       done
+
+      echo "dev-precache: done"
     '';
   };
 
