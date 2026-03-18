@@ -34,14 +34,12 @@
       fi
 
       # Pre-warm direnv caches
-      # Touch the manual-reload trigger so nix_direnv_manual_reload
-      # forces a full Nix re-evaluation (otherwise it just sources
-      # the existing cache and exits in <1s)
+      # _nix_direnv_force_reload=1 bypasses nix_direnv_manual_reload's
+      # cache check, forcing a full Nix re-evaluation
+      export _nix_direnv_force_reload=1
       for dir in /home/jason/code/333Method /home/jason/code/2Step /home/jason/code/distributed-infra /home/jason/code/mmo-platform; do
         if [ -f "$dir/.envrc" ]; then
           echo "dev-precache: warming $dir..."
-          mkdir -p "$dir/.direnv"
-          touch "$dir/.direnv/.manual-reload-trigger"
           (cd "$dir" && direnv exec . true 2>&1) || echo "dev-precache: FAILED $dir"
         fi
       done
