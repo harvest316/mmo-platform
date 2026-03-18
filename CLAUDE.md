@@ -73,6 +73,19 @@ When user goes AFK and asks for monitoring across both projects, a single Claude
 Same as 333Method: operate autonomously for local, reversible actions.
 Always confirm before: git push, deleting files, external communications.
 
+## Agency Agents — When to Use
+
+When working on tasks, consider using these specialized agents via `subagent_type`:
+
+- **Rapid Prototyper** (Sonnet, medium) — When asked to build a quick PoC or MVP
+- **Code Reviewer** (Sonnet, medium) — After writing significant code (>50 lines), run on changed files before committing
+- **Security Engineer** (Opus, max) — When touching payment, auth, webhook, or PII-handling code
+- **Database Optimizer** (Sonnet, high) — When writing new migrations or complex queries
+- **Test Results Analyzer** (Haiku, low) — After test failures, analyze patterns before attempting fixes
+- **Performance Benchmarker** (Sonnet, medium) — When changing concurrency settings, batch sizes, or rate limits
+
+Full catalog: `docs/agency-agents-reference.md`
+
 ## VSCode Tips
 
 - Open workspace: `File → Open Workspace from File → ~/code/mmo.code-workspace`

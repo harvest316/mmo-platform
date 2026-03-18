@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(systemctl --user status 333method-orchestrator.timer)",
+      "Bash(systemctl --user list-timers)"
     ]
   }
 }
