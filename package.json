@@ -9,5 +9,11 @@
   ],
   "engines": {
     "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3"
+  },
+  "scripts": {
+    "init-db": "node scripts/init-messages-db.js"
   }
 }
