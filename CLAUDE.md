@@ -86,6 +86,25 @@ When working on tasks, consider using these specialized agents via `subagent_typ
 
 Full catalog: `docs/agency-agents-reference.md`
 
+## Website Deployment
+
+FTP deploy script for auditandfix.com (and future sites):
+
+```bash
+# Upload specific files (paths relative to auditandfix.com/)
+scripts/deploy-website.sh index.php api.php
+
+# Upload only git-changed files
+scripts/deploy-website.sh --changed
+
+# Upload everything
+scripts/deploy-website.sh --all
+```
+
+- Credentials: `mmo-platform/.env` (FTP_HOST, FTP_USER, FTP_PASS — gitignored)
+- Source dir defaults to `~/code/333Method/auditandfix.com/` (override with `WEBSITE_DIR` env var)
+- Website will move to `mmo-platform/` in a future phase
+
 ## VSCode Tips
 
 - Open workspace: `File → Open Workspace from File → ~/code/mmo.code-workspace`
