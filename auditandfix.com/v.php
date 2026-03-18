@@ -53,11 +53,12 @@ $reviewCount  = (int)($video['review_count'] ?? 0);
 $countryCode  = $video['country_code'] ?? detectCountry();
 $nicheTier    = $video['niche_tier'] ?? 'standard';
 
-// Get pricing from geo.php / config
-$pricing = getPricing();
-$priceData = getPriceForCountry($countryCode, $pricing);
-$currency = $priceData['currency'] ?? 'USD';
-$symbol = ['AUD' => 'A$', 'USD' => '$', 'GBP' => '£', 'CAD' => 'CA$', 'NZD' => 'NZ$'][$currency] ?? '$';
+// Get 2Step video pricing for this visitor's country
+$videoPricing = get2StepPriceForCountry($countryCode);
+$symbol   = $videoPricing['symbol'];
+$price4   = $videoPricing['monthly_4'];
+$price8   = $videoPricing['monthly_8'];
+$price12  = $videoPricing['monthly_12'];
 
 // Deal timer (same IP-hash system as homepage)
 $dealExpiresAt = getDealExpiresAt();
@@ -138,18 +139,18 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
         <div class="pricing-cards">
             <div class="pricing-card">
                 <div class="label">Starter</div>
-                <div class="price"><?= $symbol ?>99<span class="period">/mo</span></div>
+                <div class="price"><?= $symbol ?><?= $price4 ?><span class="period">/mo</span></div>
                 <p>4 videos per month</p>
             </div>
             <div class="pricing-card" style="border: 2px solid #2563eb;">
                 <div class="label">Growth</div>
-                <div class="price"><?= $symbol ?>179<span class="period">/mo</span></div>
+                <div class="price"><?= $symbol ?><?= $price8 ?><span class="period">/mo</span></div>
                 <p>8 videos per month</p>
                 <small style="color: #2563eb;">Most popular</small>
             </div>
             <div class="pricing-card">
                 <div class="label">Scale</div>
-                <div class="price"><?= $symbol ?>249<span class="period">/mo</span></div>
+                <div class="price"><?= $symbol ?><?= $price12 ?><span class="period">/mo</span></div>
                 <p>12 videos per month</p>
             </div>
         </div>

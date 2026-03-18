@@ -11,11 +11,12 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/geo.php';
 require_once __DIR__ . '/../includes/pricing.php';
 
-$countryCode = detectCountry();
-$pricing = getPricing();
-$priceData = getPriceForCountry($countryCode, $pricing);
-$currency = $priceData['currency'] ?? 'USD';
-$symbol = ['AUD' => 'A$', 'USD' => '$', 'GBP' => '£', 'CAD' => 'CA$', 'NZD' => 'NZ$'][$currency] ?? '$';
+$countryCode  = detectCountry();
+$videoPricing = get2StepPriceForCountry($countryCode);
+$symbol  = $videoPricing['symbol'];
+$price4  = $videoPricing['monthly_4'];
+$price8  = $videoPricing['monthly_8'];
+$price12 = $videoPricing['monthly_12'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -126,7 +127,7 @@ $symbol = ['AUD' => 'A$', 'USD' => '$', 'GBP' => '£', 'CAD' => 'CA$', 'NZD' => 
     <div class="pricing-cards">
         <div class="pricing-card">
             <div class="tier">Starter</div>
-            <div class="price"><?= $symbol ?>99<span class="period">/mo</span></div>
+            <div class="price"><?= $symbol ?><?= $price4 ?><span class="period">/mo</span></div>
             <ul>
                 <li>4 videos per month</li>
                 <li>30-second format</li>
@@ -136,7 +137,7 @@ $symbol = ['AUD' => 'A$', 'USD' => '$', 'GBP' => '£', 'CAD' => 'CA$', 'NZD' => 
         </div>
         <div class="pricing-card featured">
             <div class="tier">Growth</div>
-            <div class="price"><?= $symbol ?>179<span class="period">/mo</span></div>
+            <div class="price"><?= $symbol ?><?= $price8 ?><span class="period">/mo</span></div>
             <ul>
                 <li>8 videos per month</li>
                 <li>30-second format</li>
@@ -147,7 +148,7 @@ $symbol = ['AUD' => 'A$', 'USD' => '$', 'GBP' => '£', 'CAD' => 'CA$', 'NZD' => 
         </div>
         <div class="pricing-card">
             <div class="tier">Scale</div>
-            <div class="price"><?= $symbol ?>249<span class="period">/mo</span></div>
+            <div class="price"><?= $symbol ?><?= $price12 ?><span class="period">/mo</span></div>
             <ul>
                 <li>12 videos per month</li>
                 <li>30-second format</li>

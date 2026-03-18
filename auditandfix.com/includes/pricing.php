@@ -41,12 +41,23 @@ function getPricing(): array {
  */
 function get2StepPricing(): array {
     return [
-        'AU' => ['monthly_4' => 139, 'monthly_8' => 249, 'monthly_12' => 349, 'setup' => 899,  'currency' => 'AUD', 'symbol' => '$'],
+        'AU' => ['monthly_4' => 139, 'monthly_8' => 249, 'monthly_12' => 349, 'setup' => 899,  'currency' => 'AUD', 'symbol' => 'A$'],
         'US' => ['monthly_4' =>  99, 'monthly_8' => 179, 'monthly_12' => 249, 'setup' => 625,  'currency' => 'USD', 'symbol' => '$'],
         'UK' => ['monthly_4' =>  79, 'monthly_8' => 139, 'monthly_12' => 199, 'setup' => 489,  'currency' => 'GBP', 'symbol' => '£'],
-        'CA' => ['monthly_4' => 129, 'monthly_8' => 229, 'monthly_12' => 329, 'setup' => 849,  'currency' => 'CAD', 'symbol' => '$'],
-        'NZ' => ['monthly_4' => 149, 'monthly_8' => 279, 'monthly_12' => 389, 'setup' => 989,  'currency' => 'NZD', 'symbol' => '$'],
+        'CA' => ['monthly_4' => 129, 'monthly_8' => 229, 'monthly_12' => 329, 'setup' => 849,  'currency' => 'CAD', 'symbol' => 'CA$'],
+        'NZ' => ['monthly_4' => 149, 'monthly_8' => 279, 'monthly_12' => 389, 'setup' => 989,  'currency' => 'NZD', 'symbol' => 'NZ$'],
     ];
+}
+
+/**
+ * Look up 2Step video pricing for a given country code.
+ * Falls back to US pricing for unknown countries.
+ */
+function get2StepPriceForCountry(string $countryCode): array {
+    $table = get2StepPricing();
+    $code = strtoupper($countryCode);
+    if ($code === 'GB') $code = 'UK';
+    return $table[$code] ?? $table['US'];
 }
 
 function getPriceForCountry(string $countryCode, array $pricing): array {
