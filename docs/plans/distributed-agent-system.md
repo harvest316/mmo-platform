@@ -4590,13 +4590,25 @@ From reviewing AFK monitoring transcripts, 8 recurring question patterns emerged
 
 ### New Dashboard Pages
 
-All pages below are additions to the existing Streamlit dashboard (`dashboard/pages/`) and the planned React/FastAPI dashboard v2 (`dashboard-v2/`). They use pre-computed cache keys (4-min TTL) populated by `src/cron/precompute-dashboard.js`, never direct DB queries from the frontend.
+All pages below target the React/FastAPI dashboard v2 (`dashboard-v2/`). They use pre-computed cache keys (4-min TTL) populated by `src/cron/precompute-dashboard.js`, never direct DB queries from the frontend.
+
+**Streamlit note:** Do not build new Streamlit pages. Build only in React dashboard-v2. The existing Streamlit dashboard continues to run until React dashboard-v2 reaches full parity, then Streamlit is retired.
 
 ---
 
-#### Q.1 Pipeline Health Page
+#### Q.1 + Q.2 + Q.3 Pipeline Page (merged)
 
-**File:** `dashboard/pages/10_🔄_Pipeline_Health.py` (Streamlit) + `dashboard-v2/frontend/src/pages/PipelineHealth.jsx`
+**Note:** Q.1 (Pipeline Health), Q.2 (Per-Stage Performance), and Q.3 (Concurrency Monitor) are consolidated into a single **Pipeline** page in React dashboard-v2. This avoids navigation fragmentation — these three views answer the same question from different angles and are most useful when visible together.
+
+**File:** `dashboard-v2/frontend/src/pages/Pipeline.jsx`
+
+**Tabs:** Pipeline Health | Performance | Concurrency
+
+---
+
+##### Q.1 Pipeline Health (tab: Pipeline Health)
+
+**File:** (previously `dashboard/pages/10_🔄_Pipeline_Health.py`)
 
 **Primary question answered:** "What's stuck? What's actively flowing?"
 
@@ -4633,9 +4645,9 @@ All pages below are additions to the existing Streamlit dashboard (`dashboard/pa
 
 ---
 
-#### Q.2 Per-Stage Performance Page
+##### Q.2 Per-Stage Performance (tab: Performance)
 
-**File:** `dashboard/pages/11_⚡_Performance.py` + `dashboard-v2/frontend/src/pages/Performance.jsx`
+**File:** (previously `dashboard/pages/11_⚡_Performance.py`; now a tab in `Pipeline.jsx`)
 
 **Primary question answered:** "Is each stage getting faster or slower? What's the per-site time?"
 
@@ -4673,9 +4685,9 @@ All pages below are additions to the existing Streamlit dashboard (`dashboard/pa
 
 ---
 
-#### Q.3 Concurrency Monitor Widget
+##### Q.3 Concurrency Monitor (tab: Concurrency)
 
-**Location:** Embedded in Performance page (Q.2) and System Health page sidebar
+**Location:** Third tab in the merged Pipeline page (`Pipeline.jsx`). Also available as a compact widget in the System Health page sidebar.
 
 **Primary question answered:** "What's the effective concurrency vs configured? Is adaptive throttling active?"
 
@@ -4739,9 +4751,17 @@ All pages below are additions to the existing Streamlit dashboard (`dashboard/pa
 
 ---
 
-#### Q.5 API Health & Cost Page
+#### Q.5 + Q.6 Operations Page (merged)
 
-**File:** `dashboard/pages/13_💰_API_Health.py` + `dashboard-v2/frontend/src/pages/ApiHealth.jsx`
+**Note:** Q.5 (API Health & Cost) and Q.6 (Monitoring Audit) are merged into the existing **Operations** page in React dashboard-v2 as additional tabs alongside the existing CronJobs and SystemHealth tabs.
+
+**File:** `dashboard-v2/frontend/src/pages/Operations.jsx` (add tabs: API Health | Monitoring Audit)
+
+---
+
+##### Q.5 API Health & Cost (tab: API Health)
+
+**File:** (previously `dashboard/pages/13_💰_API_Health.py`)
 
 **Primary question answered:** "What's the error rate per API? How much is being wasted on failures?"
 
@@ -4776,9 +4796,9 @@ All pages below are additions to the existing Streamlit dashboard (`dashboard/pa
 
 ---
 
-#### Q.6 Monitoring Audit Widget
+##### Q.6 Monitoring Audit (tab: Monitoring Audit)
 
-**Location:** Embedded in System Health page (existing `dashboard/pages/6_🖥️_System_Health.py`)
+**Location:** Tab in the Operations page (`Operations.jsx`). Previously planned as an embedded widget in System Health.
 
 **Primary question answered:** "Did the watchers catch what they were supposed to catch? What did they miss?"
 
@@ -4806,7 +4826,9 @@ All pages below are additions to the existing Streamlit dashboard (`dashboard/pa
 
 #### Q.7 Config Validator Widget
 
-**Location:** Sticky sidebar widget in all dashboard pages (Streamlit sidebar + React Layout.jsx header)
+**Note:** This is not a separate page. Implement as a compact header widget in `Layout.jsx`, visible on all pages. The sidebar adds clutter for something this compact — a header badge strip is more appropriate.
+
+**Location:** `Layout.jsx` header (React dashboard-v2). Not a sidebar widget, not a separate page.
 
 **Primary question answered:** "Are my config flags doing what I think they're doing?"
 
@@ -4830,7 +4852,9 @@ All pages below are additions to the existing Streamlit dashboard (`dashboard/pa
 
 #### Q.8 Metrics Consistency Check
 
-**Location:** Footer of Overview page + daily agent monitor check
+**Note:** This is not a separate page. Implement as a collapsible footer widget at the bottom of the Overview page.
+
+**Location:** Footer of Overview page (`Overview.jsx`) + daily agent monitor check. Not a separate route.
 
 **Primary question answered:** "Do all my metrics agree with each other?"
 
@@ -4863,9 +4887,154 @@ All pages below are additions to the existing Streamlit dashboard (`dashboard/pa
 
 ---
 
+#### Q.9 Inbound Reply Funnel
+
+**File:** `dashboard-v2/frontend/src/pages/Outreach.jsx` (add as a new tab or panel within the existing Outreach page)
+
+**Primary question answered:** "How many inbound replies do we get, and are they converting?"
+
+**Widgets:**
+
+1. **Reply Volume** — total inbound replies (last 7 / 30 days), trend vs prior period
+
+2. **Funnel Stage Distribution** — pie/bar chart breaking down replies by stage:
+   - `interested` — expressed positive interest ("yes", "tell me more")
+   - `confused` — unclear/short response ("?", "what is this")
+   - `warm` — follow-up or soft engagement after initial reply
+   - `asks_price` — directly asking cost/price
+   - `stop` — opt-out or hostile
+   - `unclassified` — not yet classified by `classify_replies` cron
+
+3. **Conversion Rate** — funnel: total outreach sent → replied → interested → sale (confirmed payment)
+   - Derived from `messages`, `outreaches`, `sales` tables (or equivalent)
+   - Shows drop-off percentage at each stage
+
+4. **Stage-to-Sale Timeline** — median days from first reply to sale (last 30 days)
+
+**Backend endpoint:** `GET /api/v1/reply-funnel`
+
+```python
+# Precomputed cache key: 'reply_funnel' (15-min TTL)
+{
+  "reply_counts": {"7d": int, "30d": int, "trend_pct": float},
+  "by_stage": [{"stage": str, "count": int, "pct": float}],
+  "funnel": {
+    "outreach_sent": int,
+    "replied": int,
+    "interested": int,
+    "sales": int,
+    "reply_rate_pct": float,
+    "interest_rate_pct": float,
+    "conversion_rate_pct": float
+  },
+  "median_days_to_sale": float | null
+}
+```
+
+---
+
+#### Q.10 GDPR / Compliance Blocking Visibility
+
+**File:** `dashboard-v2/frontend/src/pages/Compliance.jsx` (add panel to existing Compliance page)
+
+**Primary question answered:** "How many approved messages are blocked from sending due to country restrictions? Which countries are the biggest bottleneck?"
+
+**Widgets:**
+
+1. **Blocked Outreach Count** — count of approved unsent messages blocked by GDPR/TCPA/country restrictions
+   - Breakdown: GDPR-blocked (EU countries), TCPA-blocked (US outside 8am–9pm ET), country-not-supported
+
+2. **Country Breakdown Table** — top 10 countries by blocked message count:
+   - Columns: Country, Messages blocked, Restriction type (GDPR / TCPA / hours), Unblock condition
+
+3. **Eligible vs Blocked Ratio** — stacked bar: eligible (can send now) vs blocked (country restriction) vs blocked (time window) vs failed/retry
+   - Mirrors the `eligible_outreach` calculation from the orchestrator throttle gates
+
+4. **GDPR Consent Log** — count of sites with explicit consent on file vs total EU-domain sites (future: when consent capture is implemented)
+
+**Backend endpoint:** `GET /api/v1/compliance-blocking`
+
+```python
+# Precomputed cache key: 'compliance_blocking' (10-min TTL)
+{
+  "total_blocked": int,
+  "by_country": [{"country": str, "count": int, "restriction": str}],
+  "eligible_now": int,
+  "blocked_gdpr": int,
+  "blocked_tcpa_hours": int,
+  "blocked_failed_retry": int
+}
+```
+
+---
+
+#### Q.11 Database Health
+
+**File:** `dashboard-v2/frontend/src/pages/Operations.jsx` (add as a tab: Database Health)
+
+**Primary question answered:** "Is SQLite under stress? Are there lock contention or WAL growth problems?"
+
+**Widgets:**
+
+1. **WAL File Size** — current `db/sites.db-wal` file size in MB, trend over last 24h
+   - Warning threshold: > 100MB; critical: > 500MB
+
+2. **SQLITE_BUSY Error Rate** — count of `SQLITE_BUSY` errors in last 1h / 24h (from `system_health` or error log)
+   - Source: add `metric_name='sqlite_busy'` records to `system_health` from any module that catches `SQLITE_BUSY`
+
+3. **Query Timeout Count** — `PRAGMA busy_timeout` hits (queries that waited the full 5000ms and still failed) — sourced from same `system_health` metric
+
+4. **Lock Contention Timeline** — sparkline of SQLITE_BUSY errors per 10-min bucket (last 2h)
+
+5. **DB File Size** — current `db/sites.db` file size, trend
+
+6. **Last Checkpoint** — when WAL was last checkpointed (from a `PRAGMA wal_checkpoint` result stored periodically)
+
+**New `system_health` metric** — add to any module catching SQLite errors:
+
+```javascript
+// In error handler for SQLITE_BUSY:
+db.prepare(`INSERT INTO system_health (metric_name, metric_value, recorded_at)
+  VALUES ('sqlite_busy', 1, datetime('now'))`).run();
+```
+
+**Backend endpoint:** `GET /api/v1/db-health`
+
+```python
+# Precomputed cache key: 'db_health' (5-min TTL)
+{
+  "wal_size_mb": float,
+  "db_size_mb": float,
+  "sqlite_busy_1h": int,
+  "sqlite_busy_24h": int,
+  "last_checkpoint_at": str | null,
+  "busy_timeline": [{"bucket": str, "count": int}]
+}
+```
+
+---
+
 ### Implementation Notes
 
-**Data sources:** All new pages use existing tables (`pipeline_metrics`, `system_health`, `agent_tasks`, `outreaches`, `cron_jobs`, `openrouter_credit_log`). No new migrations required for Q.1–Q.5, Q.7–Q.8.
+**Data sources:** All new pages use existing tables (`pipeline_metrics`, `system_health`, `agent_tasks`, `messages`, `outreaches`, `cron_jobs`, `openrouter_credit_log`). No new migrations required for Q.1–Q.5, Q.7–Q.8. Q.9 requires `messages` + `outreaches` join. Q.10 requires `messages` filtered by country. Q.11 requires new `system_health` metric writes.
+
+**Stop parsing log files for API error data.** Add a structured `api_call_log` table instead. `circuit-breaker.js` and every LLM provider module should write to this table on every API call:
+
+```sql
+-- Migration: db/migrations/0XX-api-call-log.sql
+CREATE TABLE IF NOT EXISTS api_call_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  service     TEXT NOT NULL,          -- 'openrouter', 'zenrows', 'resend', 'twilio', etc.
+  status_code INTEGER,                -- HTTP status (null if network error)
+  error_message TEXT,
+  estimated_cost_usd REAL,
+  wasted      INTEGER NOT NULL DEFAULT 0 CHECK(wasted IN (0,1)),  -- 1 if call failed after tokens consumed
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_api_call_log_service_time ON api_call_log(service, created_at DESC);
+```
+
+This replaces log-scraping in Q.5 (API Health) and provides reliable wasted-cost calculation.
 
 **Q.6 requires two new `system_health` record types** written by `scripts/monitoring-checks.sh`:
 
@@ -4902,18 +5071,39 @@ db.prepare('INSERT INTO system_health (metric_name, metric_value) VALUES (?, ?)'
 - `outreach_trust` (4-min TTL)
 - `api_health` (4-min TTL)
 - `metrics_consistency` (15-min TTL)
+- `reply_funnel` (15-min TTL)
+- `compliance_blocking` (10-min TTL)
+- `db_health` (5-min TTL)
 
-**Phase placement:** Implement Q.1–Q.4 as Streamlit additions now (no infrastructure dependency). Q.5–Q.8 can be added alongside or as part of the Part P React/FastAPI dashboard v2 build. Q.4 Config Validator sidebar widget is the highest-value single addition (answers 3 of the 8 recurring questions at once).
+**Data retention policy:**
+
+- `pipeline_metrics`: raw data retained 30 days; daily aggregates retained 1 year. Add a daily aggregation cron that populates a `pipeline_metrics_daily` summary table.
+- `system_health`: raw data retained 14 days; daily summaries retained 6 months.
+- `messages`: retained indefinitely — these are business records (outreach history, inbound replies, sales conversations).
+- `api_call_log`: retained 90 days (high volume; older records are low value).
+- `dashboard_cache`: no retention concern — keys are overwritten on each precompute cycle.
+
+**Push alerting:** Add SMS push alerting from `precompute-dashboard.js` or Process Guardian. Trigger a Twilio SMS to the operator when critical conditions fire:
+- Pipeline down > 4 hours (no stage has processed any sites)
+- API error rate > 10% on any service (from `api_call_log`)
+- Eligible outreach backlog crossing key thresholds (eligible_outreach = 0 when approved count is large)
+- WAL size > 500MB (db health)
+
+Use the existing Twilio credentials already in `.env.secrets`. This avoids needing to check Grafana/dashboard during overnight runs.
+
+**Phase placement:** All Q pages build into React dashboard-v2 only (no new Streamlit pages). Q.4 Config Validator header widget and Q.1+Q.2+Q.3 Pipeline page are the highest-value additions (answer 5 of the 8 recurring questions). Q.9 reply funnel becomes relevant once 2Step outreach is also funnelling through the same messages table.
 
 **Priority order:**
 
-1. Q.4 Config Validator sidebar (answers "are my flags doing what I think?" in one glance)
-2. Q.1 Pipeline Health (answers "what's stuck?" without running `npm run status`)
-3. Q.5 API Health & Cost (answers "how much is being wasted?")
-4. Q.2 Per-Stage Performance (answers "is it getting faster or slower?")
-5. Q.8 Metrics Consistency (builds trust in all other dashboard numbers)
-6. Q.3 Concurrency Monitor (useful but already partially visible in System Health)
-7. Q.6 Monitoring Audit (requires new monitoring-checks.sh instrumentation)
+1. Q.4 Config Validator header widget (answers "are my flags doing what I think?" in one glance)
+2. Q.1+Q.2+Q.3 merged Pipeline page (answers "what's stuck?" and "is it getting faster?" without running `npm run status`)
+3. Q.5+Q.6 Operations page additions (answers "how much is being wasted?" and "did monitoring catch it?")
+4. Q.10 Compliance Blocking panel (answers why eligible_outreach can be low despite large approved count)
+5. Q.11 Database Health tab (proactive WAL/lock visibility)
+6. Q.8 Metrics Consistency footer (builds trust in all other dashboard numbers)
+7. Q.9 Reply Funnel panel (most valuable once 2Step is in production alongside 333Method)
+
+**Cross-project analytics note:** Once both 333Method and 2Step are in production, unified business metrics across both projects will be needed — total outreach sent, total replies, total sales, combined revenue. Design Q.9 reply funnel and the Overview profitability panel with a `project` filter dimension so they can aggregate across projects. This is a Phase 2 concern (not needed until 2Step outreach is live).
 
 ---
 
