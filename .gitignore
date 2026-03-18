@@ -38,6 +38,11 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
 # Build outputs
 dist/
 build/

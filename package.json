@@ -17,6 +17,10 @@
     "init-db": "node scripts/init-messages-db.js",
     "pipeline": "node src/pipeline-runner.js",
     "pipeline:once": "node src/pipeline-runner.js --once",
-    "monitor": "sh scripts/monitoring-checks.sh"
+    "monitor": "sh scripts/monitoring-checks.sh",
+    "test:e2e:web": "npx playwright test tests/e2e/website.spec.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }
