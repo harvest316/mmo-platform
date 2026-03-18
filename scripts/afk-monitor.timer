@@ -1,0 +1,14 @@
+[Unit]
+Description=AFK Pipeline Monitor Timer — runs every 30 minutes
+Documentation=file:///home/jason/code/mmo-platform/scripts/afk-monitor.sh
+
+[Timer]
+# Run every 30 minutes, on the :00 and :30 boundary
+OnCalendar=*:0/30
+# Run immediately on boot/timer activation if last run was missed
+Persistent=true
+# Randomize start within 60s to avoid stampede with other timers
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

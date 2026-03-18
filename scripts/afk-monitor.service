@@ -1,0 +1,19 @@
+[Unit]
+Description=AFK Pipeline Monitor — health check for 333Method pipeline
+Documentation=file:///home/jason/code/mmo-platform/scripts/afk-monitor.sh
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/jason/code/mmo-platform/scripts/afk-monitor.sh
+User=jason
+# Environment overrides (uncomment to change defaults)
+# Environment="PROJECT_DIR=/home/jason/code/333Method"
+# Environment="PLATFORM_DIR=/home/jason/code/mmo-platform"
+
+# Allow warnings (exit 1) without systemd treating the unit as failed
+# Critical (exit 2) will still be logged as a failure in journald
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target
