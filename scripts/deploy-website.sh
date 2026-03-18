@@ -13,8 +13,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLATFORM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Website source — currently in 333Method, will move to mmo-platform
-SITE_DIR="${WEBSITE_DIR:-/home/jason/code/333Method/auditandfix.com}"
+# Website source — mmo-platform/auditandfix.com/
+SITE_DIR="${WEBSITE_DIR:-$PLATFORM_DIR/auditandfix.com}"
 
 # Load FTP credentials
 ENV_FILE="$PLATFORM_DIR/.env"

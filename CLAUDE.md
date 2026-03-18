@@ -102,8 +102,8 @@ scripts/deploy-website.sh --all
 ```
 
 - Credentials: `mmo-platform/.env` (FTP_HOST, FTP_USER, FTP_PASS — gitignored)
-- Source dir defaults to `~/code/333Method/auditandfix.com/` (override with `WEBSITE_DIR` env var)
-- Website will move to `mmo-platform/` in a future phase
+- Source dir: `mmo-platform/auditandfix.com/` (override with `WEBSITE_DIR` env var)
+- `.htaccess` and `e2e-test-page-*.php` are gitignored (contain live secrets — manage on Hostinger directly)
 
 ## VSCode Tips
 

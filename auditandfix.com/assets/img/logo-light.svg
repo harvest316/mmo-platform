@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 48" width="210" height="48" role="img" aria-label="Audit&amp;Fix">
+  <!-- Magnifying glass icon — orange stroke, navy tick (readable on white) -->
+  <circle cx="18" cy="18" r="11" fill="none" stroke="#e05d26" stroke-width="3.5"/>
+  <line x1="26" y1="26" x2="34" y2="34" stroke="#e05d26" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Tick mark inside glass — navy on light bg -->
+  <polyline points="12,18 16,22 24,13" fill="none" stroke="#1a365d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Wordmark — navy text, orange ampersand -->
+  <text y="32" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="26" font-weight="700" letter-spacing="-0.5">
+    <tspan x="44" fill="#1a365d">Audit</tspan><tspan fill="#e05d26">&amp;</tspan><tspan fill="#1a365d">Fix</tspan>
+  </text>
+</svg>

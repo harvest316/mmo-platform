@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /api
+Disallow: /o/
+Disallow: /data/
+Disallow: /thank-you
+Disallow: /e2e-test-page
+
+Sitemap: https://www.auditandfix.com/sitemap.xml

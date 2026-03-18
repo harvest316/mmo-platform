@@ -1,0 +1,83 @@
+# Audit&Fix Security Headers & Configuration
+
+# Environment Variables (double-quotes to escape spaces and unusual chars)
+SetEnv AUDITANDFIX_WORKER_URL https://auditandfix-api.auditandfix.workers.dev
+SetEnv AUDITANDFIX_WORKER_SANDBOX_URL https://auditandfix-api-test.auditandfix.workers.dev
+SetEnv AUDITANDFIX_WORKER_SECRET "copy_this_secret_from_dotenv"
+SetEnv AUDITANDFIX_SENDER_EMAIL marcus@auditandfix.com
+SetEnv LEGALS_EMAIL legal@auditandfix.com
+SetEnv BUSINESS_ADDRESS "copy_this_secret_from_dotenv"
+SetEnv OPERATOR_NAME "Marcus Webb"
+SetEnv BUSINESS_PHONE "copy_this_secret_from_dotenv"
+SetEnv BUSINESS_ABN "copy_this_secret_from_dotenv"
+SetEnv PAYPAL_MODE sandbox
+SetEnv PAYPAL_CLIENT_ID "copy_this_secret_from_dotenv"
+SetEnv PAYPAL_CLIENT_SECRET "copy_this_secret_from_dotenv"
+SetEnv PAYPAL_SANDBOX_CLIENT_ID "copy_this_secret_from_dotenv"
+SetEnv PAYPAL_SANDBOX_CLIENT_SECRET "copy_this_secret_from_dotenv"
+SetEnv PAYPAL_SANDBOX_BUYER_EMAIL "copy_this_secret_from_dotenv"
+SetEnv PAYPAL_SANDBOX_BUYER_PASSWORD "copy_this_secret_from_dotenv"
+SetEnv E2E_AUDITANDFIX_URL https://auditandfix.com
+SetEnv DEAL_HASH_SALT "change_this_to_a_random_string"
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; frame-src https://www.paypal.com https://www.sandbox.paypal.com; connect-src 'self' https://www.paypal.com https://www.sandbox.paypal.com; img-src 'self' data: blob: https://www.paypalobjects.com;"
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
+
+# Block access to sensitive files
+<FilesMatch "^(config\.php|\.env|\.env\.example|\.git)">
+    Require all denied
+</FilesMatch>
+
+# Block access to includes directory
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^includes/ - [F,L]
+
+    # Clean URL rewrites (remove .php extension)
+    RewriteRule ^scan/?$        scan.php   [L,QSA]
+    RewriteRule ^thank-you/?$   thank-you.php [L,QSA]
+    RewriteRule ^privacy/?$     privacy.php [L,QSA]
+    RewriteRule ^terms/?$       terms.php  [L,QSA]
+    RewriteRule ^cookies/?$     cookies.php [L,QSA]
+    RewriteRule ^impressum/?$   impressum.php [L,QSA]
+
+    # Audits landing page (outreach pre-warmed)
+    RewriteRule ^a/(\d+)/?$     a.php/$1   [L,QSA]
+
+    # Legacy outreach short-URL (kept for backwards compat)
+    RewriteRule ^o/(\d+)/?$     o.php/$1   [L,QSA]
+
+    # 2Step video sales page
+    RewriteRule ^v/([a-zA-Z0-9]+)/?$  v.php/$1  [L,QSA]
+
+    # Video reviews landing page
+    RewriteRule ^video-reviews/?$  video-reviews/index.php  [L,QSA]
+
+    # Block access to data directory (prefill JSON, video JSON, deal files)
+    RewriteRule ^data/ - [F,L]
+</IfModule>
+
+# GZIP Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json
+</IfModule>
+
+# Cache static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+</IfModule>
