@@ -124,7 +124,8 @@ fi
 # ── Check 6: Error rate — recent pipeline errors ──────────────────────────────
 pipeline_log=$(ls -t "$LOGS"/pipeline-*.log 2>/dev/null | head -1)
 if [ -f "$pipeline_log" ]; then
-  recent_errors=$(tail -500 "$pipeline_log" 2>/dev/null | grep -c 'ERROR\|status code [45][0-9][0-9]\|ETIMEDOUT\|ECONNRESET' 2>/dev/null || echo "0")
+  recent_errors=$(tail -500 "$pipeline_log" 2>/dev/null | grep -c 'ERROR\|status code [45][0-9][0-9]\|ETIMEDOUT\|ECONNRESET' 2>/dev/null)
+  recent_errors=${recent_errors:-0}
   recent_lines=$(tail -500 "$pipeline_log" 2>/dev/null | wc -l | tr -d ' ')
   if [ "$recent_lines" -gt 0 ] && [ "$recent_errors" -gt 0 ]; then
     err_pct=$((recent_errors * 100 / recent_lines))

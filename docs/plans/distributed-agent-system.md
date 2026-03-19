@@ -42,7 +42,7 @@
     - [Phase 0: LLM Privacy Proxy — Direct Anthropic API (Do Now)](#phase-0-llm-privacy-proxy--direct-anthropic-api-do-now--immediate-cost-savings)
     - [Phase 0.5: MCP Pre-requisites](#phase-05-mcp-pre-requisites-do-now--before-phase-1)
 - [Part Q: Operational Intelligence Dashboard Pages](#part-q-operational-intelligence-dashboard-pages-added-2026-03-04)
-  - [Q.1 Pipeline Health Page](#q1-pipeline-health-page)
+  - [Q.1 Pipeline Health Page](#q1-pipeline-health-page) (incl. Flow Diagram with Throttle Gates + Outreach Efficiency Gauge)
   - [Q.2 Per-Stage Performance Page](#q2-per-stage-performance-page)
   - [Q.3 Concurrency Monitor Widget](#q3-concurrency-monitor-widget)
   - [Q.4 Outreach Trust Panel](#q4-outreach-trust-panel)
@@ -4630,6 +4630,67 @@ All pages below target the React/FastAPI dashboard v2 (`dashboard-v2/`). They us
 
 5. **Retry Queue** — count of `failing` sites draining back to `found` (via `retryFailingSites()`)
 
+6. **Pipeline Flow Diagram with Throttle Gates** (primary visualisation — renders above the bar chart)
+
+   The single most important dashboard view. Shows the full pipeline as a left-to-right flow with throttle gates as barriers between stage groups. At a glance: what's flowing, what's blocked, and why.
+
+   **Layout:**
+
+   ```
+   ┌─────────┐    ┌──────────┐    ┌────────────┐         ┌───────────┐         ┌────────────┐         ┌───────────┐
+   │  found  │───▶│  assets  │───▶│  scored    │──┤G3├──▶│ enriched  │──┤G2├──▶│ proposals  │──┤G1├──▶│ outreach  │
+   │ 314,592 │    │  3,189   │    │  25,391    │  │🟢│   │    46     │  │🔴│   │  13,173    │  │🟢│   │  10,392   │
+   └─────────┘    └──────────┘    └────────────┘  │  │   └───────────┘  │  │   └────────────┘  │  │   └───────────┘
+                                                  └──┘                  └──┘                   └──┘
+                                               46 < 45?              261 < 45?                0 < 150?
+                                               actable:46            actable:261              actable:0
+   ```
+
+   Each **gate** renders as a vertical barrier between its upstream and downstream stages:
+   - **Green** (open): actable count ≤ threshold — upstream stages flow freely
+   - **Red** (closed): actable count > threshold — upstream stages paused
+   - Shows: gate name, threshold formula, actable count, total count, and what's excluded (cooldown/GDPR/SMS-blocked)
+
+   **Gate detail cards** (expand on hover/click):
+
+   | Gate | Upstream Blocked | Threshold | Actable Count Def |
+   |------|-----------------|-----------|-------------------|
+   | G1 (Outreach) | proofread, proposals, enrich, scoring | max(3×daily_send_avg, 3×proofread_batch) | Approved + unsent + email/sms + template country + past cooldown + GDPR verified + not SMS-blocked |
+   | G2 (Proposals) | proposals, enrich | 3×(proposals_email + proposals_sms batch) | Sites at proposals_drafted with messages at approval_status IN (pending, rework) — NOT approved messages waiting on cooldown |
+   | G3 (Enriched) | enrich, scoring | 3×enrich_batch | Enriched sites in template countries with score < cutoff |
+
+   **Critical design rule:** Gates count only _truly actable_ items. Messages waiting on cooldown, GDPR verification, or SMS-blocked countries are excluded. Without this, false backpressure from non-sendable inventory grinds the entire pipeline to a halt. (Incident: 2026-03-19 — Gate 2 counted 5,600 approved-but-unsendable proposals, blocking upstream for days while 314K sites sat at `found`.)
+
+7. **Outreach Efficiency Gauge** (renders at the outreach endpoint of the flow diagram)
+
+   Shows whether outreach is consuming inventory at the target rate. This is the **#1 pipeline health signal** — if outreach is starving, all upstream work is waste.
+
+   ```
+   ┌─────────────────────────────────────┐
+   │  OUTREACH EFFICIENCY                │
+   │  ████████░░ 0%  (target: 95%)       │
+   │                                     │
+   │  Batch: 0 / 20 sent                 │
+   │  10-cycle avg: 0%                   │
+   │                                     │
+   │  Why not sending:                   │
+   │   ▸ 647 AU — cooldown (expires ~21) │
+   │   ▸ 325 UK — GDPR unverified        │
+   │   ▸  65 NZ — cooldown (expires ~21) │
+   │   ▸  33 US — cooldown (expires ~21) │
+   │   ▸  27 IN — SMS-blocked country    │
+   │   ▸  18 CA — cooldown (expires ~21) │
+   │                                     │
+   │  Next sendable: ~2026-03-21 (AU×647)│
+   └─────────────────────────────────────┘
+   ```
+
+   - Gauge fills proportional to send rate vs batch size
+   - Green ≥ 95%, yellow 50-94%, red < 50%
+   - "Why not sending" section auto-populates from the eligible_outreach query breakdown — groups by country and blocking reason (cooldown, GDPR, SMS-blocked, no template, no contacts)
+   - "Next sendable" shows when the largest blocked cohort becomes eligible
+   - Codified threshold: `OUTREACH_EFFICIENCY_TARGET = 0.95` in `pipeline-service.js`
+
 **Backend endpoint:** `GET /api/v1/pipeline-health`
 
 ```python
@@ -4637,9 +4698,40 @@ All pages below target the React/FastAPI dashboard v2 (`dashboard-v2/`). They us
 {
   "stage_depths": [{"stage": str, "count": int, "new_1h": int, "max_age_minutes": int}],
   "last_run": [{"stage": str, "last_at": str, "age_minutes": int, "healthy": bool}],
-  "skip_stages": str | null,          # from env/DB config
+  "skip_stages": str | null,
   "stuck_sites": [{"stage": str, "count": int}],
-  "retry_queue_size": int
+  "retry_queue_size": int,
+  "gates": [{
+    "gate": str,                    # "G1_outreach" | "G2_proposals" | "G3_enriched"
+    "status": str,                  # "open" | "closed"
+    "actable": int,                 # truly sendable/processable items
+    "total": int,                   # total items (including non-actable)
+    "threshold": int,               # gate fires when actable > threshold
+    "threshold_formula": str,       # e.g. "3 × max(daily_avg=52, floor=50)"
+    "blocked_upstream": [str],      # stages paused by this gate
+    "exclusions": [{                # what was excluded from the actable count
+      "reason": str,                # "cooldown" | "gdpr_unverified" | "sms_blocked" | "no_template"
+      "country": str,
+      "count": int,
+      "resumes_at": str | null      # ISO datetime when this cohort becomes actable
+    }]
+  }],
+  "outreach_efficiency": {
+    "current_pct": float,           # latest cycle: sent / batch_size
+    "rolling_avg_pct": float,       # 10-cycle average
+    "target_pct": float,            # 0.95
+    "batch_size": int,
+    "last_sent": int,
+    "status": str,                  # "healthy" | "warning" | "critical"
+    "blocking_reasons": [{          # why outreach can't send
+      "country": str,
+      "reason": str,
+      "count": int,
+      "resumes_at": str | null
+    }],
+    "next_sendable_at": str | null, # earliest time a blocked cohort opens
+    "next_sendable_count": int      # how many will become sendable
+  }
 }
 ```
 

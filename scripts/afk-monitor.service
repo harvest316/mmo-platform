@@ -6,7 +6,6 @@ After=network.target
 [Service]
 Type=oneshot
 ExecStart=/home/jason/code/mmo-platform/scripts/afk-monitor.sh
-User=jason
 # Environment overrides (uncomment to change defaults)
 # Environment="PROJECT_DIR=/home/jason/code/333Method"
 # Environment="PLATFORM_DIR=/home/jason/code/mmo-platform"
@@ -16,4 +15,4 @@ User=jason
 SuccessExitStatus=0 1
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
