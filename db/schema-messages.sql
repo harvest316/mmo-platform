@@ -214,7 +214,10 @@ VALUES
     ('2step', 'CA', 'premium',  1019,  129, 229, 329, NULL, 'CAD'),
     ('2step', 'NZ', 'budget',    789,  149, 279, 389, NULL, 'NZD'),
     ('2step', 'NZ', 'standard',  989,  149, 279, 389, NULL, 'NZD'),
-    ('2step', 'NZ', 'premium',  1189,  149, 279, 389, NULL, 'NZD');
+    ('2step', 'NZ', 'premium',  1189,  149, 279, 389, NULL, 'NZD'),
+    ('2step', 'IE', 'budget',    597,   97, 179, 249, NULL, 'EUR'),
+    ('2step', 'IE', 'standard',  747,  127, 229, 327, NULL, 'EUR'),
+    ('2step', 'IE', 'premium',   947,  157, 279, 397, NULL, 'EUR');
 
 -- Seed: 333method pricing rows (report price only, setup/monthly NULL)
 -- Confirmed current prices: AU standard=$337 AUD, UK standard=£159, US standard=$297
