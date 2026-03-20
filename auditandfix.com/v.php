@@ -3,7 +3,7 @@
  * Video sales page — /v/{hash}
  *
  * Displays a personalised video page for each prospect showing:
- *   1. Their free 30-second video (from Google reviews)
+ *   1. Their free short video (from Google reviews)
  *   2. Sales pitch personalised to their business
  *   3. Pricing + subscription form
  *
@@ -70,7 +70,7 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>We made this for <?= $businessName ?> | Audit&amp;Fix Video Reviews</title>
-    <meta name="description" content="A free 30-second video created from your best Google review. See what your customers are saying about <?= $businessName ?>.">
+    <meta name="description" content="A free short video created from your best Google review. See what your customers are saying about <?= $businessName ?>.">
     <meta name="robots" content="noindex">
     <link rel="stylesheet" href="/assets/css/style.css">
     <style>
@@ -98,7 +98,7 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
 <body>
     <div class="video-hero">
         <h1>We made this for <?= $businessName ?></h1>
-        <p class="subtitle">A free 30-second video from your best Google review</p>
+        <p class="subtitle">A free short video from your best Google review</p>
 
         <div class="video-container">
             <video id="review-video" controls playsinline preload="auto" poster="<?= $posterUrl ?? '' ?>">
@@ -119,7 +119,7 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
         <h2>Your customers already love you</h2>
         <p>
             <?= $businessName ?> has <?= $reviewCount ?> Google reviews — and some of them are incredible.
-            We took one of your best and turned it into a 30-second video you can use on social media,
+            We took one of your best and turned it into a short video you can use on social media,
             your website, or anywhere you want to show off what your customers think of you.
         </p>
         <p>

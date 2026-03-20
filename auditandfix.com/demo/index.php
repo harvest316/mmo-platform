@@ -92,7 +92,7 @@ if (!$vertical || !isset($demos[$vertical])) {
             <p>We don't have a demo for "<?= htmlspecialchars($vertical, ENT_QUOTES) ?>" yet.</p>
         <?php else: ?>
             <h1>Video Review Demos</h1>
-            <p>See how we turn your best Google reviews into professional 30-second videos.</p>
+            <p>See how we turn your best Google reviews into professional short videos.</p>
         <?php endif; ?>
 
         <ul class="demo-list">
@@ -161,7 +161,7 @@ $planIdsJson = json_encode($countryPlans);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>We made this for <?= $businessName ?> | Audit&amp;Fix Video Reviews</title>
-    <meta name="description" content="A free 30-second video created from your best Google review. See what your customers are saying about <?= $businessName ?>.">
+    <meta name="description" content="A free short video created from your best Google review. See what your customers are saying about <?= $businessName ?>.">
     <meta name="robots" content="noindex">
     <link rel="stylesheet" href="/assets/css/style.css">
     <style>
@@ -202,7 +202,7 @@ $planIdsJson = json_encode($countryPlans);
     <div class="video-hero">
         <span class="demo-badge">DEMO</span>
         <h1>We made this for <?= $businessName ?></h1>
-        <p class="subtitle">A free 30-second video from your best Google review</p>
+        <p class="subtitle">A free short video from your best Google review</p>
 
         <?php if ($videoUrl): ?>
         <div class="video-container">
@@ -230,7 +230,7 @@ $planIdsJson = json_encode($countryPlans);
         <h2>Your customers already love you</h2>
         <p>
             <?= $businessName ?> has <?= $reviewCount ?> Google reviews &mdash; and some of them are incredible.
-            We took one of your best and turned it into a 30-second video you can share on social media,
+            We took one of your best and turned it into a short video you can share on social media,
             your website, or your Google Business Profile.
         </p>
         <p>
