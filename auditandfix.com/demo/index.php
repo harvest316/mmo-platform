@@ -56,9 +56,8 @@ $demos = [
         'star_rating'   => '4.7',
         'review_count'  => 256,
         'country_code'  => 'AU',
-        // TODO: re-render when ElevenLabs quota resets (exhausted 2026-03-20)
-        'video_url'     => '',
-        'poster_url'    => '',
+        'video_url'     => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900003-1773997467363.mp4',
+        'poster_url'    => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900003-1773997480820.jpg',
     ],
 ];
 
