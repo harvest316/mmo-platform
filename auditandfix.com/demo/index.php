@@ -24,21 +24,42 @@ $vertical = preg_replace('/[^a-z-]/', '', $_GET['vertical'] ?? '');
 
 $demos = [
     'pest-control' => [
-        'business_name' => 'Pest Control Sydney Wide',
+        'business_name' => 'ACME Pest Control',
         'city'          => 'Sydney',
         'niche'         => 'Pest Control',
-        'review_author' => 'Adrienne Vili',
-        'review_text'   => 'Absolutely fantastic service — professional, thorough, and genuinely friendly.',
+        'review_author' => 'Sarah Mitchell',
+        'review_text'   => 'Absolutely fantastic service — professional, thorough, and genuinely friendly. They explained everything clearly and the problem was sorted same day. Highly recommend to anyone in Sydney.',
         'star_rating'   => '4.9',
         'review_count'  => 492,
         'country_code'  => 'AU',
-        // TODO: Replace with actual R2-hosted demo video URL once rendered
+        // TODO: Replace with R2-hosted demo video + poster once rendered
         'video_url'     => '',
         'poster_url'    => '',
     ],
-    // Add more verticals here:
-    // 'plumber' => [ ... ],
-    // 'electrician' => [ ... ],
+    'cleaning' => [
+        'business_name' => 'ACME Cleaning',
+        'city'          => 'Sydney',
+        'niche'         => 'Cleaning',
+        'review_author' => 'James Thornton',
+        'review_text'   => 'Best cleaning service we have ever used. The team was punctual, incredibly thorough, and left our office spotless. We have booked them for weekly cleans going forward.',
+        'star_rating'   => '4.8',
+        'review_count'  => 318,
+        'country_code'  => 'AU',
+        'video_url'     => '',
+        'poster_url'    => '',
+    ],
+    'plumber' => [
+        'business_name' => 'ACME Plumbing',
+        'city'          => 'Sydney',
+        'niche'         => 'Plumbing',
+        'review_author' => 'Kate Williams',
+        'review_text'   => 'Called them for an emergency leak on a Sunday morning and they were here within the hour. Fixed the issue quickly, fair pricing, and cleaned up after themselves. Cannot fault them.',
+        'star_rating'   => '4.7',
+        'review_count'  => 256,
+        'country_code'  => 'AU',
+        'video_url'     => '',
+        'poster_url'    => '',
+    ],
 ];
 
 // ── Index page (no vertical specified) ──────────────────────────────────────
