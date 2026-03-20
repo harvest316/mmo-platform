@@ -101,7 +101,7 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
         <p class="subtitle">A free 30-second video from your best Google review</p>
 
         <div class="video-container">
-            <video controls playsinline preload="metadata" poster="">
+            <video id="review-video" controls playsinline preload="auto" poster="<?= $posterUrl ?? '' ?>">
                 <source src="<?= $videoUrl ?>" type="video/mp4">
                 Your browser does not support video playback.
             </video>
@@ -162,6 +162,33 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
         <p>&copy; <?= date('Y') ?> Audit&amp;Fix. All rights reserved.</p>
         <p><a href="/privacy.php">Privacy</a> &middot; <a href="/terms.php">Terms</a></p>
     </div>
+
+    <!-- Prime Chromium audio context on first interaction -->
+    <script>
+    (function() {
+        var primed = false;
+        function primeAudio() {
+            if (primed) return;
+            primed = true;
+            try {
+                var ctx = new (window.AudioContext || window.webkitAudioContext)();
+                var buf = ctx.createBuffer(1, 1, 22050);
+                var src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.connect(ctx.destination);
+                src.start(0);
+                var v = document.getElementById('review-video');
+                if (v && v.readyState < 3) v.load();
+            } catch(e) {}
+            document.removeEventListener('scroll', primeAudio);
+            document.removeEventListener('click', primeAudio);
+            document.removeEventListener('touchstart', primeAudio);
+        }
+        document.addEventListener('scroll', primeAudio, { once: true, passive: true });
+        document.addEventListener('click', primeAudio, { once: true });
+        document.addEventListener('touchstart', primeAudio, { once: true, passive: true });
+    })();
+    </script>
 
     <!-- View tracking beacon -->
     <script>

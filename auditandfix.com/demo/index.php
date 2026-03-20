@@ -206,7 +206,7 @@ $planIdsJson = json_encode($countryPlans);
 
         <?php if ($videoUrl): ?>
         <div class="video-container">
-            <video controls playsinline preload="metadata" <?= $posterUrl ? "poster=\"$posterUrl\"" : '' ?>>
+            <video id="demo-video" controls playsinline preload="auto" <?= $posterUrl ? "poster=\"$posterUrl\"" : '' ?>>
                 <source src="<?= $videoUrl ?>" type="video/mp4">
                 Your browser does not support video playback.
             </video>
@@ -278,6 +278,34 @@ $planIdsJson = json_encode($countryPlans);
         <p><a href="/privacy.php">Privacy</a> &middot; <a href="/terms.php">Terms</a></p>
     </div>
 
+    <script>
+    // Prime Chromium audio context on first interaction to eliminate cold-start silence.
+    // The AudioContext needs a user gesture to start; once running, video audio plays immediately.
+    (function() {
+        var primed = false;
+        function primeAudio() {
+            if (primed) return;
+            primed = true;
+            try {
+                var ctx = new (window.AudioContext || window.webkitAudioContext)();
+                var buf = ctx.createBuffer(1, 1, 22050);
+                var src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.connect(ctx.destination);
+                src.start(0);
+                // Also force video element to load
+                var v = document.getElementById('demo-video');
+                if (v && v.readyState < 3) v.load();
+            } catch(e) {}
+            document.removeEventListener('scroll', primeAudio);
+            document.removeEventListener('click', primeAudio);
+            document.removeEventListener('touchstart', primeAudio);
+        }
+        document.addEventListener('scroll', primeAudio, { once: true, passive: true });
+        document.addEventListener('click', primeAudio, { once: true });
+        document.addEventListener('touchstart', primeAudio, { once: true, passive: true });
+    })();
+    </script>
     <script src="https://www.paypal.com/sdk/js?client-id=<?= urlencode($paypalClientId) ?>&vault=true&intent=subscription&currency=<?= urlencode($currency) ?>"></script>
     <script>
     var PLAN_IDS = <?= $planIdsJson ?>;
