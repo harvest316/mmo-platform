@@ -32,9 +32,8 @@ $demos = [
         'star_rating'   => '4.9',
         'review_count'  => 492,
         'country_code'  => 'AU',
-        // TODO: Replace with R2-hosted demo video + poster once rendered
-        'video_url'     => '',
-        'poster_url'    => '',
+        'video_url'     => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900001-1773988661103.mp4',
+        'poster_url'    => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900001-1773988673158.jpg',
     ],
     'cleaning' => [
         'business_name' => 'ACME Cleaning',
@@ -45,8 +44,8 @@ $demos = [
         'star_rating'   => '4.8',
         'review_count'  => 318,
         'country_code'  => 'AU',
-        'video_url'     => '',
-        'poster_url'    => '',
+        'video_url'     => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900002-1773988711255.mp4',
+        'poster_url'    => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900002-1773988721861.jpg',
     ],
     'plumber' => [
         'business_name' => 'ACME Plumbing',
@@ -57,8 +56,8 @@ $demos = [
         'star_rating'   => '4.7',
         'review_count'  => 256,
         'country_code'  => 'AU',
-        'video_url'     => '',
-        'poster_url'    => '',
+        'video_url'     => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900003-1773988767518.mp4',
+        'poster_url'    => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900003-1773988778963.jpg',
     ],
 ];
 
