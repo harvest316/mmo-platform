@@ -126,9 +126,35 @@ $countryCode  = $d['country_code'] ?? detectCountry();
 
 $videoPricing = get2StepPriceForCountry($countryCode);
 $symbol   = $videoPricing['symbol'];
+$currency = $videoPricing['currency'];
 $price4   = $videoPricing['monthly_4'];
 $price8   = $videoPricing['monthly_8'];
 $price12  = $videoPricing['monthly_12'];
+
+// PayPal plan IDs — keyed by country_code
+$isSandbox = PAYPAL_MODE === 'sandbox';
+$paypalClientId = $isSandbox
+    ? getenv('PAYPAL_SANDBOX_CLIENT_ID')
+    : getenv('PAYPAL_CLIENT_ID');
+
+$planIds = $isSandbox ? [
+    'AU' => ['starter' => 'P-1TP70954XW883934LNG6QUHI', 'growth' => 'P-33E99084CG8374243NG6QUHI', 'scale' => 'P-2FR332186L946193CNG6QUHQ'],
+    'US' => ['starter' => 'P-9GF88425C2882640ENG6QUHQ', 'growth' => 'P-93P61657U5432500FNG6QUHY', 'scale' => 'P-4LK160410B762532FNG6QUIA'],
+    'UK' => ['starter' => 'P-7TG48242KB049050RNG6QUII', 'growth' => 'P-7WG79208XD6200539NG6QUII', 'scale' => 'P-39X77924LP161751YNG6QUIQ'],
+    'CA' => ['starter' => 'P-88X03952B0106751FNG6QUIY', 'growth' => 'P-8TA544333R185194GNG6QUIY', 'scale' => 'P-5SK92110SS805022WNG6QUJA'],
+    'NZ' => ['starter' => 'P-5DM7929802745500DNG6QUJA', 'growth' => 'P-0PS82605SX980890ANG6QUJA', 'scale' => 'P-3LW95193A8114213XNG6QUJI'],
+] : [
+    'AU' => ['starter' => 'P-7W199928FL1579849NG6QUOQ', 'growth' => 'P-3GY2606809896142XNG6QUOY', 'scale' => 'P-7VH136248N305402HNG6QUOY'],
+    'US' => ['starter' => 'P-6EN63979L5990353UNG6QUOY', 'growth' => 'P-3MH10976DN955194ENG6QUPA', 'scale' => 'P-0KL851053H3484118NG6QUPA'],
+    'UK' => ['starter' => 'P-2DC31436MD1011805NG6QUPA', 'growth' => 'P-7GS69409B3885052DNG6QUPA', 'scale' => 'P-1LN77501A24853239NG6QUPI'],
+    'CA' => ['starter' => 'P-51665869SJ963234ANG6QUPI', 'growth' => 'P-77L1313470409312TNG6QUPI', 'scale' => 'P-2Y835126JP858464RNG6QUPI'],
+    'NZ' => ['starter' => 'P-6CV17904YA921471KNG6QUPQ', 'growth' => 'P-9HM25243YF7494543NG6QUPQ', 'scale' => 'P-35860240W1938872LNG6QUPQ'],
+];
+
+$cc = strtoupper($countryCode);
+if ($cc === 'GB') $cc = 'UK';
+$countryPlans = $planIds[$cc] ?? $planIds['US'];
+$planIdsJson = json_encode($countryPlans);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -157,11 +183,18 @@ $price12  = $videoPricing['monthly_12'];
         .pricing-section { background: #f8f9fa; padding: 3rem 1rem; text-align: center; }
         .pricing-cards { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; max-width: 800px; margin: 0 auto; }
         .pricing-card { background: white; border-radius: 12px; padding: 1.5rem; flex: 1; min-width: 200px; max-width: 250px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .pricing-card { cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; border: 2px solid transparent; }
+        .pricing-card:hover { border-color: #93c5fd; }
+        .pricing-card.selected { border-color: #2563eb; box-shadow: 0 4px 16px rgba(37,99,235,0.2); }
         .pricing-card .price { font-size: 2rem; font-weight: bold; color: #2563eb; }
         .pricing-card .period { color: #666; font-size: 0.9rem; }
         .pricing-card .label { font-weight: 600; margin-bottom: 0.5rem; }
-        .cta-button { display: inline-block; background: #2563eb; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 1.1rem; margin-top: 1.5rem; }
-        .cta-button:hover { background: #1d4ed8; }
+        .pricing-card .check { display: none; color: #2563eb; font-size: 1.2rem; margin-top: 0.5rem; }
+        .pricing-card.selected .check { display: block; }
+        #paypal-subscribe-container { max-width: 400px; margin: 1.5rem auto 0; min-height: 50px; }
+        .subscribe-status { text-align: center; margin-top: 1rem; font-size: 0.9rem; }
+        .subscribe-status.error { color: #dc2626; }
+        .subscribe-status.success { color: #16a34a; }
         .demo-badge { display: inline-block; background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1rem; }
         .footer-note { text-align: center; padding: 2rem; color: #999; font-size: 0.85rem; }
     </style>
@@ -211,35 +244,81 @@ $price12  = $videoPricing['monthly_12'];
         </p>
     </div>
 
-    <div class="pricing-section">
+    <div class="pricing-section" id="order">
         <h2>Ready to turn your reviews into a content machine?</h2>
         <p style="color: #666; margin-bottom: 2rem;">Choose your plan. Cancel anytime.</p>
 
         <div class="pricing-cards">
-            <div class="pricing-card">
+            <div class="pricing-card" data-plan="starter" onclick="selectPlan('starter')">
                 <div class="label">Starter</div>
                 <div class="price"><?= $symbol ?><?= $price4 ?><span class="period">/mo</span></div>
                 <p>4 videos per month</p>
+                <div class="check">&#10003; Selected</div>
             </div>
-            <div class="pricing-card" style="border: 2px solid #2563eb;">
+            <div class="pricing-card selected" data-plan="growth" onclick="selectPlan('growth')">
                 <div class="label">Growth</div>
                 <div class="price"><?= $symbol ?><?= $price8 ?><span class="period">/mo</span></div>
                 <p>8 videos per month</p>
                 <small style="color: #2563eb;">Most popular</small>
+                <div class="check">&#10003; Selected</div>
             </div>
-            <div class="pricing-card">
+            <div class="pricing-card" data-plan="scale" onclick="selectPlan('scale')">
                 <div class="label">Scale</div>
                 <div class="price"><?= $symbol ?><?= $price12 ?><span class="period">/mo</span></div>
                 <p>12 videos per month</p>
+                <div class="check">&#10003; Selected</div>
             </div>
         </div>
 
-        <a href="/#order" class="cta-button">Get Started</a>
+        <div id="paypal-subscribe-container"></div>
+        <div class="subscribe-status" id="subscribe-status"></div>
     </div>
 
     <div class="footer-note">
         <p>&copy; <?= date('Y') ?> Audit&amp;Fix. All rights reserved.</p>
         <p><a href="/privacy.php">Privacy</a> &middot; <a href="/terms.php">Terms</a></p>
     </div>
+
+    <script src="https://www.paypal.com/sdk/js?client-id=<?= urlencode($paypalClientId) ?>&vault=true&intent=subscription&currency=<?= urlencode($currency) ?>"></script>
+    <script>
+    var PLAN_IDS = <?= $planIdsJson ?>;
+    var selectedPlan = 'growth'; // default
+
+    function selectPlan(plan) {
+        selectedPlan = plan;
+        document.querySelectorAll('.pricing-card').forEach(function(card) {
+            card.classList.toggle('selected', card.dataset.plan === plan);
+        });
+        // Re-render PayPal button with new plan
+        var container = document.getElementById('paypal-subscribe-container');
+        container.innerHTML = '';
+        renderPayPalButton();
+    }
+
+    function renderPayPalButton() {
+        if (typeof paypal === 'undefined') return;
+        paypal.Buttons({
+            style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'subscribe' },
+            createSubscription: function(data, actions) {
+                return actions.subscription.create({
+                    plan_id: PLAN_IDS[selectedPlan]
+                });
+            },
+            onApprove: function(data) {
+                var status = document.getElementById('subscribe-status');
+                status.className = 'subscribe-status success';
+                status.textContent = 'Subscription active! ID: ' + data.subscriptionID + ' — we\'ll be in touch within 24 hours.';
+                // TODO: POST to api.php to record the subscription
+            },
+            onError: function(err) {
+                var status = document.getElementById('subscribe-status');
+                status.className = 'subscribe-status error';
+                status.textContent = 'Something went wrong. Please try again or contact us.';
+            }
+        }).render('#paypal-subscribe-container');
+    }
+
+    renderPayPalButton();
+    </script>
 </body>
 </html>
