@@ -464,11 +464,22 @@
     const marketingOptin = optinChecked ? optinChecked.checked : false;
 
     try {
+      const r = currentResult || {};
+      const domain = r.domain || extractDomain(r.url || '');
+      // Build a compact factor_summary: { factor_key: score, ... }
+      const factorSummary = r.factors
+        ? JSON.stringify(Object.fromEntries(r.factors.map(f => [f.factor, f.score])))
+        : undefined;
       await callApi('save-email', {
         scan_id: currentScanId,
         email,
         marketing_optin: marketingOptin,
         optin_timestamp: marketingOptin ? new Date().toISOString() : undefined,
+        score: r.score,
+        grade: r.grade,
+        domain: domain || undefined,
+        issues_count: typeof r.issues_count === 'number' ? r.issues_count : undefined,
+        factor_summary: factorSummary,
       });
       showFactorBreakdown(currentResult);
     } catch {

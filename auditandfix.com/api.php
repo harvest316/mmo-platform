@@ -358,6 +358,22 @@ function saveEmail(array $input): void {
         ? preg_replace('/[^0-9T:Z.\-]/', '', (string)$input['optin_timestamp'])
         : null;
 
+    // Scan context fields (optional — old scanner.js versions won't send these)
+    $score        = isset($input['score']) ? (int)$input['score'] : null;
+    $grade        = isset($input['grade']) ? substr(preg_replace('/[^A-Za-z+\-]/', '', (string)$input['grade']), 0, 3) : null;
+    $domain       = isset($input['domain']) ? substr(preg_replace('/[^a-zA-Z0-9.\-]/', '', (string)$input['domain']), 0, 253) : null;
+    $issuesCount  = isset($input['issues_count']) ? (int)$input['issues_count'] : null;
+    // Cap factor_summary at 4 KB — it's a flat key→int object, should never exceed ~300 bytes in practice
+    $factorSummaryRaw = $input['factor_summary'] ?? null;
+    $factorSummary = null;
+    if (is_string($factorSummaryRaw) && strlen($factorSummaryRaw) <= 4096) {
+        json_decode($factorSummaryRaw); // validate
+        $factorSummary = json_last_error() === JSON_ERROR_NONE ? $factorSummaryRaw : null;
+    } elseif (is_array($factorSummaryRaw)) {
+        $encoded = json_encode($factorSummaryRaw);
+        $factorSummary = $encoded !== false && strlen($encoded) <= 4096 ? $encoded : null;
+    }
+
     // ── Local SQLite storage ──────────────────────────────────────────────
     $dbPath = getenv('AUDITANDFIX_SITE_PATH')
         ? rtrim(getenv('AUDITANDFIX_SITE_PATH'), '/') . '/data/scan_emails.sqlite'
@@ -379,8 +395,25 @@ function saveEmail(array $input): void {
             marketing_optin INTEGER NOT NULL DEFAULT 0,
             optin_timestamp TEXT,
             ip_hash         TEXT,
-            created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+            created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+            score           INTEGER,
+            grade           TEXT,
+            domain          TEXT,
+            issues_count    INTEGER,
+            factor_summary  TEXT
         )");
+
+        // Self-migrate pre-existing tables that lack the new columns.
+        // ALTER TABLE fails if the column exists — catch and ignore each individually.
+        foreach ([
+            'score          INTEGER',
+            'grade          TEXT',
+            'domain         TEXT',
+            'issues_count   INTEGER',
+            'factor_summary TEXT',
+        ] as $colDef) {
+            try { $db->exec("ALTER TABLE scan_emails ADD COLUMN $colDef"); } catch (Throwable $ignored) {}
+        }
 
         // One-way IP hash for GDPR-safe attribution (never store raw IP)
         $rawIp  = trim(explode(',', $_SERVER['HTTP_CF_CONNECTING_IP']
@@ -389,15 +422,24 @@ function saveEmail(array $input): void {
         $ipHash = $rawIp ? hash('sha256', $rawIp) : null;
 
         $stmt = $db->prepare(
-            "INSERT INTO scan_emails (scan_id, email, marketing_optin, optin_timestamp, ip_hash)
-             VALUES (:scan_id, :email, :optin, :optin_ts, :ip_hash)"
+            "INSERT INTO scan_emails
+                (scan_id, email, marketing_optin, optin_timestamp, ip_hash,
+                 score, grade, domain, issues_count, factor_summary)
+             VALUES
+                (:scan_id, :email, :optin, :optin_ts, :ip_hash,
+                 :score, :grade, :domain, :issues_count, :factor_summary)"
         );
         $stmt->execute([
-            ':scan_id'  => $scanId,
-            ':email'    => $email,
-            ':optin'    => $marketingOptin,
-            ':optin_ts' => $optinTs,
-            ':ip_hash'  => $ipHash,
+            ':scan_id'        => $scanId,
+            ':email'          => $email,
+            ':optin'          => $marketingOptin,
+            ':optin_ts'       => $optinTs,
+            ':ip_hash'        => $ipHash,
+            ':score'          => $score,
+            ':grade'          => $grade,
+            ':domain'         => $domain,
+            ':issues_count'   => $issuesCount,
+            ':factor_summary' => $factorSummary,
         ]);
     } catch (Throwable $e) {
         // Log but don't surface to client — local DB failure must not block the user
