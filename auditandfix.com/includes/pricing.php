@@ -71,3 +71,59 @@ function getPriceForCountry(string $countryCode, array $pricing): array {
         'formatted' => '$297',
     ];
 }
+
+// ── Multi-product pricing ────────────────────────────────────────────────
+
+/** Valid product slugs */
+const VALID_PRODUCTS = ['full_audit', 'quick_fixes', 'audit_fix'];
+
+/** Product display names for PayPal descriptions */
+const PRODUCT_NAMES = [
+    'full_audit'   => 'CRO Audit Report',
+    'quick_fixes'  => 'Quick Fixes Report',
+    'audit_fix'    => 'CRO Audit + Implementation',
+];
+
+/**
+ * Multi-product pricing per country (amounts in cents).
+ * full_audit prices come from getPricing() / CF Worker.
+ * quick_fixes and audit_fix are fixed ratios.
+ */
+function getProductPricing(): array {
+    return [
+        'US' => [
+            'full_audit'  => ['price' => 29700, 'currency' => 'USD', 'symbol' => '$',  'formatted' => '$297'],
+            'quick_fixes' => ['price' =>  6700, 'currency' => 'USD', 'symbol' => '$',  'formatted' => '$67'],
+            'audit_fix'   => ['price' => 49700, 'currency' => 'USD', 'symbol' => '$',  'formatted' => '$497'],
+        ],
+        'AU' => [
+            'full_audit'  => ['price' => 33700, 'currency' => 'AUD', 'symbol' => '$',  'formatted' => 'A$337'],
+            'quick_fixes' => ['price' =>  9700, 'currency' => 'AUD', 'symbol' => '$',  'formatted' => 'A$97'],
+            'audit_fix'   => ['price' => 62500, 'currency' => 'AUD', 'symbol' => '$',  'formatted' => 'A$625'],
+        ],
+        'GB' => [
+            'full_audit'  => ['price' => 15900, 'currency' => 'GBP', 'symbol' => '£',  'formatted' => '£159'],
+            'quick_fixes' => ['price' =>  4700, 'currency' => 'GBP', 'symbol' => '£',  'formatted' => '£47'],
+            'audit_fix'   => ['price' => 35000, 'currency' => 'GBP', 'symbol' => '£',  'formatted' => '£350'],
+        ],
+    ];
+}
+
+/**
+ * Look up pricing for a specific product and country.
+ * Falls back to US pricing for unknown countries.
+ */
+function getProductPriceForCountry(string $countryCode, string $product = 'full_audit'): array {
+    $code = strtoupper($countryCode);
+    if ($code === 'UK') $code = 'GB';
+    if ($code === 'NZ') $code = 'AU'; // NZ uses AUD pricing
+
+    $allPricing = getProductPricing();
+    $countryPricing = $allPricing[$code] ?? $allPricing['US'];
+
+    if (!in_array($product, VALID_PRODUCTS, true)) {
+        $product = 'full_audit';
+    }
+
+    return $countryPricing[$product];
+}

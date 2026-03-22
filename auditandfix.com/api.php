@@ -105,10 +105,13 @@ function createOrder(array $input): void {
         return;
     }
 
-    // Get pricing
-    $pricing = getPricing();
+    // Get pricing — product determines which price table to use
+    $product = $input['product'] ?? 'full_audit';
+    if (!in_array($product, VALID_PRODUCTS, true)) {
+        $product = 'full_audit';
+    }
     $countryCode = $input['country_code'] ?? detectCountry();
-    $priceData = getPriceForCountry($countryCode, $pricing);
+    $priceData = getProductPriceForCountry($countryCode, $product);
 
     // Price always comes from server-side pricing — never from POST body
     $amount = $priceData['price'] / 100;
@@ -119,7 +122,7 @@ function createOrder(array $input): void {
     $orderData = [
         'intent' => 'CAPTURE',
         'purchase_units' => [[
-            'description' => 'CRO Audit Report - ' . parse_url($url, PHP_URL_HOST),
+            'description' => (PRODUCT_NAMES[$product] ?? 'CRO Audit Report') . ' - ' . parse_url($url, PHP_URL_HOST),
             'amount' => [
                 'currency_code' => $priceData['currency'],
                 'value' => number_format($amount, 2, '.', ''),
@@ -191,7 +194,12 @@ function capturePayment(array $input): void {
     $captureData = $capture['purchase_units'][0]['payments']['captures'][0] ?? [];
 
     // Build purchase data for CF Worker
+    $product = $input['product'] ?? 'full_audit';
+    if (!in_array($product, VALID_PRODUCTS, true)) {
+        $product = 'full_audit';
+    }
     $purchaseData = [
+        'product' => $product,
         'email' => $input['email'] ?? '',
         'landing_page_url' => $input['url'] ?? '',
         'phone' => $input['phone'] ?? null,

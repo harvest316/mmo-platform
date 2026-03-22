@@ -199,6 +199,7 @@
       amount_usd: dealActive
         ? Math.round((pricing.US?.price || currentPrice.price) * (1 - DEAL_DISCOUNT))
         : pricing.US?.price || currentPrice.price,
+      product: window.PRODUCT || 'full_audit',
       conversation_id: window.CONVERSATION_ID || null,
       lang: window.LANG || 'en',
       sandbox: window.SANDBOX_MODE || false,
@@ -255,7 +256,8 @@
             })
             .then(result => {
               if (result.success) {
-                window.location.href = `thank-you.php?email=${encodeURIComponent(formData.email)}`;
+                const productParam = window.PRODUCT && window.PRODUCT !== 'full_audit' ? `&product=${window.PRODUCT}` : '';
+                window.location.href = `thank-you.php?email=${encodeURIComponent(formData.email)}${productParam}`;
               } else {
                 showError('Payment processing failed. Please try again.');
               }

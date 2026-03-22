@@ -13,12 +13,19 @@ $prefillDomain  = isset($_GET['domain'])  ? preg_replace('/[^a-zA-Z0-9.\-]/', ''
 $prefillEmail   = isset($_GET['email'])   ? filter_var($_GET['email'], FILTER_VALIDATE_EMAIL) ?: null : null;
 $prefillCountry = isset($_GET['country']) ? preg_replace('/[^A-Z]/', '', strtoupper($_GET['country'])) : null;
 
+// Product: validate ?product= param
+$product = $_GET['product'] ?? 'full_audit';
+if (!in_array($product, VALID_PRODUCTS, true)) {
+    $product = 'full_audit';
+}
+
 // Country: use prefill override if provided and valid, else geo-detect
 $countryCode   = ($prefillCountry && strlen($prefillCountry) === 2) ? $prefillCountry : detectCountry();
 $pricing       = getPricing();
 $priceData     = getPriceForCountry($countryCode, $pricing);
+$productPriceData = getProductPriceForCountry($countryCode, $product);
 $paypalClientId = PAYPAL_CLIENT_ID;
-$paypalCurrency = $priceData['currency'];
+$paypalCurrency = $productPriceData['currency'];
 
 // Buy link params: conversation ID from 333Method outreach, language override
 $cid         = isset($_GET['cid']) ? (int)$_GET['cid'] : null; // conversation_id
@@ -277,8 +284,16 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
             <div class="order-icon">
                 <img src="assets/img/icon-audit.svg" alt="" aria-hidden="true" class="order-icon-img">
             </div>
+            <?php if ($product === 'quick_fixes'): ?>
+            <h2>Get Your Quick Fixes Report</h2>
+            <p class="order-subtitle">Your top 5 issues with screenshot annotations and plain-English fix instructions. Same-day delivery.</p>
+            <?php elseif ($product === 'audit_fix'): ?>
+            <h2>Get Your Audit + Implementation</h2>
+            <p class="order-subtitle">Full 10-factor audit plus we implement your top 3 fixes. 48-hour turnaround with before/after screenshots.</p>
+            <?php else: ?>
             <h2><?= t('order.h2') ?></h2>
             <p class="order-subtitle"><?= t('order.subtitle') ?></p>
+            <?php endif; ?>
 
             <form id="audit-form" class="audit-form">
                 <div id="form-error" class="form-error" role="alert"></div>
@@ -309,7 +324,7 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
 
                 <div class="price-display">
                     <span class="price-label"><?= t('order.price_label') ?></span>
-                    <span id="display-price" class="price-amount"><?= htmlspecialchars($priceData['formatted']) ?></span>
+                    <span id="display-price" class="price-amount"><?= htmlspecialchars($productPriceData['formatted']) ?></span>
                     <span class="price-meta"><?= t('order.price_meta') ?></span>
                 </div>
                 <div id="order-deal-banner" class="order-deal-banner" style="display:none">
@@ -365,7 +380,8 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
     <script>
         window.PRICING_DATA       = <?= json_encode($pricing) ?>;
         window.DETECTED_COUNTRY   = <?= json_encode($countryCode) ?>;
-        window.INITIAL_PRICE      = <?= json_encode($priceData) ?>;
+        window.PRODUCT            = <?= json_encode($product) ?>;
+        window.INITIAL_PRICE      = <?= json_encode($productPriceData) ?>;
         window.CONVERSATION_ID    = <?= json_encode($cid) ?>;
         window.LANG               = <?= json_encode($lang) ?>;
         window.SITES_SCORED       = <?= json_encode($pricing['_meta']['sites_scored'] ?? 10000) ?>;
