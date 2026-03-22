@@ -343,6 +343,17 @@ Stage reset map: semantic_scored→prog_scored, vision_scored→prog_scored, pro
 **Status:** Accepted
 **Impl:** `workers/auditandfix-api/wrangler.toml`, `auditandfix.com/api.php`
 
+### DR-067: Scanner CTA: single hero + exit-intent downsell, not pricing table (2026-03-22)
+
+**Context:** Scanner funnel has free scan → score → email gate → factor breakdown → CTA. Needed to add Quick Fixes ($67) and Audit+Implementation ($497) products alongside the Full Audit ($297). Initial instinct was a 3-column pricing table on the results page. Growth strategist agent recommended against it: (a) pricing table reframes urgency → shopping, killing conversion; (b) $67 next to $297 cheapens the core product; (c) tradies are binary decision-makers — three options = decision paralysis.
+
+**Decision:** Single hero CTA for Full Audit at peak intent. Implementation upgrade as a subordinate horizontal strip below ("add implementation for $200 more" — not an equal-weight column). Quick Fixes product exists only as: (1) exit-intent popup for desktop users who try to leave, (2) email follow-up sequence for non-converters. Credit-toward-upgrade mechanic lives in post-purchase email, not on-page.
+
+Multi-product pricing infrastructure added to `pricing.php`, `api.php`, `index.php`, `main.js`, `thank-you.php` — all three products share one order page via `?product=` param.
+
+**Status:** Accepted
+**Impl:** `scan.php` (hero card + upgrade strip), `exit-intent.js` (downsell popup), `pricing.php` (getProductPricing), `api.php` (product-aware createOrder/capturePayment)
+
 ---
 
 ## Infrastructure (continued)
