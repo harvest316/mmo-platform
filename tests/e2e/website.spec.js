@@ -460,16 +460,19 @@ test.describe('API endpoints', () => {
 test.describe('Scanner API endpoints', () => {
   // free-scan proxies to the CF Worker — slow, gate behind env flag
   test.describe('free-scan', () => {
-    test('returns 503 when worker URL is not configured', async ({ request }) => {
-      // This test is documentation only — live site has AUDITANDFIX_WORKER_URL set,
-      // so we just verify the endpoint exists and returns JSON
+    test('endpoint exists and returns JSON', async ({ request }) => {
+      // Live site has AUDITANDFIX_WORKER_URL set, so this proxies to the CF Worker.
+      // May return scan_id (success), error (rate limit / worker error) — both are valid JSON.
       const response = await request.post('/api.php?action=free-scan', {
         data: { url: 'https://example.com' },
       });
-      // Either 200 (worker responded) or 5xx (worker issue) — but always JSON
       const body = await response.json();
-      expect(body).toHaveProperty('scan_id');  // success path
-      // If error path: body.error will exist — both are valid, just verify it's JSON
+      // Either success or error — just verify it's a JSON object with some key
+      expect(typeof body).toBe('object');
+      expect(body).not.toBeNull();
+      const hasScanId = 'scan_id' in body;
+      const hasError = 'error' in body;
+      expect(hasScanId || hasError).toBe(true);
     });
 
     test('returns error for missing URL', async ({ request }) => {
