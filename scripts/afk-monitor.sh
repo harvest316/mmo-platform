@@ -155,6 +155,35 @@ inbound_24h=$(sq "SELECT COUNT(*) FROM messages WHERE direction='inbound' AND cr
 log_raw "  Queue: found=${found:-0} assets=${assets:-0} scored=${scored:-0} enriched=${enriched:-0} proposals=${proposals:-0}"
 log_raw "  Outreach: approved=${approved:-0} sent_24h=${sent_24h:-0} inbound_24h=${inbound_24h:-0}"
 
+# ── Check 7b: Email bounce rate (15d + 1d — matches Resend metrics window) ───
+email_sent_15d=$(sq "SELECT COUNT(*) FROM messages WHERE direction='outbound' AND contact_method='email' AND delivery_status IN ('sent','delivered','opened','clicked') AND updated_at > datetime('now','-15 days');")
+email_bounced_15d=$(sq "SELECT COUNT(*) FROM messages WHERE direction='outbound' AND contact_method='email' AND delivery_status='bounced' AND updated_at > datetime('now','-15 days');")
+email_sent_1d=$(sq "SELECT COUNT(*) FROM messages WHERE direction='outbound' AND contact_method='email' AND delivery_status IN ('sent','delivered','opened','clicked') AND updated_at > datetime('now','-1 day');")
+email_bounced_1d=$(sq "SELECT COUNT(*) FROM messages WHERE direction='outbound' AND contact_method='email' AND delivery_status='bounced' AND updated_at > datetime('now','-1 day');")
+denom_15d=$(( ${email_sent_15d:-0} + ${email_bounced_15d:-0} ))
+denom_1d=$(( ${email_sent_1d:-0} + ${email_bounced_1d:-0} ))
+if [ "$denom_15d" -gt 0 ]; then
+  bounce_rate_15d=$(( ${email_bounced_15d:-0} * 10000 / denom_15d ))
+  bounce_pct_15d="$(( bounce_rate_15d / 100 )).$(printf '%02d' $(( bounce_rate_15d % 100 )))"
+  log "Bounce rate (15d): ${bounce_pct_15d}% (${email_bounced_15d:-0}/${denom_15d})"
+  if [ "$bounce_rate_15d" -ge 500 ]; then
+    log "CRITICAL: Bounce rate ${bounce_pct_15d}% >= 5% — sender reputation at risk"
+    set_critical
+  elif [ "$bounce_rate_15d" -ge 200 ]; then
+    log "WARN: Bounce rate ${bounce_pct_15d}% >= 2%"
+    set_warn
+  fi
+else
+  log "Bounce rate (15d): n/a (no email sent)"
+fi
+if [ "$denom_1d" -gt 0 ]; then
+  bounce_rate_1d=$(( ${email_bounced_1d:-0} * 10000 / denom_1d ))
+  bounce_pct_1d="$(( bounce_rate_1d / 100 )).$(printf '%02d' $(( bounce_rate_1d % 100 )))"
+  log "Bounce rate (1d):  ${bounce_pct_1d}% (${email_bounced_1d:-0}/${denom_1d})"
+else
+  log "Bounce rate (1d):  n/a"
+fi
+
 # ── Check 8: Zombie / runaway process detection ───────────────────────────────
 zombie_count=$(ps -eo stat --no-headers 2>/dev/null | grep -c '^Z' || echo "0")
 log "Zombie processes: ${zombie_count}"
