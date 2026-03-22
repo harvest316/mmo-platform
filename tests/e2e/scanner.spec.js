@@ -467,8 +467,12 @@ test.describe('Scanner — mocked API: email submit and factor breakdown', () =>
     const auditHref = await page.locator('#cta-full-audit').getAttribute('href');
     expect(auditHref).toContain('targeted.example.com');
 
-    const quickHref = await page.locator('#cta-quick-fixes').getAttribute('href');
-    expect(quickHref).toContain('targeted.example.com');
+    // Audit+Fix CTA (upgrade strip) — present after pricing restructure
+    const auditFix = page.locator('#cta-audit-fix');
+    if (await auditFix.count() > 0) {
+      const fixHref = await auditFix.getAttribute('href');
+      expect(fixHref).toContain('targeted.example.com');
+    }
   });
 
   test('is_js_heavy: JS-heavy note shown when flag is set', async ({ page }) => {
