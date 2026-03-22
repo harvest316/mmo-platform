@@ -472,7 +472,7 @@
 }
 
 .scan-results-inner {
-  max-width: 680px;
+  max-width: 860px;
   margin: 0 auto;
 }
 
@@ -623,87 +623,153 @@
   line-height: 1.5;
 }
 
-/* CTAs */
-.scan-ctas {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
-}
+/* ── Pricing hero card (single primary CTA) ───────────────────────────── */
 
-.scan-cta-card {
-  background: #fff;
-  border: 2px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 24px 20px;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.scan-cta-full {
-  border-color: #e05d26;
-}
-
-.cta-credit-note {
-  font-size: 0.8rem;
-  color: #718096;
-  font-style: italic;
-  margin: 0 0 12px;
-  text-align: center;
-}
-
-.cta-badge {
-  display: inline-block;
-  background: #e05d26;
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 3px 10px;
-  border-radius: 4px;
-  margin-bottom: 10px;
-}
-
-.scan-cta-card h4 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #1a365d;
-  margin-bottom: 4px;
-}
-
-.cta-price {
-  font-size: 2rem;
-  font-weight: 900;
-  color: #1a365d;
+.pricing-hero {
   margin-bottom: 16px;
 }
 
-.cta-features {
-  list-style: none;
-  padding: 0;
-  margin-bottom: 20px;
-  flex: 1;
+.pricing-hero-card {
+  background: #fff;
+  border: 2px solid #e05d26;
+  border-radius: 14px;
+  padding: 28px 24px;
+  box-shadow: 0 4px 24px rgba(224, 93, 38, 0.12);
+  text-align: center;
 }
 
-.cta-features li {
+.pricing-hero-header {
+  margin-bottom: 16px;
+}
+
+.pricing-hero-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a365d;
+  margin: 0 0 6px;
+}
+
+.pricing-hero-subtitle {
+  font-size: 0.9rem;
+  color: #4a5568;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pricing-hero-price {
+  font-size: 2.4rem;
+  font-weight: 900;
+  color: #1a365d;
+  margin-bottom: 16px;
+  line-height: 1;
+}
+
+.pricing-hero-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  text-align: left;
+  display: inline-block;
+}
+
+.pricing-hero-features li {
   font-size: 0.88rem;
   color: #4a5568;
-  padding: 4px 0 4px 20px;
+  padding: 4px 0 4px 22px;
   position: relative;
   line-height: 1.4;
 }
 
-.cta-features li::before {
-  content: '✓';
+.pricing-hero-features li::before {
+  content: '\2713';
   position: absolute;
   left: 0;
   color: #48bb78;
   font-weight: 700;
 }
 
-.cta-btn {
+/* ── Upgrade strip (implementation add-on) ─────────────────────────────── */
+
+.pricing-upgrade-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #f7fafc;
+  border: 2px dashed #cbd5e0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.pricing-upgrade-text {
+  font-size: 0.88rem;
+  color: #2d3748;
+  line-height: 1.4;
+}
+
+.pricing-upgrade-text strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.pricing-upgrade-text span {
+  color: #4a5568;
+  font-size: 0.84rem;
+}
+
+.pricing-upgrade-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.pricing-upgrade-price {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a365d;
+  white-space: nowrap;
+}
+
+.pricing-upgrade-strip .pricing-cta-secondary {
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.pricing-currency {
+  font-size: 1.3rem;
+  font-weight: 700;
+  vertical-align: top;
+  position: relative;
+  top: 0.15em;
+}
+
+.pricing-features {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 20px;
+  flex: 1;
+}
+
+.pricing-features li {
+  font-size: 0.86rem;
+  color: #4a5568;
+  padding: 4px 0 4px 20px;
+  position: relative;
+  line-height: 1.4;
+}
+
+.pricing-features li::before {
+  content: '\2713';
+  position: absolute;
+  left: 0;
+  color: #48bb78;
+  font-weight: 700;
+}
+
+.pricing-cta {
   display: block;
   text-align: center;
   padding: 13px 20px;
@@ -715,35 +781,41 @@
     background 0.15s,
     transform 0.1s;
   cursor: pointer;
+  margin-top: auto;
 }
 
-.cta-btn:hover {
+.pricing-cta:hover {
   transform: translateY(-1px);
   text-decoration: none;
 }
 
-.cta-btn-primary {
+.pricing-cta-primary {
   background: #e05d26;
   color: #fff;
 }
-.cta-btn-primary:hover {
+
+.pricing-cta-primary:hover {
   background: #c94e1f;
   color: #fff;
 }
-.cta-btn-secondary {
+
+.pricing-cta-secondary {
   background: #1a365d;
   color: #fff;
 }
-.cta-btn-secondary:hover {
+
+.pricing-cta-secondary:hover {
   background: #2d5fa3;
   color: #fff;
 }
 
-.scan-guarantee {
+/* ── Pricing footer notes ──────────────────────────────────────────────── */
+
+.pricing-guarantee {
   text-align: center;
   font-size: 0.82rem;
   color: #718096;
-  margin-top: 4px;
+  margin: 12px 0 0;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
@@ -757,6 +829,20 @@
 
   .scan-hero-banner .hero-content {
     max-width: 100%;
+  }
+
+  .pricing-upgrade-strip {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .pricing-upgrade-action {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .pricing-upgrade-strip .pricing-cta-secondary {
+    width: 100%;
   }
 }
 
@@ -787,10 +873,6 @@
   .email-input,
   .email-btn {
     border-radius: 0;
-  }
-
-  .scan-ctas {
-    grid-template-columns: 1fr;
   }
 
   .score-gauge {

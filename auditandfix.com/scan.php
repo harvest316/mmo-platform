@@ -250,36 +250,39 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
                     <p>⚡ This site uses advanced JavaScript — our HTML analysis gives it a neutral score. A full visual audit would provide a more accurate picture.</p>
                 </div>
 
-                <!-- CTAs -->
-                <div class="scan-ctas">
-                    <div class="scan-cta-card scan-cta-full">
-                        <div class="cta-badge">Best value</div>
-                        <h4>Full CRO Audit</h4>
-                        <div class="cta-price" id="cta-full-price">$297</div>
-                        <ul class="cta-features">
-                            <li>AI vision analysis (sees rendered page)</li>
-                            <li>Annotated problem screenshots</li>
-                            <li>Full prioritised action plan</li>
-                            <li>Competitor comparison</li>
-                            <li>Exact replacement copy for every fix</li>
+                <!-- Primary CTA: Full Audit -->
+                <div class="pricing-hero" id="pricing-hero">
+                    <div class="pricing-hero-card">
+                        <div class="pricing-hero-header">
+                            <h3 class="pricing-hero-title">Get your personalised fix-it roadmap</h3>
+                            <p class="pricing-hero-subtitle">All 10 factors scored with evidence, zoomed screenshots of every problem, and a prioritised fix list — delivered within 24 hours.</p>
+                        </div>
+                        <div class="pricing-hero-price">
+                            <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="297" data-aud="337" data-gbp="159">297</span>
+                        </div>
+                        <ul class="pricing-hero-features">
+                            <li>All 10 factors scored A+ to F with evidence</li>
+                            <li>Zoomed screenshots of every problem area</li>
+                            <li>Technical assessment (SSL, mobile, speed)</li>
+                            <li>Prioritised fix list in plain English</li>
+                            <li>9-page branded PDF</li>
                         </ul>
-                        <a href="/" class="cta-btn cta-btn-primary" id="cta-full-audit">Get Full Audit →</a>
-                    </div>
-                    <div class="scan-cta-card scan-cta-quick">
-                        <h4>Quick Fixes Report</h4>
-                        <div class="cta-price">$47</div>
-                        <ul class="cta-features">
-                            <li>All 10 factor scores (detailed)</li>
-                            <li>Top 3 quick wins with exact copy</li>
-                            <li>Before → After examples</li>
-                            <li>PDF delivered instantly</li>
-                        </ul>
-                        <p class="cta-credit-note">Credit applies toward the full audit</p>
-                        <a href="#" class="cta-btn cta-btn-secondary" id="cta-quick-fixes">Get Quick Fixes →</a>
+                        <a href="/" class="pricing-cta pricing-cta-primary" id="cta-full-audit">Get Your Full Audit →</a>
+                        <p class="pricing-guarantee">30-day money-back guarantee. Not happy? Full refund, no questions.</p>
                     </div>
                 </div>
 
-                <p class="scan-guarantee">30-day money-back guarantee. If you're not satisfied, full refund — no questions asked.</p>
+                <!-- Upgrade strip: Audit + Implementation -->
+                <div class="pricing-upgrade-strip" id="pricing-upgrade-strip">
+                    <div class="pricing-upgrade-text">
+                        <strong>Want us to just fix it?</strong>
+                        <span>We'll implement your top 3 fixes with before/after screenshots.</span>
+                    </div>
+                    <div class="pricing-upgrade-action">
+                        <span class="pricing-upgrade-price">+<span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="200" data-aud="288" data-gbp="191">200</span> more</span>
+                        <a href="#" class="pricing-cta pricing-cta-secondary" id="cta-audit-fix">Add Implementation →</a>
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -455,7 +458,7 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
             </div>
             <div class="faq-item">
                 <h3>Do you implement the fixes?</h3>
-                <p>The report identifies and prioritises the issues — implementation is up to you or your developer. Most quick wins take under an hour to implement.</p>
+                <p>Our Quick Fixes and Full Audit reports give you everything your developer needs to action the changes. If you'd rather not deal with it yourself, our Audit + Fix option includes implementation of the top 3 fixes — we do the work and send you before/after screenshots as proof.</p>
             </div>
         </div>
     </section>

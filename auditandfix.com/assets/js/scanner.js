@@ -64,9 +64,9 @@
   const freePeekReason = $('free-peek-reasoning');
   const jsHeavyNote = $('js-heavy-note');
 
-  const ctaQuickFixes = $('cta-quick-fixes');
   const ctaFullAudit = $('cta-full-audit');
-  const _ctaFullPrice = $('cta-full-price'); // reserved for future Quick Fixes price display
+  const ctaAuditFix = $('cta-audit-fix');
+  const pricingHero = $('pricing-hero');
 
   // ── Factor label map ─────────────────────────────────────────────────────
 
@@ -220,6 +220,29 @@
     return data;
   }
 
+  // ── Pricing currency ─────────────────────────────────────────────────────
+
+  function applyPricingCurrency(countryCode) {
+    // Map country to currency key
+    const currencyMap = { AU: 'aud', UK: 'gbp', GB: 'gbp', NZ: 'aud' };
+    const key = currencyMap[countryCode] || 'usd';
+
+    // Swap all data-* driven price elements
+    document.querySelectorAll('.pricing-amount').forEach(el => {
+      const val = el.getAttribute('data-' + key);
+      if (val) el.textContent = val;
+    });
+    document.querySelectorAll('.pricing-currency').forEach(el => {
+      const val = el.getAttribute('data-' + key);
+      if (val) el.textContent = val;
+    });
+    // Exit-intent modal prices (if loaded)
+    document.querySelectorAll('.exit-modal-amount').forEach(el => {
+      const val = el.getAttribute('data-' + key);
+      if (val) el.textContent = val;
+    });
+  }
+
   // ── Stage transitions ─────────────────────────────────────────────────────
 
   function showScanning(domain) {
@@ -302,12 +325,17 @@
 
     // CTAs — pre-build links with domain prefill
     const encodedDomain = encodeURIComponent('https://' + domain);
-    const fullAuditUrl = '/?domain=' + encodedDomain + '#order';
-    ctaFullAudit.href = fullAuditUrl;
+    if (ctaFullAudit) ctaFullAudit.href = '/?domain=' + encodedDomain + '#order';
+    if (ctaAuditFix) ctaAuditFix.href = '/?domain=' + encodedDomain + '&product=audit_fix#order';
 
-    // Quick Fixes — future page; for now link to full audit with note
-    ctaQuickFixes.href = '/?domain=' + encodedDomain + '&product=quick_fixes#order';
-    // TODO: when quick-fixes product page exists, update this href to dedicated page
+    // Expose state for exit-intent popup
+    window.__af_scan_domain = domain;
+    window.__af_cta_clicked = false;
+    if (ctaFullAudit) ctaFullAudit.addEventListener('click', () => { window.__af_cta_clicked = true; });
+    if (ctaAuditFix) ctaAuditFix.addEventListener('click', () => { window.__af_cta_clicked = true; });
+
+    // Currency switching — read country from config, swap data-* attributes
+    applyPricingCurrency(cfg.countryCode || 'US');
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
