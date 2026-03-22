@@ -354,6 +354,26 @@ Multi-product pricing infrastructure added to `pricing.php`, `api.php`, `index.p
 **Status:** Accepted
 **Impl:** `scan.php` (hero card + upgrade strip), `exit-intent.js` (downsell popup), `pricing.php` (getProductPricing), `api.php` (product-aware createOrder/capturePayment)
 
+### DR-068: Post-scan email sequence — 7 emails, 14 days, three score-band segments (2026-03-22)
+
+**Context:** Users who scan at scan.php, enter their email at the factor breakdown gate, and leave without purchasing. DR-067 established Quick Fixes exists only as exit-intent popup (on-page) and email follow-up sequence (off-page). Needed a full sequence spec for the email channel.
+
+**Decision:** 7-email sequence over 14 days. Enrolled on marketing_optin = 1 at email gate. Three segments by score band: A (0-59, critical), B (60-76, needs work), C (77-81, almost there). Sequence logic:
+- Email 1 (immediate): transactional score delivery; commercial CTA only if marketing_optin = 1
+- Emails 2-4 (days 1-5): worst-factor deep-dive, social proof with credit mechanic intro, objection handle (no-code fixes)
+- Email 5 (day 7): Full Audit pivot; first mention of Audit+Implementation
+- Email 6 (day 10): credit mechanic spelled out explicitly (Quick Fixes price credited toward Full Audit)
+- Email 7 (day 14): soft close, no hard sell, open door for future re-engagement
+
+Quick Fixes is the primary entry CTA for Segments A and B through Email 4. Full Audit becomes primary from Email 5. Segment C leads with Full Audit earlier (Email 1) because higher-scoring prospects are closer to the conversion threshold. Credit-toward-upgrade mechanic first introduced in Email 3 social proof, made explicit in Email 6.
+
+Compliance: only enrol marketing_optin = 1. GDPR/CAN-SPAM/Spam Act 2003 via signed unsubscribe token. Suppression on hard bounce (immediate), soft bounce x3, spam complaint, or any purchase. Localised pricing via getProductPriceForCountry using country_code captured at scan time. British spelling for AU/GB/NZ/IE (DR-013).
+
+Implementation: Resend API with dedicated subdomain, scan_email_sequence state table, 5-10 min cron worker, one A/B test running at a time.
+
+**Status:** Accepted
+**Impl:** `docs/email-sequence-post-scan-non-converter.md`
+
 ---
 
 ## Infrastructure (continued)
