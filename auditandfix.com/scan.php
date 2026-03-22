@@ -488,5 +488,21 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
 </script>
 <script src="assets/js/obfuscate-email.js?v=1" defer></script>
 <script src="<?= asset_url('assets/js/scanner.js') ?>" defer></script>
+<script src="<?= asset_url('assets/js/exit-intent.js') ?>" defer></script>
+
+<!-- Exit-intent modal: Quick Fixes downsell (desktop only, once per session) -->
+<div id="exit-modal-backdrop" class="exit-modal-backdrop" style="display:none">
+  <div class="exit-modal" role="dialog" aria-labelledby="exit-modal-heading">
+    <button class="exit-modal-close" aria-label="Close">&times;</button>
+    <h3 id="exit-modal-heading">Not ready for the full audit?</h3>
+    <p class="exit-modal-body">Get your <strong>top 5 fixes</strong> for just
+      <span class="exit-modal-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="exit-modal-amount" data-usd="67" data-aud="97" data-gbp="47">67</span>
+    </p>
+    <p class="exit-modal-desc">Screenshot annotations and plain-English fix instructions for your 5 worst-scoring issues. Same-day delivery.</p>
+    <a href="#" class="exit-modal-cta" id="exit-modal-cta">Get Quick Fixes →</a>
+    <p class="exit-modal-guarantee">30-day money-back guarantee</p>
+  </div>
+</div>
+
 </body>
 </html>
