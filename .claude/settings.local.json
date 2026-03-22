@@ -3,7 +3,16 @@
     "allow": [
       "Bash(gh auth:*)",
       "Bash(systemctl --user status 333method-orchestrator.timer)",
-      "Bash(systemctl --user list-timers)"
+      "Bash(systemctl --user list-timers)",
+      "Bash(npx playwright:*)",
+      "Bash(systemctl --user list-units --type=timer --all)",
+      "Bash(systemctl --user list-units --type=service --all)",
+      "Bash(systemctl --user stop 333method-orchestrator.timer mmo-cron.timer mmo-cron.service 333method-pipeline.service afk-monitor.timer agency-agents-update.timer)",
+      "Bash(/dev/null ls:*)",
+      "Bash(crontab -l)"
+    ],
+    "additionalDirectories": [
+      "/home/jason/.claude"
     ]
   }
 }

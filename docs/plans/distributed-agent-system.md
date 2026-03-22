@@ -444,6 +444,29 @@ ADD COLUMN delivered_at TIMESTAMP;
 - Local Redis instances
 - Eventual consistency acceptable for logs
 
+#### 3.4 Long-Term Telemetry Storage (Future)
+
+**Current state (2026-03-22):** Telemetry tables (llm_usage, agent_logs, pipeline_metrics, system_health — ~2M rows) have been extracted from sites.db into a dedicated `telemetry.db` SQLite file. A 30/90-day retention policy prunes old data in the cleanup-logs cron.
+
+**The problem this doesn't solve:** Pruning deletes historical data. For trend analysis (cost per outreach over 6 months, agent task duration regressions, pipeline throughput growth) we need long-term storage that's optimised for analytical queries, not OLTP.
+
+**Recommended future path: DuckDB for analytics layer**
+
+- **What:** Columnar, append-only, OLAP-optimised database. Reads Parquet/CSV/JSON natively. Single binary, no server.
+- **Why DuckDB specifically:** Same single-process, no-server model as SQLite (fits our NixOS host deployment). ~5-10x faster on GROUP BY / AVG / percentile aggregations vs SQLite. Natively reads SQLite files via `sqlite_scanner` extension — can query telemetry.db directly during transition.
+- **Integration pattern:**
+  1. Nightly cron exports expired telemetry rows (before pruning deletes them) to Parquet files: `telemetry/2026-03/pipeline_metrics.parquet`
+  2. DuckDB queries span both live telemetry.db (current 30/90 days) and Parquet archive (historical)
+  3. Dashboard precompute queries for trend panels use DuckDB; real-time panels stay on SQLite
+- **When to do this:** When we want analytics beyond the 90-day window, or when telemetry volume makes SQLite aggregations noticeably slow (~5M+ rows per table).
+- **Cost:** Zero ongoing (DuckDB is MIT-licensed, runs locally). ~1 day implementation for the export cron + DuckDB dashboard queries.
+- **Alternatives considered:**
+  - ClickHouse/TimescaleDB: overkill for single-host, requires running a server process
+  - Monthly SQLite partitions: bounded file size but no analytical query speedup
+  - Flat files + custom rollup: more work for worse query ergonomics
+
+**Not needed now.** The 30/90-day SQLite pruning is sufficient at current scale. Revisit when trend dashboards are a priority or telemetry volume outgrows SQLite aggregation speed.
+
 ### 4. Real-Time Notifications Across Machines
 
 #### 4.1 Architecture

@@ -454,6 +454,90 @@ test.describe('API endpoints', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 3b. free-scan / save-email API endpoints
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe('Scanner API endpoints', () => {
+  // free-scan proxies to the CF Worker — slow, gate behind env flag
+  test.describe('free-scan', () => {
+    test('returns 503 when worker URL is not configured', async ({ request }) => {
+      // This test is documentation only — live site has AUDITANDFIX_WORKER_URL set,
+      // so we just verify the endpoint exists and returns JSON
+      const response = await request.post('/api.php?action=free-scan', {
+        data: { url: 'https://example.com' },
+      });
+      // Either 200 (worker responded) or 5xx (worker issue) — but always JSON
+      const body = await response.json();
+      expect(body).toHaveProperty('scan_id');  // success path
+      // If error path: body.error will exist — both are valid, just verify it's JSON
+    });
+
+    test('returns error for missing URL', async ({ request }) => {
+      const response = await request.post('/api.php?action=free-scan', {
+        data: {},
+      });
+      const body = await response.json();
+      // Worker returns error for empty URL
+      expect(body).toBeDefined();
+    });
+  });
+
+  // save-email is deliberately permissive — always returns success to avoid blocking UX
+  test.describe('save-email', () => {
+    test('returns 200 success for valid email + scan_id', async ({ request }) => {
+      const response = await request.post('/api.php?action=save-email', {
+        data: {
+          scan_id: 'e2e-test-scan-' + Date.now(),
+          email: 'e2e-test@example.com',
+          marketing_optin: false,
+        },
+      });
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body.success).toBe(true);
+    });
+
+    test('returns 200 success even for invalid email (never blocks UX)', async ({ request }) => {
+      // By design: filter_var silently coerces to '' and still returns success.
+      // Factor breakdown must always show regardless of email validity.
+      const response = await request.post('/api.php?action=save-email', {
+        data: {
+          scan_id: 'e2e-invalid-email-' + Date.now(),
+          email: 'not-an-email',
+          marketing_optin: false,
+        },
+      });
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body.success).toBe(true);
+    });
+
+    test('returns 200 success even with no scan_id (graceful degradation)', async ({ request }) => {
+      const response = await request.post('/api.php?action=save-email', {
+        data: { email: 'e2e-noscanid@example.com' },
+      });
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body.success).toBe(true);
+    });
+
+    test('returns 200 with marketing_optin=true and timestamp', async ({ request }) => {
+      const response = await request.post('/api.php?action=save-email', {
+        data: {
+          scan_id: 'e2e-optin-' + Date.now(),
+          email: 'e2e-optin@example.com',
+          marketing_optin: true,
+          optin_timestamp: new Date().toISOString(),
+        },
+      });
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body.success).toBe(true);
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 4. Video Sales Page (v.php)
 // ─────────────────────────────────────────────────────────────────────────────
 

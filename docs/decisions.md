@@ -619,3 +619,58 @@ Stage reset map: semantic_scored→prog_scored, vision_scored→prog_scored, pro
 
 **Status:** Accepted
 **Impl:** Migration 116 (commit 6e927abf)
+
+### DR-065: Database resilience strategy — complete the split, fix the migration runner, defer Postgres (2026-03-22)
+
+**Context:** sites.db has grown to 13GB (plus a 12GB WAL file that is not checkpointing down), causing three wipe incidents in two days. Root cause of wipes: migration scripts running DDL outside transactions. Backup is also broken: `cp`-based backup on a live WAL-mode DB produces a malformed copy, and the 8-13GB size makes any file-copy backup slow (15-60 min). Options evaluated: (A) split SQLite files, (B) migrate to local Postgres now, (C) keep SQLite + fix tooling, (D) hybrid split with Postgres for critical tables.
+
+**Decision:** Complete Option A (split already started as DR-063), layer Option C safeguards on top, and explicitly defer Option B until VPS is provisioned.
+
+Rationale for each option:
+
+**Option B (local Postgres now) is rejected.** Migrating ~50 files from `better-sqlite3` to a `pg` async driver is a multi-day refactor touching every pipeline stage. Local Postgres also needs a VPS migration within weeks anyway, meaning two rounds of driver changes for zero operational benefit today. The real problems — wipes from unsafe migrations and unreliable backups — are not solved by the database engine choice.
+
+**Option D (hybrid) is rejected.** Two databases with different engines during a period of instability is more complex to operate, not less. The partial-protection benefit (messages in Postgres, sites in SQLite) is achieved more cheaply by completing the SQLite split already in progress.
+
+**Option A is already half-done.** DR-063 moved messages, opt_outs, and unsubscribed_emails into `mmo-platform/db/messages.db` (51MB). The critical data is already isolated. Sites.db can be wiped and re-seeded without touching messages.db. The remaining work is: (1) split off `ops.db` for cron_jobs, pipeline_control, settings, migrations, and agent_tasks; (2) verify all migration runner scripts are wrapped in explicit transactions with a row-count canary check before commit; (3) add a pre-migration backup of messages.db (trivially fast at 51MB).
+
+**Option C safeguards to layer on top of the split:**
+- Migration runner: every DDL migration must run inside `BEGIN IMMEDIATE ... COMMIT` (not just `BEGIN`); if a row-count canary fails, roll back and abort — never proceed with a half-applied migration.
+- WAL bloat: the 12GB WAL file indicates the autocheckpoint threshold (4000 pages) is not keeping up with write volume. Switch to `PRAGMA wal_autocheckpoint = 1000` (default) for sites.db since backup no longer depends on WAL state. Run `PRAGMA wal_checkpoint(TRUNCATE)` in the daily backup job, not just PASSIVE.
+- Backup: back up messages.db (51MB) every 4 hours via `sqlite3 messages.db .dump | gzip` — done in seconds, safe with live WAL. Back up sites.db daily using `db.backup()` online API as already implemented; the WAL checkpoint must precede it.
+
+**Migration path to VPS-ready state:**
+1. Today: ops.db split (new migration runner wraps in transactions).
+2. Before VPS provisioning: set up restic/B2 for both messages.db and ops.db (tiny files, fast offsite).
+3. VPS day: `pg_dump`-equivalent is `sqlite3 messages.db .dump` — restore into Postgres with a schema translation script. This is a one-time port of the schema + data, not a driver rewrite (messages.db has a clean, project-namespaced schema already designed for this, per DR-063).
+
+**What we are giving up:** SQLite still has no row-level locking (writer blocks all writers), no point-in-time recovery, and no streaming replication. These are accepted risks for the current single-writer pipeline architecture. Revisit when the VPS is live and a second project needs to write concurrently.
+
+**Status:** Accepted
+**Impl:** ops.db split migration (pending), migration runner transaction hardening (pending)
+
+### DR-066: CAPTCHA benchmark guard condition — skip when no recent solve activity (2026-03-22)
+
+**Context:** `scripts/benchmark-captcha-providers.js` runs every 30 minutes via cron, calling NopeCHA and CapMonster APIs with a test reCAPTCHA job (~1-2 credits per provider per run). Form outreach is disabled most of the time, so the benchmark fires unconditionally when there is nothing to optimise, wasting credits and adding noise to the rolling averages.
+
+Two options were evaluated:
+- Option A: skip if fewer than N solves occurred in the last hour (time-windowed activity check)
+- Option B: run every N cumulative solves (counter-based trigger)
+
+**Decision:** Option A, using a 60-minute activity window, with the signal sourced from `data/captcha-provider-benchmark.json` rather than a DB query. `solveCaptcha()` in `form.js` already writes `updated_at` to the benchmark file on every successful solve. Checking whether any provider's `updated_at` is within the last 60 minutes is a zero-dependency proxy for "form outreach is actively running."
+
+Option B was rejected because it requires a persistent counter or is functionally equivalent to Option A (querying "solves since last benchmark run"), but with worse clarity. It also conflates activity rate with information age: slow batches benchmark too rarely, fast batches benchmark unnecessarily often.
+
+The 60-minute window fits the 30-minute cron cadence: a batch that stopped 31 minutes ago causes the next two cron invocations to skip, which is correct behaviour. Provider performance drifts on the order of hours, not minutes, so one benchmark per active hour is more than sufficient. A 24-hour staleness floor (run unconditionally if `updated_at` is older than 24h) was considered but deferred — CapMonster's 6.4s average is far enough ahead of NopeCHA's 57s that stale data still picks the correct winner.
+
+**Guard condition** (top of `main()`):
+```js
+const oneHourAgo = Date.now() - 60 * 60 * 1000;
+const hadRecentActivity = Object.values(benchmark).some(
+  v => v.updated_at && new Date(v.updated_at).getTime() > oneHourAgo
+);
+if (!hadRecentActivity) { process.exit(0); }
+```
+
+**Status:** Accepted
+**Impl:** `333Method/scripts/benchmark-captcha-providers.js` (not yet applied)
