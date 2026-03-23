@@ -374,6 +374,17 @@ Implementation: Resend API with dedicated subdomain, scan_email_sequence state t
 **Status:** Accepted
 **Impl:** `docs/email-sequence-post-scan-non-converter.md`
 
+### DR-069: Quick Fixes report — variant of full audit pipeline, not separate pipeline (2026-03-22)
+
+**Context:** Quick Fixes ($67) product needs a shorter report (5 worst factors instead of 10). Options: (A) fork the entire report pipeline into a separate orchestrator, (B) add a `variant` parameter through the existing pipeline, (C) only change the HTML template.
+
+**Decision:** Option B — variant parameter flows through `process-purchases.js → report-orchestrator.js → html-report-template.js`. After Opus scoring (step 4), the orchestrator filters `scoreJson` to keep only the 5 worst factors by score, top 5 problem areas, and top 7 recommendations. The HTML template conditionally skips the second factor page, adjusts cover title and intro text, and shows an upgrade CTA instead of benchmarking CTA. Delivery and confirmation emails branch on `purchase.product` for subject lines and body copy.
+
+Audit+Fix ($497) uses the full audit pipeline unchanged, then queues a `human_review_queue` entry for manual implementation.
+
+**Status:** Accepted
+**Impl:** `333Method/src/reports/report-orchestrator.js` (variant filtering), `html-report-template.js` (conditional rendering), `report-delivery.js` + `purchase-confirmation.js` (product-aware emails), `process-purchases.js` (routing + audit_fix queue)
+
 ---
 
 ## Infrastructure (continued)
