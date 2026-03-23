@@ -492,6 +492,7 @@
         issues_count: typeof r.issues_count === 'number' ? r.issues_count : undefined,
         factor_summary: factorSummary,
         analytics_consent: window.__af_analytics_consent === 'accepted',
+        gclid: getGclid(),
       });
       showFactorBreakdown(currentResult);
     } catch {
@@ -500,9 +501,13 @@
     }
   });
 
-  // ── Pre-fill URL if passed via query param ────────────────────────────────
-
+  // ── Capture + persist gclid (Google Ads click ID) ────────────────────────
   const params = new URLSearchParams(window.location.search);
+  const gclidParam = params.get('gclid');
+  if (gclidParam) sessionStorage.setItem('af_gclid', gclidParam);
+  function getGclid() { return sessionStorage.getItem('af_gclid') || undefined; }
+
+  // ── Pre-fill URL if passed via query param ────────────────────────────────
   const preUrl = params.get('url');
   if (preUrl && scanUrl && !scanUrl.value) {
     scanUrl.value = preUrl;

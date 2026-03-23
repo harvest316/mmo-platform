@@ -10,6 +10,18 @@
 (function () {
   'use strict';
 
+  // ── Capture gclid from URL and persist in sessionStorage ────────────────
+  // gclid is appended by Google Ads to ad click URLs (?gclid=XXXX).
+  // We store it in sessionStorage so it survives the PayPal redirect flow.
+  (function captureGclid() {
+    const gclid = new URLSearchParams(window.location.search).get('gclid');
+    if (gclid) sessionStorage.setItem('af_gclid', gclid);
+  })();
+
+  function getGclid() {
+    return sessionStorage.getItem('af_gclid') || null;
+  }
+
   // ── First-visit discount countdown ──────────────────────────────────────
   const DEAL_DISCOUNT = window.DEAL_DISCOUNT || 0.2;
   const DEAL_DURATION_MS = window.DEAL_DURATION_MS || 20 * 60 * 1000;
@@ -204,6 +216,7 @@
       lang: window.LANG || 'en',
       sandbox: window.SANDBOX_MODE || false,
       test_price: window.TEST_PRICE ?? null,
+      gclid: getGclid(),
     };
   }
 

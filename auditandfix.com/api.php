@@ -242,11 +242,13 @@ function capturePayment(array $input): void {
     curl_close($ch);
 
     // GA4 Measurement Protocol — purchase
+    $gclid = isset($input['gclid']) ? preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$input['gclid']) : null;
     $clientId = ga4ClientId();
     ga4Event('purchase', [
         'transaction_id' => $captureData['id'] ?? $orderId,
         'value'          => floatval($captureData['amount']['value'] ?? 0),
         'currency'       => $captureData['amount']['currency_code'] ?? 'USD',
+        'gclid'          => $gclid,
         'items'          => [[
             'item_id'   => $product,
             'item_name' => $product,
@@ -477,6 +479,7 @@ function saveEmail(array $input): void {
 
     // GA4 Measurement Protocol — generate_lead (only if user consented)
     $analyticsConsent = !empty($input['analytics_consent']);
+    $gclid = isset($input['gclid']) ? preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$input['gclid']) : null;
     if ($email && $analyticsConsent && !isSandboxEnv()) {
         $clientId = ga4ClientId();
         ga4Event('generate_lead', [
@@ -484,6 +487,7 @@ function saveEmail(array $input): void {
             'score'      => $score,
             'grade'      => $grade,
             'domain'     => $domain,
+            'gclid'      => $gclid,
         ], $clientId);
     }
 
