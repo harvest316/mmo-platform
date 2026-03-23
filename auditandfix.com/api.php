@@ -241,6 +241,20 @@ function capturePayment(array $input): void {
     $workerResponse = curl_exec($ch);
     curl_close($ch);
 
+    // GA4 Measurement Protocol — purchase
+    $clientId = ga4ClientId();
+    ga4Event('purchase', [
+        'transaction_id' => $captureData['id'] ?? $orderId,
+        'value'          => floatval($captureData['amount']['value'] ?? 0),
+        'currency'       => $captureData['amount']['currency_code'] ?? 'USD',
+        'items'          => [[
+            'item_id'   => $product,
+            'item_name' => $product,
+            'quantity'  => 1,
+            'price'     => floatval($captureData['amount']['value'] ?? 0),
+        ]],
+    ], $clientId);
+
     echo json_encode([
         'success' => true,
         'order_id' => $orderId,
@@ -461,6 +475,17 @@ function saveEmail(array $input): void {
         curl_close($ch);
     }
 
+    // GA4 Measurement Protocol — generate_lead
+    if ($email && !isSandboxEnv()) {
+        $clientId = ga4ClientId();
+        ga4Event('generate_lead', [
+            'email_hash' => hash('sha256', strtolower(trim($email))),
+            'score'      => $score,
+            'grade'      => $grade,
+            'domain'     => $domain,
+        ], $clientId);
+    }
+
     // Always return success — never block the factor breakdown on email persistence
     echo json_encode(['success' => true]);
 }
@@ -581,4 +606,65 @@ function getVideoViews(array $input): void {
     }
 
     echo json_encode(['videos' => $result]);
+}
+
+// ─── GA4 Measurement Protocol Helpers ───────────────────────────────────────
+
+/**
+ * Returns true when running in PayPal sandbox mode (env-based check).
+ * Used to suppress GA4 events during testing.
+ */
+function isSandboxEnv(): bool {
+    return getenv('PAYPAL_MODE') === 'sandbox';
+}
+
+/**
+ * Derives a stable GA4 client_id from the visitor's IP.
+ * GA4 MP requires a client_id; we use an IP-based hash as a privacy-safe proxy
+ * since we have no access to the browser's _ga cookie server-side.
+ * Format matches GA4's expected "random.timestamp" pattern.
+ */
+function ga4ClientId(): string {
+    $ip = trim(explode(',', $_SERVER['HTTP_CF_CONNECTING_IP']
+        ?? $_SERVER['HTTP_X_FORWARDED_FOR']
+        ?? $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1')[0]);
+    // Deterministic pseudo-random from IP hash — not truly unique per user but
+    // good enough for aggregate conversion counting via MP.
+    $hash = crc32(hash('sha256', $ip . date('Y-m-d')));
+    return abs($hash) . '.' . strtotime('today');
+}
+
+/**
+ * Fire a GA4 Measurement Protocol event (fire-and-forget, non-blocking).
+ *
+ * @param string $eventName  GA4 event name (e.g. 'purchase', 'generate_lead')
+ * @param array  $params     Event parameters
+ * @param string $clientId   GA4 client ID
+ */
+function ga4Event(string $eventName, array $params, string $clientId): void {
+    $measurementId = 'G-QMPMDVQJGP';
+    $apiSecret     = '326IHGuaQ7abuNR1hHXfrg';
+
+    $payload = json_encode([
+        'client_id' => $clientId,
+        'events'    => [[
+            'name'   => $eventName,
+            'params' => array_filter($params, fn($v) => $v !== null),
+        ]],
+    ]);
+
+    $url = "https://www.google-analytics.com/mp/collect"
+         . "?measurement_id={$measurementId}&api_secret={$apiSecret}";
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_TIMEOUT        => 3,         // non-blocking — fail fast
+        CURLOPT_NOSIGNAL       => 1,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
 }
