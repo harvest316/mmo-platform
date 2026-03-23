@@ -475,8 +475,9 @@ function saveEmail(array $input): void {
         curl_close($ch);
     }
 
-    // GA4 Measurement Protocol — generate_lead
-    if ($email && !isSandboxEnv()) {
+    // GA4 Measurement Protocol — generate_lead (only if user consented)
+    $analyticsConsent = !empty($input['analytics_consent']);
+    if ($email && $analyticsConsent && !isSandboxEnv()) {
         $clientId = ga4ClientId();
         ga4Event('generate_lead', [
             'email_hash' => hash('sha256', strtolower(trim($email))),

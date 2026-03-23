@@ -1,13 +1,13 @@
 <?php
 // Cookie consent banner — include after <body> on all pages.
 // Reads/writes af_consent cookie (365 days).
-// On accept: fires gtag consent update + loads GA4.
-// On decline: no analytics cookies set.
+// On accept: loads GA4 directly via gtag.js (no GTM).
+// On decline: no analytics loaded.
 // GA4 Measurement ID: G-QMPMDVQJGP
 ?>
 <div id="af-consent-banner" role="dialog" aria-label="Cookie consent" aria-live="polite" style="display:none">
     <div class="consent-inner">
-        <p class="consent-text">We use cookies to understand how visitors use our site (<a href="/cookies.php">Cookie Policy</a>). Analytics are only activated with your consent.</p>
+        <p class="consent-text">We use analytics cookies to understand how visitors use our site (<a href="/cookies.php">Cookie Policy</a>). Only activated with your consent.</p>
         <div class="consent-actions">
             <button id="af-consent-accept" class="consent-btn consent-btn-accept">Accept</button>
             <button id="af-consent-decline" class="consent-btn consent-btn-decline">Decline</button>
@@ -77,19 +77,12 @@
     }
 
     function loadGA4() {
-        // Push consent granted to dataLayer for GTM
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-            'event': 'consent_update',
-            'analytics_storage': 'granted'
-        });
-        // Also load gtag directly for GA4
         var s = document.createElement('script');
         s.async = true;
         s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA4_ID;
         document.head.appendChild(s);
         window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
+        window.gtag = function(){ dataLayer.push(arguments); };
         gtag('js', new Date());
         gtag('config', GA4_ID, { 'anonymize_ip': true });
     }
@@ -99,24 +92,26 @@
         if (banner) banner.style.display = 'none';
     }
 
+    // Expose consent state globally so scanner.js can read it
     var consent = getCookie('af_consent');
+    window.__af_analytics_consent = consent;
 
     if (consent === 'accepted') {
         loadGA4();
-    } else if (consent === 'declined') {
-        // Do nothing — no analytics
-    } else {
+    } else if (consent !== 'declined') {
         // No choice yet — show banner
         document.getElementById('af-consent-banner').style.display = 'flex';
 
         document.getElementById('af-consent-accept').addEventListener('click', function() {
             setCookie('af_consent', 'accepted', 365);
+            window.__af_analytics_consent = 'accepted';
             loadGA4();
             hideBanner();
         });
 
         document.getElementById('af-consent-decline').addEventListener('click', function() {
             setCookie('af_consent', 'declined', 365);
+            window.__af_analytics_consent = 'declined';
             hideBanner();
         });
     }

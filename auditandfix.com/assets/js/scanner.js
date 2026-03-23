@@ -491,6 +491,7 @@
         domain: domain || undefined,
         issues_count: typeof r.issues_count === 'number' ? r.issues_count : undefined,
         factor_summary: factorSummary,
+        analytics_consent: window.__af_analytics_consent === 'accepted',
       });
       showFactorBreakdown(currentResult);
     } catch {
