@@ -36,3 +36,11 @@
 - [ ] Move distributed-agent-system.md to 333Method-infra/docs/plans/
 - [ ] Update distributed-agent-system.md for Claude Max reality
 - [ ] Create mmo.code-workspace with all projects
+
+## Brand & IP (Low Priority)
+
+- [ ] Commission professional AU trademark clearance search for "Audit&Fix" (~AU$300–600)
+- [ ] File TM Headstart pre-examination with IP Australia (Classes 35 + 42, ~AU$400 govt fees)
+- [ ] Collect and date-stamp use evidence (invoices, screenshots, traffic data) for acquired distinctiveness
+- [ ] Evaluate logo mark filing (device mark more registrable than word mark alone)
+- [ ] Once AU base TM registered: Madrid Protocol filing for UK/US/CA/NZ
