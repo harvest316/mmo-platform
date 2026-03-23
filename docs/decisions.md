@@ -997,3 +997,39 @@ Rejected alternatives:
 **Decision:** Remove all `@anthropic-ai/sdk` imports and `ANTHROPIC_API_KEY` usage. Production LLM calls route through OpenRouter exclusively. Dev tools (sage-auto-fix, generate-tests, update-stale-docs) use `claude -p` CLI invocations instead of the SDK. The `@anthropic-ai/sdk` package remains in package.json for now (separate cleanup).
 **Status:** Implemented
 **Impl:** `src/utils/llm-provider.js`, `src/inbound/autoresponder.js`, `src/agents/utils/agent-claude-api.js` (333Method); `src/video/shotstack.js` (2Step); `scripts/sage-auto-fix.js`, `scripts/generate-tests.js`, `scripts/update-stale-docs.js`, `scripts/unified-autofix.js` (333Method)
+
+### DR-081: Agency Agents management -- git clone with update script, no custom agents (2026-03-23)
+
+**Context:** `~/.claude/agents/` contains ~170 .md files bulk-copied from [msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents) (MIT license, updated weekly). No version tracking, no way to detect upstream additions/removals/renames. The original concern was that some local files might be custom (backend-architect-with-memory.md, workflow-*.md, nexus-spatial-discovery.md) but analysis confirmed all 170 local files exist in upstream -- zero are custom. 24 of the 170 are non-agent files (README, strategy docs, examples, workflows) that the upstream install.sh deliberately skips when installing to ~/.claude/agents/. The upstream repo recently reorganized from flat to subdirectories (engineering/, marketing/, etc.) but its install.sh flattens back to a flat dir for Claude Code. 11 new upstream agents are missing locally.
+
+**Options considered:**
+
+1. **Make ~/.claude/agents/ itself a git clone** -- Rejected. The upstream repo contains ~170 files across subdirectories plus scripts/, integrations/, examples/, strategy/, .github/. Claude Code expects a flat directory of .md files. Cloning directly into ~/.claude/agents/ would pollute it with non-agent files (LICENSE, scripts/convert.sh, etc.) and Claude Code does not recursively scan subdirectories. The upstream install.sh exists precisely because the repo layout differs from the install target.
+
+2. **Clone upstream to a separate path, run install.sh on a cron** -- Accepted. Clone to `~/.local/share/agency-agents/` (outside the Docker sandbox, on the NixOS host). A systemd timer runs `git pull` + `./scripts/install.sh --tool claude-code --no-interactive` weekly. This matches the upstream project's own intended workflow. Advantages: (a) install.sh handles flattening and filters out non-agent files, (b) git tracks upstream changes, (c) `git diff` after pull shows exactly what changed, (d) no custom wrapper scripts to maintain, (e) upstream renames/reorganizations are handled by their install script.
+
+3. **Clone upstream + maintain custom agents in a separate dir** -- Deferred. Analysis showed zero custom agents currently exist. If custom agents are needed later, options ranked by preference: (a) per-project `.claude/agents/` (scoped, does not pollute global namespace), (b) symlink custom files into ~/.claude/agents/ alongside upstream-managed files, (c) ~/.claude/custom-agents/ (requires Claude Code to support multiple agent dirs -- not currently documented).
+
+4. **Pin to a tag/release** -- Rejected. The upstream repo does not publish tags or releases. Weekly commits to main are the only release mechanism. Pinning to a specific commit hash adds maintenance burden with no safety benefit since the install is local-only and easily reversible via `git checkout <prev-sha>` + reinstall.
+
+**Decision:** Option 2. Clone msitarzewski/agency-agents to `~/.local/share/agency-agents/` on the NixOS host. Weekly systemd timer runs pull + install. The update script logs a diff summary and only notifies when changes touch agents referenced in `docs/agency-agents-reference.md` (the curated subset used by 333Method, 2Step, colorcraft, and distributed-infra).
+
+**Implementation plan:**
+
+1. **Immediate cleanup:** Delete the 24 non-agent files from ~/.claude/agents/ (README.md, CONTRIBUTING.md, PULL_REQUEST_TEMPLATE.md, QUICKSTART.md, EXECUTIVE-BRIEF.md, agent-activation-prompts.md, handoff-templates.md, nexus-spatial-discovery.md, nexus-strategy.md, phase-0-*.md through phase-6-*.md, scenario-*.md, workflow-*.md, backend-architect-with-memory.md). These lack YAML frontmatter and are not agents -- they are documentation/examples that were copied by mistake from the original bulk copy.
+
+2. **Host setup:** `git clone https://github.com/msitarzewski/agency-agents.git ~/.local/share/agency-agents/`
+
+3. **Update script:** `~/.local/share/agency-agents/scripts/install.sh --tool claude-code --no-interactive` (upstream's own script, no custom wrapper needed for the install step). Wrap in a thin shell script that: (a) runs `git pull`, (b) captures `git diff --name-only HEAD@{1}..HEAD`, (c) runs install.sh, (d) cross-references changed filenames against a list of agents from agency-agents-reference.md, (e) writes a one-line summary to syslog only if relevant agents changed.
+
+4. **Systemd timer:** `agency-agents-update.timer` on NixOS host, weekly (Sunday 04:00 AEDT). Service runs the update script. Add to `distributed-infra/modules/`.
+
+5. **Verification:** After first install, confirm `ls ~/.claude/agents/ | wc -l` matches expected count and all files have YAML frontmatter.
+
+**Trade-offs:**
+- Giving up: Ability to add files directly to ~/.claude/agents/ without them being overwritten on next sync (install.sh copies, does not delete, so manually-added files survive -- but this is fragile and undocumented behavior).
+- Gaining: Version-tracked upstream sync, automatic new agent pickup, no stale/renamed files accumulating, matches the upstream project's intended installation method.
+- Risk: If upstream install.sh changes behavior (e.g., starts deleting files not in repo), custom files in ~/.claude/agents/ could be lost. Mitigated by: no custom agents exist today, and the update script runs `git diff` before install so changes are logged.
+
+**Status:** Accepted
+**Impl:** Pending -- cleanup of non-agent files is safe to do immediately; host-side git clone + systemd timer requires NixOS host access
