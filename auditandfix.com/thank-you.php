@@ -31,6 +31,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5SQNL8XS"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
+<?php require_once __DIR__ . '/includes/consent-banner.php'; ?>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <header class="hero hero-short">
         <nav class="nav">

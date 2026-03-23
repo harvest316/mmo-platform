@@ -18,8 +18,20 @@ require_once __DIR__ . '/config.php';
     <link rel="stylesheet" href="<?= asset_url('assets/css/legal.css') ?>">
     <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32" type="image/png">
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5SQNL8XS');</script>
+<!-- End Google Tag Manager -->
 </head>
 <body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5SQNL8XS"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+<?php require_once __DIR__ . '/consent-banner.php'; ?>
 <a href="#main-content" class="skip-link">Skip to main content</a>
 <nav class="nav" aria-label="Site navigation" style="background: var(--color-navy);">
     <a href="index.php" class="logo">
