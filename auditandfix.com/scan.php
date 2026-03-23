@@ -80,8 +80,19 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
       ]
     }
     </script>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5SQNL8XS');</script>
+<!-- End Google Tag Manager -->
 </head>
 <body class="scanner-page">
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5SQNL8XS"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
 <!-- ── Hero Banner ───────────────────────────────────────────────────────── -->
@@ -250,37 +261,49 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
                     <p>⚡ This site uses advanced JavaScript — our HTML analysis gives it a neutral score. A full visual audit would provide a more accurate picture.</p>
                 </div>
 
-                <!-- Primary CTA: Full Audit -->
+                <!-- Primary CTA: Quick Fixes (low-friction entry point) -->
                 <div class="pricing-hero" id="pricing-hero">
                     <div class="pricing-hero-card">
                         <div class="pricing-hero-header">
-                            <h3 class="pricing-hero-title">Get your personalised fix-it roadmap</h3>
-                            <p class="pricing-hero-subtitle">All 10 factors scored with evidence, zoomed screenshots of every problem, and a prioritised fix list — delivered within 24 hours.</p>
+                            <h3 class="pricing-hero-title">Fix your 5 biggest issues — today</h3>
+                            <p class="pricing-hero-subtitle">Screenshot annotations and plain-English fix instructions for the 5 factors dragging your score down. Same-day delivery.</p>
                         </div>
                         <div class="pricing-hero-price">
-                            <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="297" data-aud="337" data-gbp="159">297</span>
+                            <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span>
                         </div>
                         <ul class="pricing-hero-features">
-                            <li>All 10 factors scored A+ to F with evidence</li>
-                            <li>Zoomed screenshots of every problem area</li>
-                            <li>Technical assessment (SSL, mobile, speed)</li>
-                            <li>Prioritised fix list in plain English</li>
-                            <li>9-page branded PDF</li>
+                            <li>Your 5 worst-scoring factors analysed in detail</li>
+                            <li>Zoomed screenshots with problem areas marked</li>
+                            <li>Plain-English fix instructions you can hand to anyone</li>
+                            <li>Same-day delivery</li>
+                            <li>Price credited toward the Full Audit if you upgrade later</li>
                         </ul>
-                        <a href="/" class="pricing-cta pricing-cta-primary" id="cta-full-audit">Get Your Full Audit →</a>
+                        <a href="/" class="pricing-cta pricing-cta-primary" id="cta-quick-fixes">Get Your Quick Fixes →</a>
                         <p class="pricing-guarantee">30-day money-back guarantee. Not happy? Full refund, no questions.</p>
                     </div>
                 </div>
 
-                <!-- Upgrade strip: Audit + Implementation -->
+                <!-- Secondary CTA: Full Audit (upgrade path) -->
                 <div class="pricing-upgrade-strip" id="pricing-upgrade-strip">
                     <div class="pricing-upgrade-text">
-                        <strong>Want us to just fix it?</strong>
-                        <span>We'll implement your top 3 fixes with before/after screenshots.</span>
+                        <strong>Want the complete picture?</strong>
+                        <span>Full 10-factor audit with 9-page PDF, all screenshots, and a prioritised roadmap. 24-hour delivery.</span>
                     </div>
                     <div class="pricing-upgrade-action">
-                        <span class="pricing-upgrade-price">+<span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="200" data-aud="288" data-gbp="191">200</span> more</span>
-                        <a href="#" class="pricing-cta pricing-cta-secondary" id="cta-audit-fix">Add Implementation →</a>
+                        <span class="pricing-upgrade-price"><span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="297" data-aud="337" data-gbp="159">297</span></span>
+                        <a href="/" class="pricing-cta pricing-cta-secondary" id="cta-full-audit">Get Full Audit →</a>
+                    </div>
+                </div>
+
+                <!-- Tertiary: Audit + Implementation -->
+                <div class="pricing-upgrade-strip pricing-upgrade-strip--tertiary" id="pricing-impl-strip">
+                    <div class="pricing-upgrade-text">
+                        <strong>Want us to just fix it?</strong>
+                        <span>Full audit + we implement your top 3 fixes with before/after screenshots. 48-hour turnaround.</span>
+                    </div>
+                    <div class="pricing-upgrade-action">
+                        <span class="pricing-upgrade-price"><span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="497" data-aud="625" data-gbp="350">497</span></span>
+                        <a href="#" class="pricing-cta pricing-cta-secondary" id="cta-audit-fix">Get Audit + Fix →</a>
                     </div>
                 </div>
             </div>
@@ -291,6 +314,38 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
 
 <!-- ── Sales content (always visible below banner) ───────────────────────── -->
 <main id="main-content">
+
+    <!-- SEO content: How the free website audit works -->
+    <section class="included">
+        <div class="container">
+            <h2>How the free website audit works</h2>
+            <p class="section-subhead">Our free website audit tool analyses your site the way a real visitor sees it — not just the code behind it. Here's what happens when you enter your URL.</p>
+            <div class="checklist">
+                <div class="check-item">✓ <strong>We fetch your page</strong> — our scanner loads your website and reads the visible content, just like a potential customer would</div>
+                <div class="check-item">✓ <strong>10 conversion factors scored</strong> — headline clarity, value proposition, call-to-action, trust signals, urgency, and five more — each graded 0 to 10</div>
+                <div class="check-item">✓ <strong>Overall grade calculated</strong> — your scores are combined into a single grade from A+ to F, benchmarked against 23,990+ other small business websites</div>
+                <div class="check-item">✓ <strong>Your biggest issue identified</strong> — we show you your lowest-scoring factor for free, with a plain-English explanation of why it matters</div>
+                <div class="check-item">✓ <strong>Full breakdown via email</strong> — enter your email to unlock all 10 factor scores and see exactly where your site is losing visitors</div>
+                <div class="check-item">✓ <strong>No signup, no credit card</strong> — the free scan takes 30 seconds and requires nothing but your URL</div>
+            </div>
+            <p class="included-footer">Unlike tools like Google Lighthouse that measure page speed and accessibility, our audit focuses on <strong>conversion</strong> — whether your website actually turns visitors into enquiries, calls, and customers.</p>
+        </div>
+    </section>
+
+    <!-- SEO content: What we check -->
+    <section class="value-props">
+        <div class="container">
+            <h2 style="text-align:center; color:#1a365d; margin-bottom:12px; font-size:1.8rem;">The 10 conversion factors we score</h2>
+            <p class="section-subhead">Most free website checkers look at technical issues — SSL certificates, page speed, broken links. We look at the things that actually decide whether a visitor picks up the phone or hits the back button.</p>
+            <div class="prop-grid">
+                <div class="prop"><div class="prop-icon" aria-hidden="true">📝</div><h3>Headline Quality</h3><p>Does your headline communicate what you do and who it's for within 3 seconds? If visitors can't tell immediately, they leave.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">💎</div><h3>Value Proposition</h3><p>Benefits, not features. "What's in it for me?" — if your site doesn't answer this clearly, visitors compare-shop and choose someone else.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">🎯</div><h3>Call to Action</h3><p>Is there a clear, visible way to contact you, book, or buy? If your phone number is buried at the bottom, visitors won't scroll to find it.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">⭐</div><h3>Trust Signals</h3><p>Reviews, licences, certifications, guarantees — the things that prove you're legitimate. Without them, visitors feel uncertain and move on.</p></div>
+            </div>
+            <p style="text-align:center; margin-top:32px;"><a href="#" onclick="document.getElementById('scan-url')?.focus();window.scrollTo({top:0,behavior:'smooth'});return false;" class="cta-button">Score My Website Free →</a></p>
+        </div>
+    </section>
 
     <!-- Social proof -->
     <section class="testimonials">
@@ -408,8 +463,8 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
                     <p class="urgency-scarcity">⏱ Reports are processed in batches, twice daily. Order before 8 pm to receive your report by the following morning.</p>
                 </div>
                 <div class="urgency-cta">
-                    <a href="/" class="cta-button cta-button--light">Get Your Full Audit — $297</a>
-                    <p class="urgency-note">24-hour delivery · Money-back guarantee</p>
+                    <a href="/" class="cta-button cta-button--light" id="urgency-cta-qf">Get Your Quick Fixes — <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span></a>
+                    <p class="urgency-note">Same-day delivery · Money-back guarantee · Credited toward Full Audit</p>
                 </div>
             </div>
         </div>
@@ -467,8 +522,8 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <section class="footer-cta">
         <div class="container">
             <h2>Ready to see what's holding your site back?</h2>
-            <a href="/" class="cta-button">Get Your Full Audit — $297</a>
-            <p>24-hour delivery · Money-back guarantee · Plain English, no jargon</p>
+            <a href="/" class="cta-button" id="footer-cta-qf">Get Your Quick Fixes — <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span></a>
+            <p>Same-day delivery · Money-back guarantee · Credited if you upgrade to Full Audit</p>
         </div>
     </section>
 

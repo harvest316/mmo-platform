@@ -16,6 +16,11 @@ if (!$_showImpressum && isset($lang) && $lang === 'de') {
         <a href="/" class="footer-logo"><img src="assets/img/logo.svg" alt="Audit&amp;Fix" class="footer-logo-img"></a>
         <p class="footer-contact"><?= $_t('footer.questions', 'Questions?') ?> <?= obfuscatedEmail(SUPPORT_EMAIL) ?></p>
         <p class="footer-privacy"><?= $_t('footer.confidentiality', 'All audits are strictly confidential. We never publish, share, or resell client data.') ?></p>
+        <nav class="footer-links" aria-label="Site links" style="margin-bottom:12px;">
+            <a href="/scan">Free Website Score</a>
+            <a href="/video-reviews/">Video Reviews</a>
+            <a href="/blog/">Blog</a>
+        </nav>
         <nav class="footer-legal" aria-label="Legal">
             <a href="privacy.php"><?= $_t('footer.privacy', 'Privacy Policy') ?></a>
             <a href="terms.php"><?= $_t('footer.terms', 'Terms of Service') ?></a>

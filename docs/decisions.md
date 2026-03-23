@@ -716,3 +716,69 @@ if (!hadRecentActivity) { process.exit(0); }
 
 **Status:** Accepted
 **Impl:** `333Method/scripts/benchmark-captcha-providers.js` (not yet applied)
+
+## Marketing & Growth
+
+### DR-070: Q2 2026 growth strategy -- channel prioritization and funnel restructure (2026-03-23)
+
+**Context:** Reviewed auditandfix.com to develop a comprehensive growth strategy. Found critical gaps: site not indexed by Google (zero organic search presence), no Meta Pixel installed, no Google Analytics/GA4, no post-scan email sequence built despite 23,990+ scans, passive referral program with no tracking, and the $337 Full Audit positioned as primary CTA over the $67 Quick Fixes entry point.
+
+**Decision:** Three strategic priorities for Q2 2026:
+
+1. **Build post-scan email sequence immediately** (7 emails, 14 days, segmented by score band). This monetizes the existing email list with zero ad spend.
+2. **Get indexed by Google** -- submit to Search Console, create 50-100 programmatic SEO pages for industry/city combinations (e.g., `/audit/plumber-sydney`), start blog content.
+3. **Lead with Quick Fixes ($67) as the primary CTA** everywhere -- scanner, cold outreach, ads. Use credit-toward-upgrade as the upsell path.
+
+Paid budget ($200/mo) split: $150 Google Ads (search, scanner as landing page) + $50 Meta retargeting (scanner visitors who did not purchase). No Meta prospecting -- budget insufficient.
+
+Full strategy documented in `docs/growth-strategy-2026-Q2.md`.
+
+**Status:** Proposed
+**Impl:** `docs/growth-strategy-2026-Q2.md`
+
+### DR-071: SEO & organic content strategy for auditandfix.com (2026-03-23)
+
+**Context:** Developed comprehensive SEO strategy for auditandfix.com. Critical finding: site has zero Google indexation despite robots.txt not blocking crawlers. Likely cause is either an X-Robots-Tag noindex header, missing Search Console verification, or the site simply never being discovered (no backlinks, no sitemap submission). Competitive analysis shows the "website audit for tradies/small business" niche is dominated by agency blog content with no self-service tool attached -- a gap Audit&Fix can own.
+
+**Decision:** Five-phase strategy:
+1. Fix indexation immediately (diagnose noindex header, verify GSC, submit sitemap)
+2. Build blog infrastructure (PHP template, Article schema, auto-sitemap)
+3. Target problem-aware keywords tradies actually search ("website not getting enquiries", "tradie website mistakes") not marketing jargon ("CRO audit")
+4. Create programmatic industry benchmark pages using aggregate scan data from 23,990+ sites
+5. Build backlinks via data PR (original statistics from scan data) and tool directory submissions
+
+Key differentiation: Only tool combining conversion-focused scoring + plain English + industry-specific relevance + 23,990-site dataset. Content strategy: 15 articles prioritised by impact, all funnelling to free scanner.
+
+**Status:** Proposed
+**Impl:** `docs/seo-strategy-auditandfix.md`
+
+### DR-072: Google Ads campaign structure for auditandfix.com (2026-03-23)
+
+**Context:** A$200/month budget for paid search. Need to drive scanner usage (free scans leading to email capture and paid reports). Australia-only targeting. Solo operator setup -- must be manageable without a PPC specialist.
+
+**Decision:** Three-campaign structure:
+1. Brand campaign (A$30/mo) -- protect "audit and fix" brand terms, cheap insurance
+2. Non-Brand Website Audit (A$105/mo) -- core keywords across 3 ad groups: website audit, website review/analysis, CRO/conversion
+3. Non-Brand Website Problems (A$60/mo) -- problem-aware searchers across 2 ad groups: website not converting, fix my website
+
+Start with Manual CPC to learn, transition to Maximise Conversions after 30+ conversions/month. Exact + phrase match only (no broad at this budget). 2Step video reviews kept as separate future campaign with its own budget -- do not split from the A$200.
+
+Primary conversion: email capture (A$5 value). Secondary: scan started/completed. Purchase tracking with dynamic values.
+
+**Status:** Proposed
+**Impl:** `docs/google-ads/`
+
+### DR-073: Outreach template overhaul — tradie language, score segmentation, angle rotation, spintax (2026-03-23)
+
+**Context:** Cold outreach templates used marketing jargon ("poor headline clarity", "missing CTA") that local business owners/tradies don't relate to. Templates lacked score-range segmentation, so a site scoring 35 got the same framing as one scoring 75. Follow-up sequences used the same angle (score) for every touch, increasing spam perception. Insufficient spintax variation meant emails could appear textually identical.
+
+**Decision:** Four-part overhaul:
+1. **Tradie language** — FACTOR_LABELS in template-proposals.js rewritten in plain English ("your site doesn't tell visitors what you do in 3 seconds" instead of "weak headline"). New AU-specific "tradie" templates for missing CTA, no reviews, weak value prop.
+2. **Score-range segmentation** — Three new template tiers: score-urgent (0-40, transformation framing), score-precision (41-65, targeted fixes), score-optimization (66-82, refinement). Applied to AU, GB, US, NZ.
+3. **Angle rotation** — New template approaches: competitor-gap ("they're not better at plumbing — their website just works harder"), reviews-disconnect ("great Google reviews but none on your site"), ad-waste (Touch 5 breakup for Google Ads spenders), video-crosssell (2Step upsell for 20+ review prospects). Follow-up templates now rotate angles across touches 3 and 5.
+4. **Spintax density** — Every existing template rewritten with significantly more spintax throughout greetings, closings, transitions, and value statements. Goal: no two emails from the system are textually identical.
+
+All changes applied to AU, GB, US, NZ templates (email + SMS + follow-ups). Prompt files (PROPOSAL.md, FOLLOWUP.md) updated with guidance.
+
+**Status:** Accepted
+**Impl:** `data/templates/{AU,GB,US,NZ}/{email,sms,followup-email,followup-sms}.json`, `src/utils/template-proposals.js` (FACTOR_LABELS), `prompts/PROPOSAL.md`, `prompts/FOLLOWUP.md`

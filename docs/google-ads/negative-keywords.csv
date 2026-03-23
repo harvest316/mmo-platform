@@ -1,0 +1,110 @@
+Level,Campaign,Keyword,Match Type
+Account,,free,Broad
+Account,,template,Broad
+Account,,course,Broad
+Account,,learn,Broad
+Account,,tutorial,Broad
+Account,,how to,Phrase
+Account,,what is,Phrase
+Account,,definition,Broad
+Account,,meaning,Broad
+Account,,example,Broad
+Account,,examples,Broad
+Account,,sample,Broad
+Account,,PDF,Broad
+Account,,download,Broad
+Account,,checklist,Broad
+Account,,jobs,Broad
+Account,,job,Broad
+Account,,career,Broad
+Account,,careers,Broad
+Account,,hire,Broad
+Account,,hiring,Broad
+Account,,salary,Broad
+Account,,intern,Broad
+Account,,internship,Broad
+Account,,freelance,Broad
+Account,,freelancer,Broad
+Account,,agency,Broad
+Account,,agencies,Broad
+Account,,company,Broad
+Account,,companies,Broad
+Account,,software,Broad
+Account,,plugin,Broad
+Account,,wordpress plugin,Phrase
+Account,,shopify app,Phrase
+Account,,chrome extension,Phrase
+Account,,certification,Broad
+Account,,certified,Broad
+Account,,training,Broad
+Account,,DIY,Broad
+Account,,yourself,Broad
+Account,,generator,Broad
+Account,,builder,Broad
+Account,,create website,Phrase
+Account,,build website,Phrase
+Account,,design website,Phrase
+Account,,make a website,Phrase
+Account,,Wix,Broad
+Account,,Squarespace,Broad
+Account,,WordPress theme,Phrase
+Account,,SEMrush,Broad
+Account,,Ahrefs,Broad
+Account,,Moz,Broad
+Account,,Screaming Frog,Phrase
+Account,,GTmetrix,Broad
+Account,,PageSpeed,Broad
+Account,,Lighthouse,Broad
+Account,,SEO tool,Phrase
+Account,,SEO tools,Phrase
+Account,,SEO audit,Phrase
+Account,,accessibility audit,Phrase
+Account,,security audit,Phrase
+Account,,WCAG,Broad
+Account,,ADA compliance,Phrase
+Account,,penetration test,Phrase
+Account,,pentest,Broad
+Account,,vulnerability,Broad
+Account,,hack,Broad
+Account,,hacked,Broad
+Account,,malware,Broad
+Account,,virus,Broad
+Account,,book,Broad
+Account,,books,Broad
+Account,,ebook,Broad
+Account,,reddit,Broad
+Account,,quora,Broad
+Account,,stackoverflow,Broad
+Account,,YouTube,Broad
+Account,,video,Broad
+Account,,podcast,Broad
+Account,,blog,Broad
+Account,,article,Broad
+Campaign,Non-Brand -- Website Audit,audit and fix,Phrase
+Campaign,Non-Brand -- Website Audit,auditandfix,Broad
+Campaign,Non-Brand -- Website Problems,audit and fix,Phrase
+Campaign,Non-Brand -- Website Problems,auditandfix,Broad
+Campaign,Non-Brand -- Website Audit,car,Broad
+Campaign,Non-Brand -- Website Audit,home,Broad
+Campaign,Non-Brand -- Website Audit,house,Broad
+Campaign,Non-Brand -- Website Audit,building,Broad
+Campaign,Non-Brand -- Website Audit,tax,Broad
+Campaign,Non-Brand -- Website Audit,financial,Broad
+Campaign,Non-Brand -- Website Audit,accounting,Broad
+Campaign,Non-Brand -- Website Audit,medical,Broad
+Campaign,Non-Brand -- Website Audit,health,Broad
+Campaign,Non-Brand -- Website Audit,dental,Broad
+Campaign,Non-Brand -- Website Audit,legal,Broad
+Campaign,Non-Brand -- Website Problems,car,Broad
+Campaign,Non-Brand -- Website Problems,home,Broad
+Campaign,Non-Brand -- Website Problems,house,Broad
+Campaign,Non-Brand -- Website Problems,plumbing,Broad
+Campaign,Non-Brand -- Website Problems,electrical,Broad
+Campaign,Non-Brand -- Website Problems,app,Broad
+Campaign,Non-Brand -- Website Problems,mobile app,Phrase
+Campaign,Non-Brand -- Website Audit,government,Broad
+Campaign,Non-Brand -- Website Audit,council,Broad
+Campaign,Non-Brand -- Website Audit,compliance,Broad
+Campaign,Non-Brand -- Website Problems,government,Broad
+Campaign,Non-Brand -- Website Problems,cheap,Broad
+Campaign,Non-Brand -- Website Audit,cheap,Broad

@@ -325,12 +325,23 @@
 
     // CTAs — pre-build links with domain prefill
     const encodedDomain = encodeURIComponent('https://' + domain);
-    if (ctaFullAudit) ctaFullAudit.href = '/?domain=' + encodedDomain + '#order';
-    if (ctaAuditFix) ctaAuditFix.href = '/?domain=' + encodedDomain + '&product=audit_fix#order';
+    const ctaQuickFixes = $('cta-quick-fixes');
+    var qfLink = '/?domain=' + encodedDomain + '&product=quick_fixes#order';
+    var faLink = '/?domain=' + encodedDomain + '#order';
+    var afLink = '/?domain=' + encodedDomain + '&product=audit_fix#order';
+    if (ctaQuickFixes) ctaQuickFixes.href = qfLink;
+    if (ctaFullAudit) ctaFullAudit.href = faLink;
+    if (ctaAuditFix) ctaAuditFix.href = afLink;
+    // Update urgency and footer CTAs with domain prefill
+    var urgencyCta = $('urgency-cta-qf');
+    var footerCta = $('footer-cta-qf');
+    if (urgencyCta) urgencyCta.href = qfLink;
+    if (footerCta) footerCta.href = qfLink;
 
     // Expose state for exit-intent popup
     window.__af_scan_domain = domain;
     window.__af_cta_clicked = false;
+    if (ctaQuickFixes) ctaQuickFixes.addEventListener('click', () => { window.__af_cta_clicked = true; });
     if (ctaFullAudit) ctaFullAudit.addEventListener('click', () => { window.__af_cta_clicked = true; });
     if (ctaAuditFix) ctaAuditFix.addEventListener('click', () => { window.__af_cta_clicked = true; });
 
