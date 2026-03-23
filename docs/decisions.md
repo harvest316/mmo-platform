@@ -374,6 +374,26 @@ Implementation: Resend API with dedicated subdomain, scan_email_sequence state t
 **Status:** Accepted
 **Impl:** `docs/email-sequence-post-scan-non-converter.md`
 
+### DR-070: ColorCraft AI social media strategy — Pinterest + TikTok/Reels as Tier 1 channels (2026-03-23)
+
+**Context:** colorcraft-ai.com (AI coloring book and color palette generator) needed an organic social and content marketing strategy from scratch. Early-stage product, no confirmed active social accounts, solo/small team. Evaluated Pinterest, TikTok, Instagram Reels, Reddit, Facebook Groups, YouTube, and Twitter/X.
+
+**Decision:** Tier 1: Pinterest (visual search engine with 13-month pin longevity; coloring/printables is a proven high-volume category) and TikTok + Instagram Reels (AI tool demo format drives discovery; #coloringbook has 11B TikTok views). Twitter/X deprioritized — buyer audience not concentrated there. YouTube deferred to Month 4+ due to production cost. Facebook Groups (not pages) included for KDP/Etsy seller community engagement. Reddit included for trust-building in r/KDP, r/adultcoloring, r/Teachers, r/EtsySellers.
+
+Lead magnet strategy: free themed coloring page packs as email capture on Pinterest and TikTok bio link. Primary viral mechanic: live text-prompt-to-coloring-page generation reveal. KDP passive income angle is highest-leverage TikTok content pillar.
+
+**Status:** Accepted
+**Impl:** `colorcraft/social-media-strategy.md`
+
+### DR-070: ColorCraft AI growth strategy — Etsy sellers as primary acquisition segment (2026-03-23)
+
+**Context:** ColorCraft AI is at sub-1,000 users with no paid ads, no social media presence, and a credit-based monetization model. Needed a full growth strategy covering viral loops, distribution, lead magnets, partnerships, and a Product Hunt launch playbook.
+
+**Decision:** Etsy sellers (digital printable product sellers) designated as the primary acquisition segment. Rationale: highest LTV (need volume repeatedly), commercially motivated (willing to pay for tools), and networked (share tool recommendations across Facebook groups, YouTube, Pinterest). Secondary segments: teachers/homeschool parents, parents, interior designers. Pinterest identified as the highest-impact distribution channel for this product category. Watermark attribution on free-tier downloads designated as foundational viral mechanic. Referral-for-credits loop and public gallery with shareable URLs are the two product-led growth priorities. Product Hunt launch planned for month 3 after gallery seeding and community building.
+
+**Status:** Accepted
+**Impl:** `docs/colorcraft-growth-strategy.md`
+
 ### DR-069: Quick Fixes report — variant of full audit pipeline, not separate pipeline (2026-03-22)
 
 **Context:** Quick Fixes ($67) product needs a shorter report (5 worst factors instead of 10). Options: (A) fork the entire report pipeline into a separate orchestrator, (B) add a `variant` parameter through the existing pipeline, (C) only change the HTML template.
@@ -768,6 +788,23 @@ Primary conversion: email capture (A$5 value). Secondary: scan started/completed
 **Status:** Proposed
 **Impl:** `docs/google-ads/`
 
+### DR-074: ColorCraft AI paid media strategy — channel selection and launch architecture (2026-03-23)
+
+**Context:** colorcraft-ai.com has no tracking, no ad spend history, and no conversion data. Product is a credit-based AI coloring book / palette generator (Base44 SPA). Six target audiences: parents, teachers, artists/designers, Etsy sellers, interior designers, gift buyers. Needed a comprehensive paid media strategy from tracking setup through to scaling, appropriate for a bootstrapped founder starting from $0.
+
+**Decision:** Full paid media strategy documented in `docs/colorcraft-paid-media-strategy.md`. Key decisions:
+1. **Tracking first, spend second** — GTM injection via existing Cloudflare Worker (or Base44 settings) is the unlock; all other tags deploy through it. GA4 → Google Ads import for conversion data; Meta Pixel + CAPI via sGTM within first 2 weeks of Meta spend.
+2. **Google Search as primary channel** — Arts & Entertainment CPCs are lowest of all Google industries (~$0.80–$1.80 for this niche), purchase intent is direct, keyword demand is measurable. $900 of $1,500/month starter budget allocated here.
+3. **Bidding strategy: Maximize Conversions (no tCPA) for first 30 conversions** — new account has no data; hard CPA constraints starve Smart Bidding's learning phase. Transition to loose tCPA (1.5–2x observed CPA) once 50+ monthly conversions are reached.
+4. **7-campaign Google structure**: Brand, 4 non-brand Search (Coloring Book, Palette, Print/Gift, Etsy/Creator), PMax, Display Retargeting. Campaigns staggered — launch Brand + Coloring Book first, expand after 30 conversions.
+5. **Meta at $225/month, 2 ad sets only in month 1** (Parents + Etsy Sellers). Meta cannot exit learning phase below ~50 conversions/ad set/week; spreading $7.50/day across 6 ad sets guarantees all fail to learn.
+6. **Etsy seller segment is highest LTV** — justify 2x CPA ceiling; these users buy $40–$90 credit packs repeatedly.
+7. **Pinterest, TikTok, YouTube standalone deferred** to months 3+ — cover via PMax in the interim.
+8. **Performance benchmarks** calibrated to Arts & Entertainment Google industry data and Books/Music Meta category: expected Search CPC $0.80–$2.50, CPA (purchase) $25–$80, Meta CPA (purchase) $20–$90 depending on segment.
+
+**Status:** Proposed
+**Impl:** `docs/colorcraft-paid-media-strategy.md`
+
 ### DR-073: Outreach template overhaul — tradie language, score segmentation, angle rotation, spintax (2026-03-23)
 
 **Context:** Cold outreach templates used marketing jargon ("poor headline clarity", "missing CTA") that local business owners/tradies don't relate to. Templates lacked score-range segmentation, so a site scoring 35 got the same framing as one scoring 75. Follow-up sequences used the same angle (score) for every touch, increasing spam perception. Insufficient spintax variation meant emails could appear textually identical.
@@ -782,3 +819,181 @@ All changes applied to AU, GB, US, NZ templates (email + SMS + follow-ups). Prom
 
 **Status:** Accepted
 **Impl:** `data/templates/{AU,GB,US,NZ}/{email,sms,followup-email,followup-sms}.json`, `src/utils/template-proposals.js` (FACTOR_LABELS), `prompts/PROPOSAL.md`, `prompts/FOLLOWUP.md`
+
+### DR-074: SEO strategy for colorcraft-ai.com (2026-03-23)
+
+**Context:** colorcraft-ai.com is a React SPA on Base44 hosting an AI coloring book and color palette generator with print fulfillment. Zero organic indexation as of 2026-03-23. Cloudflare Worker handles meta/OG/schema injection but no crawlable body content exists. Two overlapping competitive keyword spaces: AI coloring generators (high competition, free-tool dominated) and color palette generators (owned by Adobe/Canva/Coolors). Site's defensible moat is combining both use cases with professional print fulfillment — unique in the market.
+
+**Decision:** Three-phase strategy:
+1. Unblock indexation immediately — GA4 injection via Worker, GSC setup, sitemap fix (PascalCase to lowercase), dynamic rendering for bots (Prerender.io via Worker)
+2. Build content on a subdirectory blog (Ghost or Astro at /blog/) — 10 priority articles targeting low-competition keywords for Etsy sellers, teachers, KDP publishers, and print buyers; pillar page on "how to make a coloring book"
+3. Authority via AI tools directories (20+ submissions in Month 1), roundup article outreach, teacher/homeschool community placements, and an original research asset from prompt data
+
+Global English-first targeting (American spelling); US is primary market for volume; AU targeting only for print-specific queries if fulfillment is AU-based. No hreflang needed at this stage.
+
+**Status:** Proposed
+**Impl:** `docs/seo-strategy-colorcraft-ai.md`
+
+### DR-075: ColorCraft market research findings — positioning and product priorities (2026-03-23)
+
+**Context:** Commissioned comprehensive market research on the AI coloring book and color palette generator space. Covered market size, competitors, keyword demand, audience segments, monetisation benchmarks, platform trends, seasonal patterns, emerging opportunities, and risks. Full report: `docs/colorcraft-market-research-2026-03-23.md`.
+
+**Decision:** Key findings that should drive product and go-to-market decisions:
+
+1. **Commercial rights are mispriced by competitors.** GenColor gates commercial use at $49.90/mo. ColorCraft's one-time credit model is harder to compare. Opportunity: introduce a subscription tier with commercial rights at $20–$29/mo to capture the KDP/Etsy creator segment — the fastest-growing, highest-willingness-to-pay audience.
+
+2. **KDP/Etsy creators are the primary target.** They pay for: batch generation, KDP-ready PDF export, no watermarks, commercial rights. "Paige" AI assistant is a genuine differentiator — lean into it in all positioning.
+
+3. **Educator/homeschool segment is underserved.** No AI coloring tool specifically addresses curriculum-aligned generation. Homeschool market growing at 10.3% CAGR; 64% of families use digital resources.
+
+4. **Pinterest + YouTube are the two highest-ROI acquisition channels.** Pinterest drives evergreen long-tail traffic (pins surface for months/years); YouTube creator tutorials convert the KDP/Etsy audience directly.
+
+5. **November–December is the primary seasonal window.** Google Trends peaks at December (score 84–94 normalised), trough May–July (score 43–45). Plan campaigns ramping from October.
+
+6. **Canva is the primary medium-term threat.** Acquired Leonardo.ai Phoenix model 2025; adding a line-art coloring workflow is trivially achievable. The durable moat is workflow depth (KDP specs, Paige AI, batch), not raw generation quality.
+
+7. **Copyright ambiguity is a real risk.** US Copyright Office ruling: AI-generated images cannot be copyrighted. This erodes the PLR resale market long-term. Position as a production workflow tool, not a content ownership play.
+
+**Status:** Accepted (research findings recorded)
+**Impl:** `docs/colorcraft-market-research-2026-03-23.md`
+
+### DR-076: ColorCraft AI — brand name legal review and trademark strategy (2026-03-23)
+
+**Context:** Before investing in AU business registration and US marketing for colorcraft-ai.com, a legal risk assessment was needed covering: AU trademark clearance, ASIC business name availability, domain conflicts, "AI" in brand name under ACCC/ACL, US trademark risk, colour/color spelling, AU trademark filing strategy, common law rights, and business structure.
+
+**Decision:** "ColorCraft AI" is viable to register and build on in Australia with a medium overall risk profile. Key findings:
+
+1. **Australia is clear.** No conflicting AU trademarks found in Classes 9, 41, or 42. Existing "Colourcraft" ASIC registrations are all in painting/decorating trades — different sector, different classes. "ColorCraft AI Pty Ltd" and "ColorCraft AI" business name appear available. "AI" is not a restricted word under ASIC rules.
+
+2. **The US is the primary risk.** colorcraft.ai (US-based, California law, founded 2024) operates an identical product — AI coloring page generator — under the identical brand name "ColorCraft". They have prior common law use in the US market. No registered US trademark was found at time of research, but this doesn't eliminate risk. US market investment should be preceded by a professional USPTO clearance search and a decision on whether to file a US Intent-to-Use trademark application.
+
+3. **AU trademark filing: proceed promptly.** File in Classes 9 (software/downloadable apps), 41 (educational/creative services), and 42 (SaaS/cloud platform). Government fees: $250/class = $750 for 3 classes. Total with attorney: ~$2,250–$3,250 AUD. Timeline: 7 months minimum to registration.
+
+4. **Business structure: Pty Ltd required.** Sole trader creates personal liability exposure for a global SaaS with international customers and potential IP/data claims. Pty Ltd provides liability protection, correct IP ownership structure, and tax efficiency at scale.
+
+5. **"AI" in brand name:** No ACCC/ACL concern with the name itself. Product must genuinely use AI technology (it does). No disclosure requirement for the specific AI stack used.
+
+6. **Color vs Colour spelling:** No legal consideration. American spelling is standard in software/tech and works correctly with .com/.ai domains. Use consistently across all markets.
+
+7. **Common law rights from operating colorcraft-ai.com** are real but weak at early stage in Australia (limited reputation to prove) and weaker than colorcraft.ai's rights in the US. Registration is the priority.
+
+**Status:** Superseded by DR-077 (Wyoming LLC scenario)
+**Impl:** `docs/colorcraft-legal-review-2026-03-23.md`
+
+---
+
+### DR-077: ColorCraft AI — Wyoming LLC as holding entity; USPTO filing before IP Australia (2026-03-23)
+
+**Context:** Business may be registered under a Wyoming LLC instead of (or in addition to) an Australian Pty Ltd, with the US as the primary market. DR-076 recommended filing Australian trademark first and forming a Pty Ltd first. This revision covers: (1) Wyoming LLC vs Pty Ltd for IP holding, (2) whether USPTO should come before IP Australia, (3) cross-border IP ownership and tax implications, and (4) a full re-evaluation of all 10 risk areas with the LLC structure in mind.
+
+**Decision:** The Wyoming LLC is the correct holding entity for a US-primary market SaaS. Material strategy changes from DR-076:
+
+1. **File USPTO first, not IP Australia.** The US is the primary market and the colorcraft.ai conflict is US-based. The Wyoming LLC has direct domestic standing to file and enforce a USPTO trademark. File an Intent-to-Use (ITU) application in Classes 9, 41, and 42 immediately in the LLC's name. Government fee: $750–$1,050 USD. Attorney: $1,500–$3,000 USD.
+
+2. **File IP Australia within 6 months of USPTO filing** using the Paris Convention priority claim. This gives the AU application the same effective priority date as the USPTO application. Applicant: Wyoming LLC (foreign entity applicants are permitted at IP Australia). Cost: $750 AUD government fees + $1,500–$2,500 AUD attorney. File UK trademark at the same time if UK is a real market (~£270 GBP government fees).
+
+3. **Wyoming LLC IP ownership is clean.** A Wyoming LLC is a domestic US juristic person — it can own USPTO trademarks directly with no complexity. It can also own IP Australia trademarks as a foreign applicant (with an Australian address for service via the IP attorney). All IP (trademarks, domain names) should be held by the LLC.
+
+4. **Transfer colorcraft-ai.com domain to the LLC** to evidence the LLC as the US trading entity for common law trademark purposes.
+
+5. **Defer the Australian Pty Ltd** until AU operations warrant it (approximately $50K+ AUD annual AU revenue, or an AU employee). When incorporated, the Pty Ltd takes a documented IP license from the LLC (arm's-length royalty 3–8% of net revenue; transfer pricing rules apply under Subdivision 815-B ITAA 1997).
+
+6. **Cross-border tax is manageable but requires advice.** Wyoming LLC owned by an Australian resident = foreign-owned disregarded entity for US federal tax. Australian-source income is included in the owner's AU tax return; US-source income triggers a US federal filing obligation. The Australia-US Tax Convention reduces double taxation. Stripe Tax handles AU GST (10%) and UK VAT collection. Engage a US/AU international tax advisor before significant revenue.
+
+7. **FinCEN BOI report is required** for the Wyoming LLC within 30 days of formation (or by Jan 1, 2025 if formed before 2024). This is a compliance step, not a risk.
+
+8. **Business structure: Option A (LLC only) now; Option B (LLC + Pty Ltd) when AU operations mature.** The original DR-076 "Pty Ltd from day one" recommendation is revised — it applies only if the AU market is primary. With US as primary, Wyoming LLC alone is appropriate at early stage.
+
+**Status:** Superseded by DR-078 (sole trader correction — Wyoming LLC is not the actual structure)
+**Impl:** `docs/colorcraft-legal-review-wyoming-2026-03-23.md`
+
+---
+
+### DR-078: ColorCraft AI — Australian sole trader structure; IP Australia filing first (2026-03-23)
+
+**Context:** DR-077 was premised on a Wyoming LLC holding entity. This was incorrect. The business is registered as an **Australian sole trader** with an existing ABN. Stripe is already live under that ABN. No company (Pty Ltd or LLC) exists. This entry records the correct structural baseline and the resulting strategy changes.
+
+**Decision:** Australian sole trader is the operating and IP-holding structure. Key conclusions:
+
+1. **All IP is personally owned.** A sole trader is not a separate legal entity — trademarks, domain names, and copyrights vest in the individual. No IP assignment or licensing is needed at this stage.
+
+2. **File IP Australia first.** Lower cost ($750 AUD government fees), faster timeline (6–9 months to registration), simpler as an individual applicant. File in Classes 9, 41, and 42 in the individual's personal name. Attorney: $1,500–$2,500 AUD.
+
+3. **File USPTO within 6 months via Paris Convention** claiming the IP Australia filing date as priority. Both applications share the same effective priority date. Foreign-domiciled applicants must use a US-licensed attorney (mandatory under 37 C.F.R. § 2.11). File as an Australian individual, not as any entity. Cost: $750–$1,050 USD government fees + $1,500–$3,000 USD attorney.
+
+4. **Register "ColorCraft AI" as an ASIC business name** under the existing ABN. Required to trade legally under a name other than the individual's personal name. Cost: $44–$102 AUD. Takes 10 minutes at abr.business.gov.au.
+
+5. **Stripe requires no changes.** Already correctly configured under the AU ABN as a sole trader.
+
+6. **Sole trader liability exposure is the primary structural risk.** No liability shield — personal assets exposed if sued. Consider incorporating a Pty Ltd before significant US marketing spend or if a cease-and-desist arrives. IP assignment to the Pty Ltd at that time requires a formal assignment deed and IP Australia/USPTO recordal.
+
+7. **Wyoming LLC is not needed and not in place.** DR-077 Wyoming LLC content is archived but not enacted. The colorcraft.ai conflict analysis and Paris Convention filing strategy are materially the same; only the applicant identity and filing order change.
+
+**Status:** Accepted
+**Impl:** `docs/colorcraft-legal-review-2026-03-23.md`
+
+### DR-079: ColorCraft AI — brand rename candidate screening and winner selection (2026-03-23)
+
+**Context:** "ColorCraft AI" has a direct .com domain conflict with colorcraft.ai, a live US competitor. A rename is required before significant marketing spend. 20 candidate names were generated and screened against four criteria: .com domain availability (RDAP/WHOIS), web brand presence (DuckDuckGo/Google search), trademark search (web-indexed USPTO records), and trademark risk assessment. All domain checks performed via Verisign RDAP API. All web searches performed live.
+
+**Decision:** Rename to **Inkmora** (inkmora.com). Full screening results below.
+
+**Candidate pool and screening results:**
+
+| # | Name | .com Status | Web Brand Presence | TM Risk | Notes |
+|---|------|-------------|-------------------|---------|-------|
+| 1 | Inkmora | AVAILABLE | None found | Low | Invented word; "ink" + "-mora" suffix; no hits in adjacent software/AI/creative space |
+| 2 | Inkfolia | AVAILABLE | None found | Low | "Ink" + "folia" (Latin for leaves/pages); evokes coloring book pages; clean search results |
+| 3 | TintMind | AVAILABLE | None found | Low | "Tint" + "Mind" (AI cognition); no competing brand found; slightly abstract |
+| 4 | HueGeni | AVAILABLE | None found | Low | "Hue" + "Geni" (genius/genie); clear AI connotation; Huemint exists but no conflict |
+| 5 | Palettopia | AVAILABLE | None found | Low | "Palette" + "-topia" (utopia); evocative but longer (10 chars) |
+| 6 | TintGen | AVAILABLE | None found (TINT brand unrelated — window tint software) | Low | Short, functional; "Tint" + "Gen" (generate); slightly generic |
+| 7 | ColorAIO | AVAILABLE (.com) | Color.io (live competitor), color-io.en.softonic.com | Medium-High | Visually/phonetically similar to color.io — likely confusion |
+| 8 | ColorAIX | AVAILABLE | None found | Low-Med | Functional but "-AIX" reads as IBM OS; slightly awkward |
+| 9 | ChromaPage | AVAILABLE | Chroma coloring app exists; "Chroma" crowded in design tools | Medium | "Chroma" segment overused in color/design space |
+| 10 | InkPagen | AVAILABLE | None found | Low-Med | Awkward compound; "pagen" not a natural English morpheme |
+| 11 | SketchAir | REGISTERED (.com) | SketchAI, SketchAR, SketchAir iOS app all live | High | Multiple live products with nearly identical names; confusion risk |
+| 12 | PixelBloom | REGISTERED (.com) | — | — | Domain taken |
+| 13 | ChromaGen | REGISTERED (.com) | — | — | Domain taken; "chromagen" already a genetics/biotech brand |
+| 14 | PalettIQ | REGISTERED (.com) | — | — | Domain taken |
+| 15 | LumiGen | REGISTERED (.com) | — | — | Domain taken |
+| 16 | Tintify | REGISTERED (.com) | — | — | Domain taken |
+| 17 | Kolora | REGISTERED (.com) | — | — | Domain taken |
+| 18 | PrismAI | REGISTERED (.com) | — | — | Domain taken |
+| 19 | VivAIA | REGISTERED (.com) | — | — | Domain taken; vivaia.com is active shoe brand (unrelated but taken) |
+| 20 | ChromaFlow | REGISTERED (.com) | — | — | Domain taken |
+
+**Top 5 shortlist:**
+
+1. **Inkmora** — inkmora.com AVAILABLE; inkmora.ai AVAILABLE; inkmora.app likely available. Zero web brand presence. "Ink" clearly evokes illustration/coloring; "-mora" is a pleasing invented suffix (evokes "more", "amore", fluidity). 8 chars. Low TM risk — fully invented word.
+2. **Inkfolia** — inkfolia.com AVAILABLE; inkfolia.ai AVAILABLE. Zero web brand presence. "Folia" (Latin: pages/leaves) is a strong semantic fit for coloring books. 8 chars. Low TM risk.
+3. **TintMind** — tintmind.com AVAILABLE; tintmind.ai AVAILABLE. Zero web brand presence. Clean AI + color connotation. 8 chars. Low TM risk. Slightly more abstract than Inkmora.
+4. **HueGeni** — huegeni.com AVAILABLE; huegeni.ai AVAILABLE. Zero web brand presence. "Geni" suffix signals AI/intelligence clearly. 7 chars. Low TM risk. Huemint (huemint.com) exists but is visually and phonetically distinct.
+5. **Palettopia** — palettopia.com AVAILABLE; palettopia.ai AVAILABLE. Zero web brand presence. Strong semantic fit — "palette" + "utopia". 10 chars (within 12-char limit). Low TM risk.
+
+**Winner: Inkmora**
+
+Rationale:
+- "Ink" is the clearest single-syllable anchor to the product category (coloring, illustration, drawing, book pages) without using "color" or "craft"
+- "-mora" is a distinctive invented suffix with no competing meaning in software; phonetically smooth in all target markets (AU/US/UK)
+- 8 characters — well within the <12 char preference; easy to spell, say, and type
+- inkmora.com is unregistered (confirmed via Verisign RDAP); inkmora.ai is also clear
+- No existing brand, app, product, or trademark found in any adjacent space after live web search
+- Fully invented compound — strong trademark distinctiveness (fanciful/arbitrary category)
+- Works as a domain, app name, social handle, and spoken brand equally well
+- "Ink" anchors it to creativity/art; "mora" can later be positioned as a coined term (e.g., "inspire more color")
+
+Rejected alternatives:
+- ColorAIO: Too close to color.io (live competitor); likely confusion
+- SketchAir: Multiple live products with near-identical names; high collision risk
+- ChromaPage: "Chroma" is overused in design/color tooling; diluted distinctiveness
+- TintGen/ColorAIX: Functional but low brand personality; harder to trademark generic-adjacent names
+
+**Status:** Accepted — pending owner confirmation
+**Impl:** Brand rename pending; ASIC name registration update required once confirmed; domain registration at inkmora.com + inkmora.ai recommended immediately
+
+### DR-080: Remove ANTHROPIC_API_KEY and @anthropic-ai/sdk from 333Method and 2Step (2026-03-23)
+**Context:** Claude Max subscription provides free LLM access via the claude CLI orchestrator. The Anthropic SDK was a parallel paid API path to the same models. Running both meant unnecessary API credit costs and dual code paths.
+**Decision:** Remove all `@anthropic-ai/sdk` imports and `ANTHROPIC_API_KEY` usage. Production LLM calls route through OpenRouter exclusively. Dev tools (sage-auto-fix, generate-tests, update-stale-docs) use `claude -p` CLI invocations instead of the SDK. The `@anthropic-ai/sdk` package remains in package.json for now (separate cleanup).
+**Status:** Implemented
+**Impl:** `src/utils/llm-provider.js`, `src/inbound/autoresponder.js`, `src/agents/utils/agent-claude-api.js` (333Method); `src/video/shotstack.js` (2Step); `scripts/sage-auto-fix.js`, `scripts/generate-tests.js`, `scripts/update-stale-docs.js`, `scripts/unified-autofix.js` (333Method)
