@@ -69,6 +69,41 @@ function getCompetitorPriceRange(string $countryCode): array {
 }
 
 /**
+ * PayPal Billing Plan IDs for 2Step video subscriptions.
+ * Created 2026-03-24 via PayPal Billing Plans API.
+ * Product ID: PROD-7P937557RB261711F
+ */
+function get2StepPayPalPlanIds(): array {
+    return [
+        'USD' => [
+            'monthly_4'  => 'P-654457573Y281054DNHBAEFY',
+            'monthly_8'  => 'P-1XC37446E65108518NHBAEGA',
+            'monthly_12' => 'P-7VP01766AS8910928NHBAEGA',
+        ],
+        'AUD' => [
+            'monthly_4'  => 'P-4CS71501D47643346NHBAEGI',
+            'monthly_8'  => 'P-2F8781798R261994ENHBAEGI',
+            'monthly_12' => 'P-0EF998664F5388436NHBAEGI',
+        ],
+        'NZD' => [
+            'monthly_4'  => 'P-6EW1688218045674NNHBAEGQ',
+            'monthly_8'  => 'P-0L55895975618673DNHBAEGQ',
+            'monthly_12' => 'P-9YL07572M7649401FNHBAEGY',
+        ],
+    ];
+}
+
+/**
+ * Look up PayPal plan ID for a given country + tier.
+ */
+function get2StepPlanId(string $countryCode, string $tier = 'monthly_4'): ?string {
+    $plans = get2StepPayPalPlanIds();
+    $pricing = get2StepPriceForCountry($countryCode);
+    $currency = $pricing['currency'];
+    return $plans[$currency][$tier] ?? $plans['USD'][$tier] ?? null;
+}
+
+/**
  * Look up 2Step video pricing for a given country code.
  * Falls back to US pricing for unknown countries.
  */
