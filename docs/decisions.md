@@ -1096,3 +1096,21 @@ Rejected alternatives:
 
 **Status:** Accepted
 **Impl:** `2Step/src/stages/video-demo-requests.js`, registered in `2Step/src/stages/pipeline-service.js`
+
+---
+
+### DR-088: Outscraper API for Yelp/Facebook/LinkedIn social extraction (2026-03-24)
+
+**Context:** Social profile extraction for Yelp/Facebook/LinkedIn was using Playwright stealth browser. Yelp required nopecha CAPTCHA solving (1/3 success rate in testing). Evaluated ZenRows and Outscraper as structured API alternatives to eliminate browser overhead.
+
+**Decision:** Outscraper API (`OUTSCRAPER_API_KEY`) replaces Playwright for Yelp, Facebook, LinkedIn:
+- Yelp `/yelp` → phone + city, 3/3 success vs 1/3 Playwright, no CAPTCHA
+- Facebook `/facebook-pages` → structured email + phone as dedicated fields (better than HTML regex), 2/3 with data
+- LinkedIn `/linkedin/companies` → headquarters city, 3/3, ~2s API call vs ~5s Playwright page load
+- ZenRows rejected: 402 during daily quota for our test; even when available, Yelp requires `js_render=true + premium_proxy=true` (25x credits, ~$7/1k) vs Outscraper's ~$3/1k. ZenRows has no structured Facebook API.
+- YouTube: remains raw HTTP (free, `ytInitialData` JSON parse) — no Outscraper endpoint found
+- Instagram: remains Playwright best-effort — no Outscraper endpoint, ZenRows 0% success rate
+- Playwright kept as fallback if `OUTSCRAPER_API_KEY` not set or API call fails
+
+**Status:** Accepted
+**Impl:** `333Method/src/utils/social-contact-extractor.js` — `outscraperFetch()` helper, per-platform primary/fallback logic; `OUTSCRAPER_API_KEY` added to `333Method/.env`
