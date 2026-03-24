@@ -1114,3 +1114,38 @@ Rejected alternatives:
 
 **Status:** Accepted
 **Impl:** `333Method/src/utils/social-contact-extractor.js` — `outscraperFetch()` helper, per-platform primary/fallback logic; `OUTSCRAPER_API_KEY` added to `333Method/.env`
+
+---
+
+### DR-089: VoD email verification — PHP-side token, not CF Worker (2026-03-24)
+
+**Context:** The plan required email verification before video production starts (kills bots + disposable addresses). Two options: (a) CF Worker generates and validates token, sends email via Resend; (b) PHP generates token, stores in SQLite, sends email, PHP calls Worker only after verification.
+
+**Decision:** PHP is the authority on email verification (option b). Rationale: (1) Resend API key is in 333Method/.env, not yet configured as a CF Worker secret; (2) PHP already has the SQLite pattern for scan_emails; (3) Worker's `/email` endpoint already marks `status='verified'` — PHP calls it only after validating the token, so the Worker still controls the authoritative verified state; (4) avoids adding email-sending infrastructure to the Worker.
+
+Token: 64-char hex, 24h TTL. Stored in `scan_emails.verification_token + email_verified_at`. Disposable domain blocklist at PHP layer (Worker has its own KV-based blocklist).
+
+**Status:** Accepted
+**Impl:** `api.php` `demoEmail()` + `verifyDemo()`, `video-demo-flow.js` `initVerify()` IIFE + `transitionToEmailSent()`, `video-reviews/index.php` `vod-email-sent-section`
+
+---
+
+### DR-090: Google Maps Places Autocomplete — conditional load (2026-03-24)
+
+**Context:** Places Autocomplete requires a Google Maps API key with HTTP referrer restriction. No key exists yet. Form validation requires `place_id` only when Places API is loaded.
+
+**Decision:** Load Maps JS conditionally: `<script>` tag only output when `GOOGLE_MAPS_API_KEY` env var is set. Validation for `place_id` only runs when `typeof google !== 'undefined' && google.maps.places` (form degrades gracefully without it). User must create key at Google Cloud Console, add to Hostinger env/htaccess, and add `GOOGLE_MAPS_API_KEY` env.
+
+**Status:** Accepted — key pending
+**Impl:** `video-reviews/index.php` lines conditional script load; `video-demo-flow.js` validation guard
+
+---
+
+### DR-091: CF Worker deploy blocked — token permissions missing (2026-03-24)
+
+**Context:** CF API token in `2Step/.env` lacks `Workers Scripts:Edit` and `Workers KV Storage:Edit` permissions. Cannot deploy Worker or create VIDEO-DEMOS KV namespace from sandbox.
+
+**Decision:** Comment out `VIDEO_DEMOS` KV binding in `wrangler.toml` (placeholder IDs fail wrangler validation). All video-demo routes gracefully return 503 when `env.VIDEO_DEMOS` is undefined. Worker to be deployed once token is updated. Instructions in wrangler.toml commit message.
+
+**Status:** Blocked — user action required: dash.cloudflare.com/profile/api-tokens → add Workers Scripts:Edit + Workers KV Storage:Edit → then `wrangler kv namespace create VIDEO-DEMOS` + fill IDs + `wrangler deploy`
+**Impl:** `333Method/workers/auditandfix-api/wrangler.toml`
