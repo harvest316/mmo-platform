@@ -254,7 +254,7 @@ Agent definitions come from [msitarzewski/agency-agents](https://github.com/msit
 - **Source clone:** `~/.local/share/agency-agents/` (git repo)
 - **Install target:** `~/.claude/agents/` (global, flat .md files with YAML frontmatter)
 - **Install method:** upstream `scripts/install.sh --tool claude-code --no-interactive`
-- **Auto-update:** systemd user timer `agency-agents-update.timer` (Sundays 04:00 AEDT)
+- **Auto-update:** systemd user timer `agency-agents-update.timer` (daily 04:00 AEDT)
 - **Manual update:** `~/code/mmo-platform/scripts/update-agency-agents.sh --verbose`
 - **Relevance filter:** only logs when changes affect agents listed in this document
 - **Update log:** `~/code/mmo-platform/logs/agency-agents-update.log` (only relevant changes)
