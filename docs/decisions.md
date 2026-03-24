@@ -1141,6 +1141,33 @@ Token: 64-char hex, 24h TTL. Stored in `scan_emails.verification_token + email_v
 
 ---
 
+### DR-092: Allow "- Marcus" short signature in SMS body (2026-03-25)
+
+**Context:** Proofreader was reworking every SMS message containing "- Marcus" in the body, treating it the same as the full "- Marcus, Audit&Fix" (which is system-appended). PROPOSAL.md was contradictory — two rules said to include sender ID in SMS body, two others said the system appends it automatically.
+
+**Decision:** All three signature forms are allowed in SMS body: `"- Marcus, Audit&Fix"` (preferred, use when chars allow), `"- Audit&Fix"`, or `"- Marcus"` (fallback when tighter). Use the longest form that fits within the 120-char body limit. Opt-out text in body is still always flagged (system-appended). US and CA (`requiresSenderIdInBody=true`) are SMS-blocked anyway. *(Amended same day: initial decision allowed only "- Marcus"; clarified all forms OK, longer preferred when budget allows.)*
+
+**Status:** Accepted
+**Impl:** `prompts/PROPOSAL.md` lines 222, 416, 426 updated; `prompts/PROOFREAD.md` SMS compliance section updated
+
+---
+
+### DR-093: Outscraper API preferred over ZenRows/Playwright for social contact extraction (2026-03-24)
+
+**Context:** Social contact extraction (Yelp, Facebook, LinkedIn) was using Playwright stealth + nopecha. ZenRows was evaluated as an alternative — confirmed 402 (daily quota exhaustion, not billing issue) and the cost for Yelp with js_render+premium_proxy would be ~$7/1k. Outscraper API (key already in 2Step/.env) was tested against the same URLs.
+
+**Decision:** Outscraper API is the primary extraction path for Yelp, Facebook, and LinkedIn:
+- Yelp `/yelp` → structured phone + city, 3/3 success, no CAPTCHA (~$3/1k estimated)
+- Facebook `/facebook-pages` → structured **email + phone** (better than Playwright regex), 2/3 success
+- LinkedIn `/linkedin/companies` → headquarters city, 3/3 success, no browser needed
+
+Playwright retained as fallback (if `OUTSCRAPER_API_KEY` missing or API returns null). YouTube stays on raw HTTP (free). Instagram stays on Playwright (no Outscraper endpoint, best-effort). ZenRows not used for social extraction — its value is SERP scraping under existing subscription.
+
+**Status:** Accepted
+**Impl:** `333Method/src/utils/social-contact-extractor.js` — `outscraperFetch()` helper + platform extractor functions; `OUTSCRAPER_API_KEY` added to `333Method/.env`
+
+---
+
 ### DR-091: CF Worker deploy blocked — token permissions missing (2026-03-24)
 
 **Context:** CF API token in `2Step/.env` lacks `Workers Scripts:Edit` and `Workers KV Storage:Edit` permissions. Cannot deploy Worker or create VIDEO-DEMOS KV namespace from sandbox.
