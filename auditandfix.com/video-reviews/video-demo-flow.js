@@ -52,6 +52,9 @@
   var confirmTitle       = $('vod-confirmation-title');
   var confirmDesc        = $('vod-confirmation-desc');
 
+  var emailSentSection   = $('vod-email-sent-section');
+  var emailSentAddress   = $('vod-email-sent-address');
+
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   function show(el) {
@@ -106,9 +109,10 @@
   // ── Section transitions ─────────────────────────────────────────────────
 
   function showSection(id) {
-    // Hide the three flow sections
+    // Hide all flow sections
     hide(formSection);
     hide(emailSection);
+    hide(emailSentSection);
     hide(confirmSection);
 
     // Show the requested one
@@ -212,7 +216,8 @@
         if (businessNameInput) businessNameInput.focus();
         return;
       }
-      if (!currentPlaceId) {
+      // place_id is required only if Places Autocomplete is loaded — otherwise degrade gracefully
+      if (!currentPlaceId && typeof google !== 'undefined' && google.maps && google.maps.places) {
         showError(formError, 'Please select your business from the dropdown suggestions so we can find your Google reviews.');
         if (businessNameInput) businessNameInput.focus();
         return;
@@ -296,8 +301,8 @@
           email: email,
         });
 
-        // Transition to State 3: confirmation
-        transitionToConfirmation();
+        // Transition to "check your inbox" state — verification required before pipeline starts
+        transitionToEmailSent(email);
       } catch (err) {
         emailBtn.disabled = false;
         emailBtn.textContent = 'Send My Video';
@@ -305,6 +310,15 @@
         showError(emailError, errMsg);
       }
     });
+  }
+
+  // ── State 2b: Email sent — awaiting verification ────────────────────────
+
+  function transitionToEmailSent(email) {
+    showSection('vod-email-sent-section');
+    if (emailSentAddress) {
+      emailSentAddress.textContent = email;
+    }
   }
 
   // ── State 3: Confirmation / polling ─────────────────────────────────────
@@ -502,6 +516,42 @@
     // Smooth scroll to video
     smoothScrollTo(confirmSection);
   }
+
+  // ── Auto-verify on page load (from email link) ──────────────────────────
+  //
+  // The verification email links to: /video-reviews/?verify=DEMO_ID&token=TOKEN
+  // On load, if these params are present, call verify-demo and skip to confirmation.
+
+  (function initVerify() {
+    var params    = new URLSearchParams(window.location.search);
+    var demoId    = params.get('verify');
+    var token     = params.get('token');
+
+    if (!demoId || !token) return;
+
+    // Show a loading state immediately so the page isn't blank
+    showSection('vod-confirmation-section');
+    if (confirmTitle) confirmTitle.textContent = 'Verifying your email\u2026';
+    if (confirmDesc)  confirmDesc.textContent  = 'Please wait a moment.';
+
+    callApi('verify-demo', { demo_id: demoId, token: token }).then(function (result) {
+      currentDemoId   = result.demo_id || demoId;
+      currentHasClips = !!result.has_clips;
+
+      // Clean up the URL (remove verify params) without a page reload
+      var cleanUrl = window.location.pathname + (params.get('niche') ? '?niche=' + params.get('niche') : '');
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, '', cleanUrl);
+      }
+
+      transitionToConfirmation();
+    }).catch(function (err) {
+      if (confirmTitle) confirmTitle.textContent = 'Verification failed';
+      if (confirmDesc)  confirmDesc.textContent  =
+        (err.message || 'The verification link may have expired.') +
+        ' Please go back and try again.';
+    });
+  })();
 
   // ── Cleanup on page unload ──────────────────────────────────────────────
 

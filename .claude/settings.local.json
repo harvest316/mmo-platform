@@ -9,7 +9,11 @@
       "Bash(systemctl --user list-units --type=service --all)",
       "Bash(systemctl --user stop 333method-orchestrator.timer mmo-cron.timer mmo-cron.service 333method-pipeline.service afk-monitor.timer agency-agents-update.timer)",
       "Bash(/dev/null ls:*)",
-      "Bash(crontab -l)"
+      "Bash(crontab -l)",
+      "Bash(curl -sL https://colorcraft-ai.com/ -H \"Accept: text/html\" -o /tmp/cc-root.html)",
+      "Bash(curl -sL https://colorcraft-ai.com/gallery -H \"Accept: text/html\")",
+      "Bash(curl -sL https://colorcraft-ai.com/for-etsy-sellers -H \"Accept: text/html\")",
+      "Bash(composer install:*)"
     ],
     "additionalDirectories": [
       "/home/jason/.claude"

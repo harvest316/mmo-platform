@@ -56,6 +56,9 @@ try {
         case 'demo-email':
             demoEmail($input);
             break;
+        case 'verify-demo':
+            verifyDemo($input);
+            break;
 
         default:
             http_response_code(400);
@@ -728,14 +731,26 @@ function demoStatus(array $input): void {
     echo $response ?: json_encode(['error' => 'Demo service unavailable']);
 }
 
+// Disposable email domains to reject at the PHP layer (CF Worker has its own blocklist too)
+const DISPOSABLE_EMAIL_DOMAINS = [
+    'mailinator.com','guerrillamail.com','guerrillamail.info','guerrillamail.net',
+    'guerrillamail.org','guerrillamailblock.com','grr.la','sharklasers.com',
+    'spam4.me','yopmail.com','yopmail.fr','cool.fr.nf','jetable.fr.nf',
+    'nospam.ze.tc','nomail.xl.cx','mega.zik.dj','speed.1s.fr','courriel.fr.nf',
+    'moncourrier.fr.nf','monemail.fr.nf','monmail.fr.nf','temp-mail.org',
+    'throwaway.email','trashmail.com','trashmail.me','trashmail.net',
+    'dispostable.com','discardmail.com','discard.email','tempinbox.com',
+    'spamgourmet.com','maildrop.cc','mailnull.com','spamgourmet.net',
+];
+
 /**
- * Store a demo viewer's email locally and proxy to CF Worker POST /video-demo/{demo_id}/email.
- * Fire-and-forget proxy — always returns success if local storage succeeds.
- * Follows the same SQLite pattern as saveEmail().
+ * Collect a demo viewer's email, generate a verification token, and send
+ * a verification email via Resend. Does NOT call the CF Worker — the Worker
+ * is only notified after the user clicks the verification link (verifyDemo).
  */
 function demoEmail(array $input): void {
     $demoId = (string)($input['demo_id'] ?? '');
-    $email  = filter_var($input['email'] ?? '', FILTER_VALIDATE_EMAIL) ?: '';
+    $email  = strtolower(trim(filter_var($input['email'] ?? '', FILTER_VALIDATE_EMAIL) ?: ''));
 
     if (!preg_match('/^[a-f0-9\-]+$/', $demoId) || !$email) {
         http_response_code(400);
@@ -743,7 +758,14 @@ function demoEmail(array $input): void {
         return;
     }
 
-    // ── Local SQLite storage (same table as saveEmail) ───────────────────
+    $emailDomain = substr($email, strpos($email, '@') + 1);
+    if (in_array($emailDomain, DISPOSABLE_EMAIL_DOMAINS, true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Please use a business email address']);
+        return;
+    }
+
+    // ── Local SQLite storage + verification token ────────────────────────
     $dbPath = getenv('AUDITANDFIX_SITE_PATH')
         ? rtrim(getenv('AUDITANDFIX_SITE_PATH'), '/') . '/data/scan_emails.sqlite'
         : __DIR__ . '/data/scan_emails.sqlite';
@@ -771,41 +793,182 @@ function demoEmail(array $input): void {
             issues_count    INTEGER,
             factor_summary  TEXT
         )");
+        try { $db->exec("ALTER TABLE scan_emails ADD COLUMN verification_token TEXT"); } catch (Throwable $e) {}
+        try { $db->exec("ALTER TABLE scan_emails ADD COLUMN email_verified_at TEXT"); } catch (Throwable $e) {}
 
         $rawIp  = trim(explode(',', $_SERVER['HTTP_CF_CONNECTING_IP']
             ?? $_SERVER['HTTP_X_FORWARDED_FOR']
             ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
         $ipHash = $rawIp ? hash('sha256', $rawIp) : null;
 
+        $verificationToken = bin2hex(random_bytes(32)); // 64 hex chars, expires via TTL check
+
         $stmt = $db->prepare(
-            "INSERT INTO scan_emails (scan_id, email, marketing_optin, ip_hash)
-             VALUES (:scan_id, :email, 0, :ip_hash)"
+            "INSERT INTO scan_emails (scan_id, email, marketing_optin, ip_hash, verification_token)
+             VALUES (:scan_id, :email, 0, :ip_hash, :token)"
         );
         $stmt->execute([
             ':scan_id' => 'demo_' . $demoId,
             ':email'   => $email,
             ':ip_hash' => $ipHash,
+            ':token'   => $verificationToken,
         ]);
     } catch (Throwable $e) {
         error_log('demoEmail DB error: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to process request']);
+        return;
     }
 
-    // ── CF Worker proxy (fire-and-forget) ────────────────────────────────
+    // ── Send verification email via Resend ───────────────────────────────
+    $resendKey = getenv('RESEND_API_KEY');
+    if ($resendKey) {
+        $scheme    = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host      = $_SERVER['HTTP_HOST'] ?? 'auditandfix.com';
+        $verifyUrl = $scheme . '://' . $host
+            . '/video-reviews/?verify=' . urlencode($demoId)
+            . '&token=' . urlencode($verificationToken);
+
+        $bodyHtml =
+            '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">'
+            . '<h2 style="color:#0a1428;font-size:1.3rem;margin-bottom:8px;">You\'re one step away from your free video</h2>'
+            . '<p style="color:#4a5568;">Click the button below to verify your email and start creating your personalised review video.</p>'
+            . '<p style="margin:24px 0;">'
+            .   '<a href="' . htmlspecialchars($verifyUrl) . '" '
+            .   'style="background:#2563eb;color:#fff;padding:14px 28px;border-radius:6px;'
+            .          'text-decoration:none;display:inline-block;font-weight:600;">'
+            .   'Verify Email &amp; Get My Video</a>'
+            . '</p>'
+            . '<p style="color:#718096;font-size:0.85rem;">This link expires in 24 hours. If you didn\'t request this, ignore this email.</p>'
+            . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">'
+            . '<p style="color:#a0aec0;font-size:0.8rem;">'
+            .   'Audit&amp;Fix &mdash; <a href="https://auditandfix.com" style="color:#a0aec0;">auditandfix.com</a>'
+            . '</p>'
+            . '</div>';
+
+        $bodyText = "You're one step away from your free video.\n\n"
+            . "Click below to verify your email and start creating your personalised review video:\n\n"
+            . $verifyUrl . "\n\n"
+            . "This link expires in 24 hours. If you didn't request this, ignore this email.\n\n"
+            . "-- Audit&Fix (auditandfix.com)";
+
+        $ch = curl_init('https://api.resend.com/emails');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode([
+                'from'    => 'Audit&Fix <noreply@auditandfix.com>',
+                'to'      => [$email],
+                'subject' => 'Verify your email to get your free review video',
+                'html'    => $bodyHtml,
+                'text'    => $bodyText,
+            ]),
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $resendKey,
+                'Content-Type: application/json',
+            ],
+            CURLOPT_TIMEOUT        => 10,
+        ]);
+        $resendResp = curl_exec($ch);
+        $resendCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($resendCode < 200 || $resendCode >= 300) {
+            error_log('demoEmail Resend error ' . $resendCode . ': ' . $resendResp);
+        }
+    }
+
+    echo json_encode(['success' => true, 'email_sent' => true]);
+}
+
+/**
+ * Validate the email verification token and notify the CF Worker to mark
+ * the demo as 'verified' so the pipeline can pick it up.
+ */
+function verifyDemo(array $input): void {
+    $demoId = (string)($input['demo_id'] ?? '');
+    $token  = (string)($input['token'] ?? '');
+
+    if (!preg_match('/^[a-f0-9\-]+$/', $demoId) || !preg_match('/^[a-f0-9]+$/', $token) || strlen($token) < 32) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid verification link']);
+        return;
+    }
+
+    $dbPath = getenv('AUDITANDFIX_SITE_PATH')
+        ? rtrim(getenv('AUDITANDFIX_SITE_PATH'), '/') . '/data/scan_emails.sqlite'
+        : __DIR__ . '/data/scan_emails.sqlite';
+
+    $verifiedEmail = null;
+    try {
+        $db = new PDO('sqlite:' . $dbPath);
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        // Token is valid for 24 hours
+        $stmt = $db->prepare(
+            "SELECT id, email, email_verified_at FROM scan_emails
+             WHERE scan_id = :scan_id
+               AND verification_token = :token
+               AND created_at >= datetime('now', '-24 hours')
+             ORDER BY created_at DESC LIMIT 1"
+        );
+        $stmt->execute([':scan_id' => 'demo_' . $demoId, ':token' => $token]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid or expired verification link']);
+            return;
+        }
+
+        $verifiedEmail = $row['email'];
+
+        // Mark as verified (idempotent)
+        if (!$row['email_verified_at']) {
+            $upd = $db->prepare(
+                "UPDATE scan_emails SET email_verified_at = datetime('now') WHERE id = :id"
+            );
+            $upd->execute([':id' => $row['id']]);
+        }
+    } catch (Throwable $e) {
+        error_log('verifyDemo DB error: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['error' => 'Verification failed']);
+        return;
+    }
+
+    // ── Notify CF Worker ─────────────────────────────────────────────────
+    $hasClips  = false;
     $workerUrl = rtrim(getenv('AUDITANDFIX_WORKER_URL') ?: '', '/');
-    if ($workerUrl) {
+    if ($workerUrl && $verifiedEmail) {
+        // Mark demo as verified in the Worker KV
         $ch = curl_init($workerUrl . '/video-demo/' . urlencode($demoId) . '/email');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode(['email' => $email]),
+            CURLOPT_POSTFIELDS     => json_encode(['email' => $verifiedEmail]),
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_TIMEOUT        => 10,
         ]);
         curl_exec($ch);
         curl_close($ch);
+
+        // Fetch demo record to return has_clips flag
+        $ch = curl_init($workerUrl . '/video-demo/' . urlencode($demoId));
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPGET        => true,
+            CURLOPT_TIMEOUT        => 10,
+        ]);
+        $resp = curl_exec($ch);
+        curl_close($ch);
+        if ($resp) {
+            $data     = json_decode($resp, true);
+            $hasClips = (bool)($data['has_clips'] ?? false);
+        }
     }
 
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => true, 'demo_id' => $demoId, 'has_clips' => $hasClips]);
 }
 
 // ─── GA4 Measurement Protocol Helpers ───────────────────────────────────────

@@ -21,6 +21,9 @@ $countryCode     = detectCountry();
 $videoPricing    = get2StepPriceForCountry($countryCode);
 $competitorRange = getCompetitorPriceRange($countryCode);
 $nicheParam      = isset($_GET['niche']) ? htmlspecialchars($_GET['niche']) : '';
+// Verification link params — ?verify=DEMO_ID&token=TOKEN (from email link)
+$verifyDemoId    = isset($_GET['verify']) ? preg_replace('/[^a-f0-9\-]/', '', $_GET['verify']) : '';
+$verifyToken     = isset($_GET['token'])  ? preg_replace('/[^a-f0-9]/',   '', $_GET['token'])  : '';
 
 $symbol  = $videoPricing['symbol'];
 $price4  = $videoPricing['monthly_4'];
@@ -388,6 +391,35 @@ $price12 = $videoPricing['monthly_12'];
             font-size: 0.9rem;
             margin-bottom: 16px;
             display: none;
+        }
+
+        /* ── Email sent / check inbox ───────────────────────── */
+        .vod-email-sent-section {
+            padding: 60px 20px;
+            background: #ebf8ff;
+            display: none;
+            text-align: center;
+        }
+        .vod-email-sent-wrap {
+            max-width: 520px;
+            margin: 0 auto;
+        }
+        .vod-email-sent-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+        .vod-email-sent-section h2 {
+            color: #1a365d;
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+        }
+        .vod-email-sent-section p {
+            color: #4a5568;
+            line-height: 1.6;
+        }
+        .vod-email-sent-address {
+            font-weight: 600;
+            color: #2b6cb0;
         }
 
         /* ── Post-verification confirmation ─────────────────── */
@@ -887,6 +919,19 @@ $price12 = $videoPricing['monthly_12'];
         </div>
     </section>
 
+    <!-- Section 3b: Email sent — awaiting verification click (hidden until email submitted) -->
+    <section class="vod-email-sent-section" id="vod-email-sent-section">
+        <div class="vod-email-sent-wrap">
+            <div class="vod-email-sent-icon" aria-hidden="true">&#9993;</div>
+            <h2>Check your inbox!</h2>
+            <p>We sent a verification link to <span class="vod-email-sent-address" id="vod-email-sent-address"></span>.</p>
+            <p style="margin-top:12px;">Click the link in that email to start creating your free video. It should arrive within a minute.</p>
+            <p class="vod-email-note" style="margin-top:20px;font-size:0.85rem;color:#718096;">
+                Can't find it? Check your spam folder. The link expires in 24 hours.
+            </p>
+        </div>
+    </section>
+
     <!-- Section 4: Post-verification confirmation (hidden until email verified) -->
     <section class="vod-confirmation-section" id="vod-confirmation-section">
         <div class="vod-confirmation-wrap">
@@ -1012,9 +1057,18 @@ window.VOD_CONFIG = {
         symbol: '<?= $videoPricing['symbol'] ?>',
         monthly4: <?= $videoPricing['monthly_4'] ?>,
     },
+<?php if ($verifyDemoId && $verifyToken): ?>
+    verifyDemoId: '<?= $verifyDemoId ?>',
+    verifyToken:  '<?= $verifyToken ?>',
+<?php endif; ?>
 };
 </script>
-<script src="https://maps.googleapis.com/maps/api/js?key=GOOGLE_PLACES_API_KEY&libraries=places&callback=initPlacesAutocomplete" async defer></script>
+<?php
+$googleMapsKey = getenv('GOOGLE_MAPS_API_KEY') ?: '';
+if ($googleMapsKey):
+?>
+<script src="https://maps.googleapis.com/maps/api/js?key=<?= htmlspecialchars($googleMapsKey) ?>&libraries=places&callback=initPlacesAutocomplete" async defer></script>
+<?php endif; ?>
 <script src="/video-reviews/video-demo-flow.js?v=<?= filemtime(__DIR__ . '/video-demo-flow.js') ?: '1' ?>" defer></script>
 <script src="/assets/js/obfuscate-email.js?v=1" defer></script>
 
