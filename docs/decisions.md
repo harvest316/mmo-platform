@@ -737,6 +737,15 @@ if (!hadRecentActivity) { process.exit(0); }
 **Status:** Accepted
 **Impl:** `333Method/scripts/benchmark-captcha-providers.js` (not yet applied)
 
+### DR-082: Social profile contact extraction + key_pages consolidation (2026-03-24)
+
+**Context:** Enrichment collected social profile URLs (Facebook, Instagram, LinkedIn, YouTube, Yelp) but never visited them for contact extraction. Only key_pages (contact/about pages on the prospect's own site) were browsed. Additionally, `key_pages` was duplicated in both score JSON (`contact_details.key_pages`) and contacts JSON — the score copy was a stale snapshot never read downstream.
+
+**Decision:** (1) Remove `key_pages` from score JSON output; contacts JSON is the canonical source. Backfill stripped 53,972 existing score files. (2) New `social-contact-extractor.js` module visits social profiles during enrichment to extract email, phone, and city. YouTube uses raw HTTP (parse `ytInitialData` JSON); Facebook, LinkedIn, Yelp, Instagram use Playwright stealth (reusing the existing browser instance from key_pages browsing). Facebook is the highest-yield platform — JS-rendered pages expose email+phone. LinkedIn provides city. Yelp requires nopecha for Cloudflare CAPTCHA. Instagram is mostly login-walled. Integrated after key_pages merge in `enrich.js`, using `mergeExtractedContacts()` for dedup.
+
+**Status:** Accepted
+**Impl:** `333Method/src/utils/social-contact-extractor.js`, `333Method/src/stages/enrich.js`, `333Method/src/stages/scoring.js`
+
 ## Marketing & Growth
 
 ### DR-070: Q2 2026 growth strategy -- channel prioritization and funnel restructure (2026-03-23)
@@ -1033,3 +1042,57 @@ Rejected alternatives:
 
 **Status:** Accepted
 **Impl:** Pending -- cleanup of non-agent files is safe to do immediately; host-side git clone + systemd timer requires NixOS host access
+
+### DR-082: 2Step VoD — waive setup fee, show "$0 (waived)" on pricing (2026-03-24)
+
+**Context:** 2Step video review subscription pricing had a setup fee (US $625, AU A$899, NZ NZ$989). Competitor research (March 2026) found nearly every SaaS competitor charges $0 setup — Widewail explicitly markets "no setup fees." The fee creates friction for cold-approached businesses with no prior relationship. Local business owners (pest control, plumber, cleaning) expect setup fees from agencies ($500-2,000), so anchoring at $0 is powerful.
+
+**Decision:** Waive setup fee entirely. Set `setup: 0` in `pricing.php` for all markets. Display "Setup: $0 (waived)" on pricing cards — the word "waived" implies real value given away, stronger than "no setup fee" or silent removal. In cold outreach messages: "starts at $99/month (no setup fee)" as a parenthetical.
+
+**Status:** Accepted
+**Impl:** `auditandfix.com/includes/pricing.php` — `get2StepPricing()` setup values set to 0
+
+### DR-083: 2Step VoD — CF Worker VIDEO-DEMOS KV queue architecture (2026-03-24)
+
+**Context:** Need a self-serve inbound funnel for 2Step. The scan.php → CF Worker → NixOS pipeline pattern (SCANS KV namespace) is proven for async request → process → deliver workflows.
+
+**Decision:** Replicate the SCANS pattern with a VIDEO-DEMOS KV namespace. Routes: POST /video-demo, GET /video-demo/:id, POST /video-demo/:id/email, GET /video-demos/pending, DELETE /video-demos/:key. Status flow: pending → verified (email confirmed) → processing → ready. Google Places Autocomplete for business matching (place_id captured client-side). Email verification gate prevents abuse. One free watermarked video per Google Place ID.
+
+**Status:** Accepted
+**Impl:** `333Method/workers/auditandfix-api/` — new routes + VIDEO-DEMOS KV namespace
+
+### DR-084: 2Step VoD — local FFmpeg Phase 1, serverless FFmpeg Phase 2 (2026-03-24)
+
+**Context:** CF Workers can't run FFmpeg (V8 isolates, 128MB memory, 30s CPU limit). Evaluated Shotstack ($0.26/video + $50/mo), Creatomate ($0.16/video + $54/mo), and serverless FFmpeg (AWS Lambda/GCP Cloud Run, ~$0.005/compute + $0.06 ElevenLabs = ~$0.07/video, $0/mo). Serverless FFmpeg uses the exact same `ffmpeg-render.js` code — zero additional QA needed.
+
+**Decision:** Phase 1: local FFmpeg on NixOS host (works today, $0.06/video). Phase 2: deploy same code to AWS Lambda container or GCP Cloud Run (~$0.07/video, no local PC dependency). No Shotstack/Creatomate API dependency. Also parallelise 7 sequential ElevenLabs TTS calls to ~2s (from ~10s) for real-time on-page generation.
+
+**Status:** Accepted
+**Impl:** Phase 1 in `2Step/src/stages/video-demo-requests.js`, Phase 2 deferred
+
+### DR-085: 2Step VoD — all verticals listed, Branch A/B fulfillment (2026-03-24)
+
+**Context:** Clip pools exist for pest control (cockroaches, termites, spiders, rodents), plumbing (blocked-drain), and house cleaning (deep-clean, greasy-rangehood) plus shared and default pools. 12 more niches have keyword matching but no dedicated clips. Want to list all verticals on the landing page to maximise funnel width.
+
+**Decision:** List all 13+ niches + "Other" (free-text) on the landing page. Branch A (have clips): auto-fulfillment via local FFmpeg, watermarked video in ~15 min. Branch B (no clips / "Other" / non-AU/NZ/US): take order, fulfill manually, no hard timing promise. Niche-to-clip config in Worker — niches auto-switch from B to A as clips are added. Support `?niche=` URL parameter for Google Ads targeting.
+
+**Status:** Accepted
+**Impl:** `auditandfix.com/video-reviews/index.php` + `video-demo-flow.js`
+
+### DR-086: 2Step VoD — watermark overlay for demo videos (2026-03-24)
+
+**Context:** Demo videos sent to prospects before payment need a watermark to discourage unpaid use while still showcasing the video quality. Must be non-obtrusive (not distract from content) but clearly visible.
+
+**Decision:** Add optional `watermark` parameter to `renderVideo()` in ffmpeg-render.js. When enabled, overlays "auditandfix.com" in white text at 50% opacity, 36px DejaVu Sans Bold, positioned bottom-right with 40px margin. Applied as a final drawtext filter across the entire video duration, after all scene text and logo overlays. Default off for backward compatibility.
+
+**Status:** Accepted
+**Impl:** `2Step/src/video/ffmpeg-render.js` — `watermark` option on `renderVideo()`
+
+### DR-087: 2Step VoD — demo requests pipeline stage architecture (2026-03-24)
+
+**Context:** Inbound VoD requests from the landing page are stored in CF Worker KV. Need a pipeline stage to poll for new requests, create site records, and callback when videos are ready. Must integrate with the existing pipeline stages (reviews -> enrich -> video) without disruption.
+
+**Decision:** New `video-demo-requests` stage runs as the FIRST pipeline stage (before reviews). Two-phase design: Phase A polls `GET /video-demos/pending` and inserts sites with `source='demo_request'` and `status='found'`; Phase B finds sites where video is ready and calls `DELETE /video-demos/{kv_key}` to complete the callback. Self-migrating columns (`source`, `demo_kv_key`, `manual_fulfillment`) via try/catch ALTER TABLE. Skips silently when `AUDITANDFIX_WORKER_URL`/`AUDITANDFIX_WORKER_SECRET` are not set.
+
+**Status:** Accepted
+**Impl:** `2Step/src/stages/video-demo-requests.js`, registered in `2Step/src/stages/pipeline-service.js`

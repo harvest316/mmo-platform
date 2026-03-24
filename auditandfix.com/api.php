@@ -47,6 +47,15 @@ try {
         case 'save-email':
             saveEmail($input);
             break;
+        case 'request-demo':
+            requestDemo($input);
+            break;
+        case 'demo-status':
+            demoStatus($input);
+            break;
+        case 'demo-email':
+            demoEmail($input);
+            break;
 
         default:
             http_response_code(400);
@@ -611,6 +620,192 @@ function getVideoViews(array $input): void {
     }
 
     echo json_encode(['videos' => $result]);
+}
+
+// ─── 2Step Video-on-Demand Demo Proxies ─────────────────────────────────────
+
+define('VALID_DEMO_NICHES', [
+    'pest_control', 'plumber', 'house_cleaning', 'dentist', 'electrician',
+    'roofing', 'hvac', 'real_estate', 'chiropractor', 'personal_injury_lawyer',
+    'pool_installer', 'dog_trainer', 'med_spa', 'other',
+]);
+
+/**
+ * Proxy a video demo request to the CF Worker POST /video-demo.
+ * Thin proxy — all business logic lives in the Worker.
+ */
+function requestDemo(array $input): void {
+    $workerUrl = rtrim(getenv('AUDITANDFIX_WORKER_URL') ?: '', '/');
+    if (!$workerUrl) {
+        http_response_code(503);
+        echo json_encode(['error' => 'Demo service not configured']);
+        return;
+    }
+
+    // Sanitise inputs
+    $businessName = substr(trim($input['business_name'] ?? ''), 0, 100);
+    $placeId      = preg_replace('/[^a-zA-Z0-9\-]/', '', (string)($input['place_id'] ?? ''));
+    $niche        = in_array($input['niche'] ?? '', VALID_DEMO_NICHES, true)
+        ? $input['niche']
+        : null;
+    $city         = substr(trim($input['city'] ?? ''), 0, 100);
+    $countryCode  = preg_replace('/[^A-Z]/', '', strtoupper((string)($input['country_code'] ?? '')));
+    if (strlen($countryCode) !== 2) $countryCode = '';
+
+    if (!$businessName || !$placeId || !$niche) {
+        http_response_code(400);
+        echo json_encode(['error' => 'business_name, place_id, and niche are required']);
+        return;
+    }
+
+    $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR']
+        ? explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]
+        : ($_SERVER['REMOTE_ADDR'] ?? '');
+
+    $payload = array_filter([
+        'business_name' => $businessName,
+        'place_id'      => $placeId,
+        'niche'         => $niche,
+        'city'          => $city ?: null,
+        'country_code'  => $countryCode ?: null,
+        'utm_source'    => $input['utm_source']   ?? null,
+        'utm_medium'    => $input['utm_medium']    ?? null,
+        'utm_campaign'  => $input['utm_campaign'] ?? null,
+    ], fn($v) => $v !== null);
+
+    $ch = curl_init($workerUrl . '/video-demo');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'X-Forwarded-For: ' . $clientIp,
+        ],
+        CURLOPT_TIMEOUT        => 25,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    http_response_code($httpCode ?: 503);
+    echo $response ?: json_encode(['error' => 'Demo service unavailable']);
+}
+
+/**
+ * Proxy a demo status check to the CF Worker GET /video-demo/{demo_id}.
+ * api.php is POST-only so demo_id arrives in the POST body.
+ */
+function demoStatus(array $input): void {
+    $workerUrl = rtrim(getenv('AUDITANDFIX_WORKER_URL') ?: '', '/');
+    if (!$workerUrl) {
+        http_response_code(503);
+        echo json_encode(['error' => 'Demo service not configured']);
+        return;
+    }
+
+    $demoId = (string)($input['demo_id'] ?? '');
+    if (!preg_match('/^[a-f0-9\-]+$/', $demoId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid demo_id']);
+        return;
+    }
+
+    $ch = curl_init($workerUrl . '/video-demo/' . urlencode($demoId));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPGET        => true,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_TIMEOUT        => 15,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    http_response_code($httpCode ?: 503);
+    echo $response ?: json_encode(['error' => 'Demo service unavailable']);
+}
+
+/**
+ * Store a demo viewer's email locally and proxy to CF Worker POST /video-demo/{demo_id}/email.
+ * Fire-and-forget proxy — always returns success if local storage succeeds.
+ * Follows the same SQLite pattern as saveEmail().
+ */
+function demoEmail(array $input): void {
+    $demoId = (string)($input['demo_id'] ?? '');
+    $email  = filter_var($input['email'] ?? '', FILTER_VALIDATE_EMAIL) ?: '';
+
+    if (!preg_match('/^[a-f0-9\-]+$/', $demoId) || !$email) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Valid demo_id and email required']);
+        return;
+    }
+
+    // ── Local SQLite storage (same table as saveEmail) ───────────────────
+    $dbPath = getenv('AUDITANDFIX_SITE_PATH')
+        ? rtrim(getenv('AUDITANDFIX_SITE_PATH'), '/') . '/data/scan_emails.sqlite'
+        : __DIR__ . '/data/scan_emails.sqlite';
+
+    try {
+        $dataDir = dirname($dbPath);
+        if (!is_dir($dataDir)) {
+            mkdir($dataDir, 0755, true);
+        }
+
+        $db = new PDO('sqlite:' . $dbPath);
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $db->exec("CREATE TABLE IF NOT EXISTS scan_emails (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id         TEXT    NOT NULL,
+            email           TEXT    NOT NULL,
+            marketing_optin INTEGER NOT NULL DEFAULT 0,
+            optin_timestamp TEXT,
+            ip_hash         TEXT,
+            created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+            score           INTEGER,
+            grade           TEXT,
+            domain          TEXT,
+            issues_count    INTEGER,
+            factor_summary  TEXT
+        )");
+
+        $rawIp  = trim(explode(',', $_SERVER['HTTP_CF_CONNECTING_IP']
+            ?? $_SERVER['HTTP_X_FORWARDED_FOR']
+            ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
+        $ipHash = $rawIp ? hash('sha256', $rawIp) : null;
+
+        $stmt = $db->prepare(
+            "INSERT INTO scan_emails (scan_id, email, marketing_optin, ip_hash)
+             VALUES (:scan_id, :email, 0, :ip_hash)"
+        );
+        $stmt->execute([
+            ':scan_id' => 'demo_' . $demoId,
+            ':email'   => $email,
+            ':ip_hash' => $ipHash,
+        ]);
+    } catch (Throwable $e) {
+        error_log('demoEmail DB error: ' . $e->getMessage());
+    }
+
+    // ── CF Worker proxy (fire-and-forget) ────────────────────────────────
+    $workerUrl = rtrim(getenv('AUDITANDFIX_WORKER_URL') ?: '', '/');
+    if ($workerUrl) {
+        $ch = curl_init($workerUrl . '/video-demo/' . urlencode($demoId) . '/email');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode(['email' => $email]),
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_TIMEOUT        => 5,
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
+    }
+
+    echo json_encode(['success' => true]);
 }
 
 // ─── GA4 Measurement Protocol Helpers ───────────────────────────────────────

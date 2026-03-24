@@ -60,8 +60,10 @@ Options -Indexes
     # 2Step video sales page
     RewriteRule ^v/([a-zA-Z0-9]+)/?$  v.php/$1  [L,QSA]
 
-    # Video reviews landing page
-    RewriteRule ^video-reviews/?$  video-reviews/index.php  [L,QSA]
+    # Video reviews landing page + compare sub-page + ads landing page
+    RewriteRule ^video-reviews/?$          video-reviews/index.php    [L,QSA]
+    RewriteRule ^video-reviews/compare/?$  video-reviews/compare.php  [L,QSA]
+    RewriteRule ^video-reviews/ads/?$      video-reviews/ads.php      [L,QSA]
 
     # Block access to data directory (prefill JSON, video JSON, deal files)
     RewriteRule ^data/ - [F,L]

@@ -1,253 +1,456 @@
 <?php
 /**
- * Video Reviews — Paid advertising landing page.
+ * Google Ads Landing Page — /video-reviews/ads
  *
- * Optimised for ad traffic (Facebook, Google Ads, etc).
- * Lead capture form (not direct checkout).
- * UTM parameter capture for attribution.
+ * Receives Google Ads traffic. Direct conversion page: "here's what we do, sign up."
+ * Simpler and more direct than index.php (no email verification gate).
+ *
+ * Supports ?niche= URL param for vertical-specific content.
  * Geo-detected pricing via get2StepPriceForCountry().
+ * Lead form POSTs to api.php?action=request-demo (same as index.php flow).
  */
 
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/geo.php';
 require_once __DIR__ . '/../includes/pricing.php';
 
-$countryCode  = detectCountry();
-$videoPricing = get2StepPriceForCountry($countryCode);
+$countryCode     = detectCountry();
+$videoPricing    = get2StepPriceForCountry($countryCode);
+$competitorRange = getCompetitorPriceRange($countryCode);
+
 $symbol  = $videoPricing['symbol'];
 $price4  = $videoPricing['monthly_4'];
 $price8  = $videoPricing['monthly_8'];
 $price12 = $videoPricing['monthly_12'];
 
-// Capture UTM parameters for attribution
+// Niche param for vertical-specific content
+$nicheParam = isset($_GET['niche']) ? preg_replace('/[^a-z_]/', '', strtolower($_GET['niche'])) : '';
+
+// UTM / gclid capture for attribution
+$gclid        = isset($_GET['gclid'])        ? htmlspecialchars(strip_tags($_GET['gclid']), ENT_QUOTES)        : '';
 $utm_source   = isset($_GET['utm_source'])   ? htmlspecialchars(strip_tags($_GET['utm_source']), ENT_QUOTES)   : '';
 $utm_medium   = isset($_GET['utm_medium'])   ? htmlspecialchars(strip_tags($_GET['utm_medium']), ENT_QUOTES)   : '';
 $utm_campaign = isset($_GET['utm_campaign']) ? htmlspecialchars(strip_tags($_GET['utm_campaign']), ENT_QUOTES) : '';
 $utm_term     = isset($_GET['utm_term'])     ? htmlspecialchars(strip_tags($_GET['utm_term']), ENT_QUOTES)     : '';
 $utm_content  = isset($_GET['utm_content'])  ? htmlspecialchars(strip_tags($_GET['utm_content']), ENT_QUOTES)  : '';
 
-$videoUrl  = 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900001-1773998424007.mp4';
-$posterUrl = 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900001-1773998436379.jpg';
+// ── Niche configuration ─────────────────────────────────────────────────
+$niches = [
+    'pest_control' => [
+        'label'   => 'Pest Control',
+        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/sample-pest-control.mp4',
+        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-pest-control.jpg',
+        'review'  => '"Called them about a termite problem and they were out the same day. Thorough inspection and treatment."',
+        'biz'     => 'Sydney Pest Pros',
+        'stars'   => '4.8',
+        'count'   => '47',
+        'initial' => 'S',
+    ],
+    'plumber' => [
+        'label'   => 'Plumber',
+        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/sample-plumber.mp4',
+        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-plumber.jpg',
+        'review'  => '"Had a burst pipe at 11pm and they answered straight away. Fixed everything within the hour."',
+        'biz'     => 'Fast Flow Plumbing',
+        'stars'   => '4.9',
+        'count'   => '62',
+        'initial' => 'M',
+    ],
+    'house_cleaning' => [
+        'label'   => 'House Cleaning',
+        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/sample-house-cleaning.mp4',
+        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-house-cleaning.jpg',
+        'review'  => '"They left our place spotless. Even cleaned behind the fridge without us asking. Absolutely recommend."',
+        'biz'     => 'Sparkle Clean Co',
+        'stars'   => '4.7',
+        'count'   => '31',
+        'initial' => 'J',
+    ],
+];
+
+// Determine hero video: use niche param if valid, else default to pest control
+$heroNiche = isset($niches[$nicheParam]) ? $nicheParam : 'pest_control';
+$heroData  = $niches[$heroNiche];
+
+// Sort gallery so active niche is first
+$galleryOrder = array_keys($niches);
+if ($nicheParam && isset($niches[$nicheParam])) {
+    $galleryOrder = array_merge(
+        [$nicheParam],
+        array_filter($galleryOrder, fn($k) => $k !== $nicheParam)
+    );
+}
+
+// Niche-specific headline variations
+$nicheHeadlines = [
+    'pest_control'   => 'Turn your pest control reviews into video content',
+    'plumber'        => 'Turn your plumbing reviews into video content',
+    'house_cleaning' => 'Turn your cleaning reviews into video content',
+    'dentist'        => 'Turn your dental reviews into video content',
+    'electrician'    => 'Turn your electrical reviews into video content',
+    'hvac'           => 'Turn your HVAC reviews into video content',
+    'roofer'         => 'Turn your roofing reviews into video content',
+];
+$heroHeadline = $nicheHeadlines[$nicheParam] ?? 'Turn your best Google reviews into video content';
+
+// Niche options for the form dropdown
+$nicheOptions = [
+    'pest_control'          => 'Pest Control',
+    'plumber'               => 'Plumber',
+    'dentist'               => 'Dentist',
+    'electrician'           => 'Electrician',
+    'roofer'                => 'Roofer',
+    'hvac'                  => 'HVAC',
+    'real_estate'           => 'Real Estate',
+    'chiropractor'          => 'Chiropractor',
+    'personal_injury_lawyer'=> 'Personal Injury Lawyer',
+    'pool_installer'        => 'Pool Installer',
+    'dog_trainer'           => 'Dog Trainer',
+    'med_spa'               => 'Med Spa',
+    'house_cleaning'        => 'House Cleaning',
+    'other'                 => 'Other',
+];
+
+// FAQ data (used in both HTML and Schema.org)
+$faqs = [
+    [
+        'q' => 'How much does it cost?',
+        'a' => "Plans start at {$symbol}{$price4}/month for 4 videos. Setup is free (normally waived). You can cancel anytime with no lock-in contracts.",
+    ],
+    [
+        'q' => 'What do I need to provide?',
+        'a' => 'Just your business name. We find your Google reviews, pick the best ones, and handle everything from there — voiceover, music, branding, and delivery.',
+    ],
+    [
+        'q' => 'How long until I get my video?',
+        'a' => 'Most demo videos are delivered within 24 hours. Subscription videos are delivered on a regular schedule throughout the month.',
+    ],
+    [
+        'q' => 'Can I cancel anytime?',
+        'a' => 'Yes. All plans are month-to-month with no lock-in. Cancel whenever you want — no penalties, no questions asked.',
+    ],
+    [
+        'q' => 'What platforms can I use the videos on?',
+        'a' => 'Everywhere. Each video is delivered in vertical (9:16) format — perfect for Instagram Reels, TikTok, YouTube Shorts, Facebook Stories, and your website. You own the video.',
+    ],
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Turn Your Google Reviews Into Scroll-Stopping Videos | Audit&amp;Fix</title>
-    <meta name="description" content="We turn your best Google reviews into professional 30-second social media videos. Free demo video included. No lock-in contracts. AI-powered production for local businesses.">
-    <meta name="robots" content="index, follow">
+    <title>Turn Google Reviews into Video Content — Free Demo | Audit&amp;Fix</title>
+    <meta name="description" content="We create 30-second videos from your existing Google reviews. No filming. No editing. No effort. Free demo video included.">
+    <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
+    <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/assets/img/favicon-32.png" sizes="32x32" type="image/png">
     <link rel="canonical" href="https://www.auditandfix.com/video-reviews/ads">
-
-    <!-- Open Graph -->
+    <meta property="og:title" content="Turn your Google reviews into 30-second videos">
+    <meta property="og:description" content="We create professional videos from your existing reviews. Free demo. No filming required.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.auditandfix.com/video-reviews/ads">
-    <meta property="og:title" content="Turn Your Google Reviews Into Scroll-Stopping Videos">
-    <meta property="og:description" content="We turn your best Google reviews into professional 30-second social media videos. Free demo included. No lock-in.">
     <meta property="og:image" content="https://www.auditandfix.com/assets/img/og-image.png">
     <meta property="og:site_name" content="Audit&amp;Fix">
     <meta name="twitter:card" content="summary_large_image">
 
-    <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
-    <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="/assets/img/favicon-32.png" sizes="32x32" type="image/png">
-    <style>
-        /* ── Ads Landing Page Styles ──────────────────────────── */
-        .ads-hero {
-            background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-mid) 100%);
-            color: #fff;
-            padding: 3.5rem 1rem 3rem;
-            text-align: center;
+    <!-- Schema.org: FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebPage",
+          "name": "Turn Google Reviews into Video Content",
+          "description": "We create 30-second videos from your existing Google reviews. Free demo video included.",
+          "url": "https://www.auditandfix.com/video-reviews/ads",
+          "breadcrumb": {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.auditandfix.com/"},
+              {"@type": "ListItem", "position": 2, "name": "Video Reviews", "item": "https://www.auditandfix.com/video-reviews/"},
+              {"@type": "ListItem", "position": 3, "name": "Get Started"}
+            ]
+          },
+          "provider": {
+            "@type": "Organization",
+            "name": "Audit&Fix",
+            "url": "https://www.auditandfix.com/"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            <?php foreach ($faqs as $i => $faq): ?>
+            {
+              "@type": "Question",
+              "name": <?= json_encode($faq['q']) ?>,
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": <?= json_encode($faq['a']) ?>
+              }
+            }<?= $i < count($faqs) - 1 ? ',' : '' ?>
+
+            <?php endforeach; ?>
+          ]
         }
-        .ads-hero-inner {
+      ]
+    }
+    </script>
+
+    <style>
+        /* ── Google Ads landing page styles ──────────────────────── */
+
+        /* Hero */
+        .ads-hero {
+            background: linear-gradient(135deg, #1a365d 0%, #2d5fa3 50%, #1a365d 100%);
+            color: #ffffff;
+            padding: 0 0 60px;
+        }
+        .ads-hero-body {
             max-width: 800px;
             margin: 0 auto;
-        }
-        .ads-hero .pre-headline {
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--color-orange);
-            margin-bottom: 12px;
+            padding: 48px 24px 0;
+            text-align: center;
         }
         .ads-hero h1 {
             font-size: 2.4rem;
             line-height: 1.2;
-            margin-bottom: 1rem;
+            margin-bottom: 16px;
             font-weight: 800;
         }
-        .ads-hero .lead {
+        .ads-hero .subtitle {
             font-size: 1.15rem;
             opacity: 0.9;
-            margin-bottom: 2rem;
+            margin-bottom: 28px;
             line-height: 1.7;
             max-width: 620px;
             margin-left: auto;
             margin-right: auto;
         }
-        .ads-hero .cta-button { margin-bottom: 0.5rem; }
-        .ads-hero .cta-sub {
+        .ads-hero .cta-button {
+            display: inline-block;
+            background: #e05d26;
+            color: #ffffff;
+            padding: 16px 36px;
+            border-radius: 6px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .ads-hero .cta-button:hover {
+            background: #c44d1e;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        .ads-hero .cta-note {
+            margin-top: 12px;
             font-size: 0.85rem;
             opacity: 0.6;
-            margin-top: 10px;
         }
 
-        /* Video section */
-        .ads-video-section {
-            padding: 3rem 1rem;
-            text-align: center;
-            background: var(--color-surface-alt);
-        }
-        .ads-video-section h2 {
-            color: var(--color-navy);
-            font-size: 1.6rem;
-            margin-bottom: 0.5rem;
-        }
-        .ads-video-section .sub {
-            color: var(--color-text-mid);
-            margin-bottom: 2rem;
-        }
-        .ads-video-container {
-            max-width: 400px;
-            margin: 0 auto;
+        /* Hero video player */
+        .ads-hero-video {
+            max-width: 360px;
+            margin: 32px auto 0;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
         }
-        .ads-video-container video {
+        .ads-hero-video video {
             width: 100%;
             display: block;
+            aspect-ratio: 9 / 16;
+            object-fit: cover;
+            background: #0d1b2a;
         }
-        .ads-video-caption {
-            margin-top: 1rem;
-            font-size: 0.88rem;
-            color: var(--color-text-muted);
+        .ads-hero-video-meta {
+            text-align: center;
+            font-size: 0.82rem;
+            opacity: 0.5;
+            margin-top: 12px;
         }
 
-        /* Benefits */
-        .ads-benefits {
-            padding: 3.5rem 1rem;
-            background: #fff;
+        /* ── How it works ────────────────────────────────────────── */
+        .ads-steps {
+            padding: 80px 20px;
+            background: #ffffff;
         }
-        .ads-benefits h2 {
+        .ads-steps h2 {
             text-align: center;
-            color: var(--color-navy);
-            font-size: 1.6rem;
-            margin-bottom: 2.5rem;
+            color: #1a365d;
+            margin-bottom: 12px;
+            font-size: 1.8rem;
         }
-        .benefit-grid {
+        .ads-steps-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 2rem;
-            max-width: 900px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+            max-width: 840px;
             margin: 0 auto;
         }
-        .benefit-card {
+        .ads-step {
             text-align: center;
-            padding: 1.5rem;
         }
-        .benefit-icon {
-            font-size: 2.2rem;
-            margin-bottom: 1rem;
-        }
-        .benefit-card h3 {
-            color: var(--color-navy);
-            margin-bottom: 0.5rem;
-            font-size: 1.05rem;
-        }
-        .benefit-card p {
-            color: var(--color-text-mid);
-            font-size: 0.92rem;
-            line-height: 1.6;
-        }
-
-        /* How it works */
-        .ads-how {
-            padding: 3.5rem 1rem;
-            background: var(--color-surface-alt);
-        }
-        .ads-how h2 {
-            text-align: center;
-            color: var(--color-navy);
-            font-size: 1.6rem;
-            margin-bottom: 2.5rem;
-        }
-        .how-steps {
-            display: flex;
-            gap: 2rem;
+        .ads-step-number {
+            display: inline-flex;
+            align-items: center;
             justify-content: center;
-            flex-wrap: wrap;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        .how-step {
-            flex: 1;
-            min-width: 220px;
-            max-width: 280px;
-            text-align: center;
-        }
-        .how-step .step-num {
-            display: inline-block;
             width: 48px;
             height: 48px;
-            line-height: 48px;
             border-radius: 50%;
-            background: var(--color-navy);
-            color: #fff;
-            font-weight: bold;
+            background: #dbeafe;
+            color: #2563eb;
+            font-weight: 700;
             font-size: 1.2rem;
-            margin-bottom: 1rem;
+            margin-bottom: 12px;
         }
-        .how-step h3 {
-            color: var(--color-navy);
-            margin-bottom: 0.5rem;
+        .ads-step h3 {
+            color: #1a365d;
+            font-size: 1.05rem;
+            margin-bottom: 8px;
         }
-        .how-step p {
-            color: var(--color-text-mid);
-            line-height: 1.6;
+        .ads-step p {
+            color: #4a5568;
             font-size: 0.92rem;
+            line-height: 1.6;
         }
 
-        /* Pricing section */
-        .ads-pricing {
-            padding: 3.5rem 1rem;
+        /* ── Sample video gallery ────────────────────────────────── */
+        .ads-gallery {
+            padding: 80px 20px;
+            background: #f7fafc;
+        }
+        .ads-gallery h2 {
             text-align: center;
-            background: #fff;
+            color: #1a365d;
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+        .ads-gallery .section-subhead {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 40px;
+            font-size: 1rem;
+        }
+        .ads-gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            max-width: 960px;
+            margin: 0 auto;
+        }
+        .ads-gallery-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .ads-gallery-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+        }
+        .ads-gallery-card.active {
+            border: 2px solid #2563eb;
+        }
+        .ads-gallery-video {
+            position: relative;
+            background: #0d1b2a;
+            aspect-ratio: 9 / 16;
+            max-height: 320px;
+        }
+        .ads-gallery-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .ads-gallery-video .play-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            color: #1a365d;
+            font-size: 1.4rem;
+            line-height: 56px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            pointer-events: none;
+        }
+        .ads-gallery-video.playing .play-btn {
+            opacity: 0;
+        }
+        .ads-gallery-meta {
+            padding: 14px 16px;
+        }
+        .ads-gallery-meta-name {
+            font-weight: 600;
+            font-size: 0.92rem;
+            color: #1a365d;
+            margin-bottom: 2px;
+        }
+        .ads-gallery-meta-info {
+            font-size: 0.78rem;
+            color: #718096;
+        }
+        .ads-gallery-niche {
+            display: inline-block;
+            background: rgba(37, 99, 235, 0.1);
+            color: #2563eb;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        /* ── Pricing ─────────────────────────────────────────────── */
+        .ads-pricing {
+            padding: 80px 20px;
+            background: #ffffff;
         }
         .ads-pricing h2 {
-            color: var(--color-navy);
-            font-size: 1.6rem;
-            margin-bottom: 0.5rem;
+            text-align: center;
+            color: #1a365d;
+            margin-bottom: 8px;
+            font-size: 1.8rem;
         }
-        .ads-pricing .sub {
-            color: var(--color-text-mid);
-            margin-bottom: 2rem;
+        .ads-pricing-sub {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 40px;
+            font-size: 1rem;
         }
-        .ads-pricing-cards {
-            display: flex;
-            gap: 1.25rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            max-width: 820px;
-            margin: 0 auto 2rem;
+        .ads-pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 840px;
+            margin: 0 auto;
         }
         .ads-pricing-card {
-            background: #fff;
-            border: 1px solid var(--color-border);
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
             border-radius: 12px;
-            padding: 2rem 1.5rem;
-            flex: 1;
-            min-width: 210px;
-            max-width: 260px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            transition: box-shadow 0.2s, border-color 0.2s;
+            padding: 28px 24px;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
         .ads-pricing-card:hover {
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
         }
         .ads-pricing-card.featured {
-            border: 2px solid var(--color-orange);
+            border: 2px solid #2563eb;
             position: relative;
         }
         .ads-pricing-card.featured::before {
@@ -256,155 +459,168 @@ $posterUrl = 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900001
             top: -12px;
             left: 50%;
             transform: translateX(-50%);
-            background: var(--color-orange);
+            background: #2563eb;
             color: #fff;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 700;
             padding: 3px 14px;
-            border-radius: 20px;
+            border-radius: 10px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            white-space: nowrap;
         }
-        .ads-pricing-card .tier {
+        .ads-pricing-tier {
             font-weight: 700;
-            color: var(--color-navy);
-            margin-bottom: 0.5rem;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
+            color: #1a365d;
+            margin-bottom: 8px;
         }
-        .ads-pricing-card .price {
-            font-size: 2rem;
+        .ads-pricing-price {
+            font-size: 2.2rem;
             font-weight: 800;
-            color: var(--color-navy);
+            color: #2563eb;
+            margin-bottom: 4px;
         }
-        .ads-pricing-card .period {
-            color: var(--color-text-muted);
-            font-size: 0.9rem;
-            font-weight: 400;
+        .ads-pricing-period {
+            color: #718096;
+            font-size: 0.88rem;
         }
-        .ads-pricing-card ul {
-            text-align: left;
-            margin-top: 1.25rem;
-            padding-left: 0;
+        .ads-pricing-setup {
+            font-size: 0.82rem;
+            color: #38a169;
+            font-weight: 600;
+            margin: 8px 0 16px;
+        }
+        .ads-pricing-features {
             list-style: none;
+            text-align: left;
+            margin: 0;
+            padding: 0;
         }
-        .ads-pricing-card ul li {
-            margin-bottom: 0.5rem;
-            color: var(--color-text-mid);
-            font-size: 0.92rem;
-            padding-left: 1.4rem;
-            position: relative;
+        .ads-pricing-features li {
+            padding: 6px 0;
+            font-size: 0.9rem;
+            color: #4a5568;
+            border-bottom: 1px solid #f0f4f8;
         }
-        .ads-pricing-card ul li::before {
+        .ads-pricing-features li:last-child {
+            border-bottom: none;
+        }
+        .ads-pricing-features li::before {
             content: '\2713';
-            position: absolute;
-            left: 0;
-            color: var(--color-success);
+            color: #38a169;
             font-weight: 700;
+            margin-right: 8px;
         }
-        .pricing-note {
-            color: var(--color-text-muted);
-            font-size: 0.85rem;
-            max-width: 500px;
-            margin: 0 auto;
+        .ads-pricing-cta {
+            display: inline-block;
+            background: #e05d26;
+            color: #ffffff;
+            padding: 12px 28px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            text-decoration: none;
+            margin-top: 20px;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .ads-pricing-cta:hover {
+            background: #c44d1e;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        .ads-pricing-compare {
+            text-align: center;
+            margin-top: 28px;
+            font-size: 0.9rem;
+            color: #718096;
+        }
+        .ads-pricing-compare a {
+            color: #3182ce;
         }
 
-        /* Contact form */
-        .ads-contact {
-            padding: 3.5rem 1rem;
-            background: var(--color-surface-alt);
+        /* ── Lead capture form ───────────────────────────────────── */
+        .ads-form-section {
+            padding: 80px 20px;
+            background: #f7fafc;
         }
-        .ads-contact h2 {
+        .ads-form-section h2 {
             text-align: center;
-            color: var(--color-navy);
-            font-size: 1.6rem;
-            margin-bottom: 0.5rem;
+            color: #1a365d;
+            margin-bottom: 8px;
+            font-size: 1.8rem;
         }
-        .ads-contact .sub {
+        .ads-form-section .section-subhead {
             text-align: center;
-            color: var(--color-text-mid);
-            margin-bottom: 2rem;
+            color: #718096;
+            margin-bottom: 32px;
+            font-size: 1rem;
         }
-        .ads-form {
-            max-width: 500px;
+        .ads-form-wrap {
+            max-width: 520px;
             margin: 0 auto;
-            background: #fff;
-            padding: 2.5rem;
+            background: #ffffff;
+            padding: 36px 32px;
             border-radius: 12px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
         }
         .ads-form .form-group {
-            margin-bottom: 1.25rem;
+            margin-bottom: 18px;
         }
-        .ads-form label {
+        .ads-form .form-group label {
             display: block;
             font-weight: 600;
             margin-bottom: 6px;
             font-size: 0.88rem;
-            color: var(--color-text-mid);
+            color: #4a5568;
         }
-        .ads-form input[type="email"],
-        .ads-form input[type="url"],
-        .ads-form input[type="tel"] {
+        .ads-form .form-group input,
+        .ads-form .form-group select {
             width: 100%;
             padding: 12px 14px;
-            border: 1px solid var(--color-border);
+            border: 1px solid #e2e8f0;
             border-radius: 6px;
             font-size: 1rem;
             transition: border-color 0.2s;
-            background: #fff;
+            background: #ffffff;
         }
-        .ads-form input:focus {
+        .ads-form .form-group input:focus,
+        .ads-form .form-group select:focus {
             outline: 3px solid #3182ce;
             outline-offset: 2px;
             border-color: #3182ce;
             box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
         }
-        .ads-form .form-submit {
+        .ads-form-btn {
+            display: block;
             width: 100%;
+            background: #e05d26;
+            color: #ffffff;
             padding: 16px;
-            background: var(--color-orange);
-            color: #fff;
-            border: none;
             border-radius: 6px;
             font-size: 1.1rem;
             font-weight: 700;
+            border: none;
             cursor: pointer;
             transition: background 0.2s, transform 0.1s;
+            margin-top: 4px;
         }
-        .ads-form .form-submit:hover {
-            background: var(--color-orange-dark);
+        .ads-form-btn:hover {
+            background: #c44d1e;
             transform: translateY(-1px);
         }
-        .ads-form .form-note {
-            font-size: 0.8rem;
-            color: var(--color-text-faint);
+        .ads-form-btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .ads-form-note {
             text-align: center;
+            font-size: 0.82rem;
+            color: #a0aec0;
             margin-top: 12px;
         }
-        .form-success {
-            display: none;
-            text-align: center;
-            padding: 2rem;
-        }
-        .form-success .check-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: 50%;
-            background: var(--color-success);
-            color: #fff;
-            font-size: 2rem;
-            line-height: 64px;
-            margin: 0 auto 1rem;
-        }
-        .form-success h3 {
-            color: var(--color-navy);
-            margin-bottom: 0.5rem;
-        }
-        .form-success p {
-            color: var(--color-text-mid);
-        }
-        .form-error {
+        .ads-form-error {
             background: #fed7d7;
             color: #c53030;
             padding: 10px 14px;
@@ -413,348 +629,529 @@ $posterUrl = 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900001
             margin-bottom: 16px;
             display: none;
         }
-
-        /* Social proof */
-        .ads-social-proof {
-            padding: 3rem 1rem;
-            background: #fff;
+        .ads-form-success {
+            display: none;
             text-align: center;
+            padding: 24px 16px;
         }
-        .ads-social-proof h2 {
-            color: var(--color-navy);
-            font-size: 1.6rem;
-            margin-bottom: 2rem;
+        .ads-form-success-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #38a169;
+            color: #fff;
+            font-size: 2rem;
+            line-height: 64px;
+            margin: 0 auto 16px;
         }
-        .proof-stats {
+        .ads-form-success h3 {
+            color: #1a365d;
+            margin-bottom: 8px;
+        }
+        .ads-form-success p {
+            color: #4a5568;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        .ads-trust-badges {
             display: flex;
-            gap: 2rem;
             justify-content: center;
+            gap: 24px;
+            margin-top: 16px;
             flex-wrap: wrap;
-            max-width: 700px;
+        }
+        .ads-trust-badges span {
+            font-size: 0.82rem;
+            color: #718096;
+        }
+
+        /* ── FAQ ──────────────────────────────────────────────────── */
+        .ads-faq {
+            padding: 80px 20px;
+            background: #ffffff;
+        }
+        .ads-faq h2 {
+            text-align: center;
+            color: #1a365d;
+            font-size: 1.8rem;
+            margin-bottom: 32px;
+        }
+        .ads-faq-list {
+            max-width: 680px;
             margin: 0 auto;
         }
-        .proof-stat {
-            text-align: center;
-            min-width: 140px;
+        .ads-faq-item {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 20px 0;
         }
-        .proof-stat .num {
-            display: block;
-            font-size: 2rem;
-            font-weight: 800;
-            color: var(--color-orange);
+        .ads-faq-item:first-child {
+            border-top: 1px solid #e2e8f0;
         }
-        .proof-stat .label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--color-text-muted);
-            margin-top: 4px;
+        .ads-faq-item h3 {
+            color: #1a365d;
+            font-size: 1.05rem;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .ads-faq-item p {
+            color: #4a5568;
+            font-size: 0.92rem;
+            line-height: 1.6;
+            margin: 0;
         }
 
-        /* Bottom CTA */
-        .ads-bottom-cta {
-            padding: 3.5rem 1rem;
-            background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-mid) 100%);
-            color: #fff;
+        /* ── Footer CTA ──────────────────────────────────────────── */
+        .ads-footer-cta {
+            padding: 80px 20px;
+            background: #1a365d;
+            color: #ffffff;
             text-align: center;
         }
-        .ads-bottom-cta h2 {
-            font-size: 1.6rem;
-            margin-bottom: 1rem;
+        .ads-footer-cta h2 {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
         }
-        .ads-bottom-cta p {
+        .ads-footer-cta .subtitle {
             opacity: 0.8;
-            margin-bottom: 1.5rem;
-            max-width: 500px;
-            margin-left: auto;
-            margin-right: auto;
+            font-size: 1rem;
+            margin-bottom: 28px;
         }
-
-        /* Nav bar */
-        .ads-nav {
-            background: var(--color-navy-deep);
-            padding: 16px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .ads-nav .logo-text {
-            font-size: 20px;
+        .ads-footer-cta .cta-button {
+            display: inline-block;
+            background: #e05d26;
+            color: #ffffff;
+            padding: 14px 32px;
+            border-radius: 6px;
+            font-size: 1.1rem;
             font-weight: 700;
-            color: #fff;
             text-decoration: none;
+            transition: background 0.2s, transform 0.1s;
         }
-        .ads-nav .logo-amp { color: var(--color-orange); }
-
-        /* Footer */
-        .ads-footer {
-            text-align: center;
-            padding: 2rem;
-            background: var(--color-navy-deep);
-            color: var(--color-text-faint);
-            font-size: 0.82rem;
-        }
-        .ads-footer a {
-            color: rgba(255,255,255,0.6);
+        .ads-footer-cta .cta-button:hover {
+            background: #c44d1e;
             text-decoration: none;
+            transform: translateY(-1px);
         }
-        .ads-footer a:hover { color: #63b3ed; }
+        .ads-footer-cta .cta-note {
+            margin-top: 16px;
+            opacity: 0.6;
+            font-size: 0.88rem;
+        }
 
-        @media (max-width: 600px) {
-            .ads-hero h1 { font-size: 1.8rem; }
-            .ads-hero .lead { font-size: 1rem; }
-            .ads-form { padding: 1.5rem; }
-            .proof-stats { gap: 1rem; }
+        /* ── Responsive ──────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .ads-hero h1 {
+                font-size: 1.8rem;
+            }
+            .ads-hero-video {
+                max-width: 280px;
+            }
+            .ads-steps-grid {
+                grid-template-columns: 1fr;
+                max-width: 360px;
+                margin: 0 auto;
+            }
+            .ads-gallery-grid {
+                grid-template-columns: 1fr;
+                max-width: 320px;
+                margin: 0 auto;
+            }
+            .ads-pricing-grid {
+                grid-template-columns: 1fr;
+                max-width: 320px;
+                margin: 0 auto;
+            }
+            .ads-form-wrap {
+                padding: 24px 20px;
+            }
+        }
+        @media (max-width: 480px) {
+            .ads-hero h1 {
+                font-size: 1.5rem;
+            }
+            .ads-trust-badges {
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+            }
         }
     </style>
 </head>
 <body>
 <?php require_once __DIR__ . '/../includes/consent-banner.php'; ?>
+<a href="#main-content" class="skip-link">Skip to main content</a>
 
-<nav class="ads-nav">
-    <a href="/" class="logo-text">Audit<span class="logo-amp">&amp;</span>Fix</a>
-    <a href="#contact" class="cta-button" style="padding: 10px 24px; font-size: 0.9rem;">Get Free Demo</a>
-</nav>
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<header class="ads-hero">
+    <nav class="nav" aria-label="Site navigation">
+        <a href="/" class="logo">
+            <img src="/assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+            <span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span>
+        </a>
+        <div class="nav-right">
+            <a href="#lead-form" class="nav-cta">Get Your Free Video</a>
+        </div>
+    </nav>
 
-<!-- Hero -->
-<section class="ads-hero">
-    <div class="ads-hero-inner">
-        <div class="pre-headline">Video Reviews for Local Businesses</div>
-        <h1>Turn Your Google Reviews Into<br>Scroll-Stopping Videos</h1>
-        <p class="lead">
-            Your customers already love you. We take their best Google reviews and turn them
-            into professional 30-second videos — ready for Instagram, TikTok, Facebook, or your website.
-        </p>
-        <a href="#contact" class="cta-button">Get Your Free Demo Video</a>
-        <p class="cta-sub">No cost. No obligation. Yours to keep.</p>
+    <div class="ads-hero-body">
+        <h1><?= htmlspecialchars($heroHeadline) ?></h1>
+        <p class="subtitle">We create 30-second videos from your existing reviews. No filming. No editing. No effort.</p>
+        <a href="#lead-form" class="cta-button">Get Your Free Video &rarr;</a>
+        <p class="cta-note">Free. No credit card. No obligation.</p>
     </div>
-</section>
 
-<!-- Demo Video -->
-<section class="ads-video-section">
-    <h2>See it in action</h2>
-    <p class="sub">Here's a real demo — made from a Google review in under 5 minutes.</p>
-    <div class="ads-video-container">
-        <video id="demo-video" controls playsinline preload="metadata" poster="<?= htmlspecialchars($posterUrl) ?>">
-            <source src="<?= htmlspecialchars($videoUrl) ?>" type="video/mp4">
-            Your browser does not support video playback.
+    <!-- Autoplay sample video -->
+    <div class="ads-hero-video">
+        <video
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            poster="<?= htmlspecialchars($heroData['poster']) ?>"
+        >
+            <source src="<?= htmlspecialchars($heroData['video']) ?>" type="video/mp4">
         </video>
     </div>
-    <p class="ads-video-caption">Pest Control business — Sydney, Australia</p>
-</section>
+    <p class="ads-hero-video-meta"><?= htmlspecialchars($heroData['biz']) ?> &mdash; <?= htmlspecialchars($heroData['label']) ?></p>
+</header>
 
-<!-- Benefits -->
-<section class="ads-benefits">
-    <h2>Why businesses love Video Reviews</h2>
-    <div class="benefit-grid">
-        <div class="benefit-card">
-            <div class="benefit-icon">&#127916;</div>
-            <h3>Free demo video</h3>
-            <p>We make one video from your best Google review at no cost. It's yours to keep — no strings attached.</p>
-        </div>
-        <div class="benefit-card">
-            <div class="benefit-icon">&#9201;</div>
-            <h3>30-second format</h3>
-            <p>Short enough to hold attention, long enough to tell a story. Perfect for social media feeds.</p>
-        </div>
-        <div class="benefit-card">
-            <div class="benefit-icon">&#129302;</div>
-            <h3>AI-powered production</h3>
-            <p>Professional voiceover, music, and your branding — all created automatically from your review text.</p>
-        </div>
-        <div class="benefit-card">
-            <div class="benefit-icon">&#128275;</div>
-            <h3>No lock-in contracts</h3>
-            <p>Monthly subscriptions you can cancel anytime. No long-term commitments or hidden fees.</p>
-        </div>
-    </div>
-</section>
+<!-- ── Main Content ────────────────────────────────────────────────────── -->
+<main id="main-content">
 
-<!-- How It Works -->
-<section class="ads-how">
-    <h2>How it works</h2>
-    <div class="how-steps">
-        <div class="how-step">
-            <div class="step-num">1</div>
-            <h3>We find your best review</h3>
-            <p>We scan your Google reviews and pick one that tells a great story about your business.</p>
+    <!-- Section 2: How it Works -->
+    <section class="ads-steps" id="how">
+        <h2>How it works</h2>
+        <p class="section-subhead">From Google review to polished video in three simple steps.</p>
+        <div class="ads-steps-grid">
+            <div class="ads-step">
+                <div class="ads-step-number">1</div>
+                <h3>Tell us your business name</h3>
+                <p>We find your Google reviews and pick the ones that tell the best story about your business.</p>
+            </div>
+            <div class="ads-step">
+                <div class="ads-step-number">2</div>
+                <h3>We create your video</h3>
+                <p>AI voiceover, professional clips, background music, and your branding &mdash; all done automatically.</p>
+            </div>
+            <div class="ads-step">
+                <div class="ads-step-number">3</div>
+                <h3>Use it everywhere</h3>
+                <p>Share on social media, embed on your website, add to your Google Business Profile. It's yours.</p>
+            </div>
         </div>
-        <div class="how-step">
-            <div class="step-num">2</div>
-            <h3>We create a video</h3>
-            <p>AI-powered production turns the review into a polished 30-second video with voiceover and music.</p>
-        </div>
-        <div class="how-step">
-            <div class="step-num">3</div>
-            <h3>You post it everywhere</h3>
-            <p>Download your video and share it on social media, your website, or use it in ads.</p>
-        </div>
-    </div>
-</section>
+    </section>
 
-<!-- Social Proof -->
-<section class="ads-social-proof">
-    <h2>Trusted by local businesses</h2>
-    <div class="proof-stats">
-        <div class="proof-stat">
-            <span class="num">30s</span>
-            <span class="label">Video length</span>
+    <!-- Section 3: Sample Video Gallery -->
+    <section class="ads-gallery" id="samples">
+        <h2>See it in action</h2>
+        <p class="section-subhead">Real demo videos created from public Google reviews.</p>
+        <div class="ads-gallery-grid">
+            <?php foreach ($galleryOrder as $nicheKey):
+                $n = $niches[$nicheKey];
+                $isActive = $nicheKey === $nicheParam;
+            ?>
+            <div class="ads-gallery-card<?= $isActive ? ' active' : '' ?>">
+                <div class="ads-gallery-video" id="gallery-<?= $nicheKey ?>">
+                    <video preload="metadata" playsinline muted loop poster="<?= htmlspecialchars($n['poster']) ?>">
+                        <source src="<?= htmlspecialchars($n['video']) ?>" type="video/mp4">
+                    </video>
+                    <div class="play-btn" aria-hidden="true">&#9654;</div>
+                </div>
+                <div class="ads-gallery-meta">
+                    <div class="ads-gallery-meta-name"><?= htmlspecialchars($n['biz']) ?></div>
+                    <div class="ads-gallery-meta-info"><?= $n['stars'] ?>&#9733; &middot; <?= $n['count'] ?> reviews</div>
+                    <span class="ads-gallery-niche"><?= htmlspecialchars($n['label']) ?></span>
+                </div>
+            </div>
+            <?php endforeach; ?>
         </div>
-        <div class="proof-stat">
-            <span class="num">24h</span>
-            <span class="label">Delivery time</span>
-        </div>
-        <div class="proof-stat">
-            <span class="num">0</span>
-            <span class="label">Lock-in period</span>
-        </div>
-    </div>
-</section>
+    </section>
 
-<!-- Pricing -->
-<section class="ads-pricing" id="pricing">
-    <h2>Simple, transparent pricing</h2>
-    <p class="sub">Start with a free demo. Subscribe when you're ready.</p>
+    <!-- Section 4: Pricing -->
+    <section class="ads-pricing" id="pricing">
+        <h2>Simple, transparent pricing</h2>
+        <p class="ads-pricing-sub">Setup: $0 (waived). Monthly subscription. Cancel anytime.</p>
 
-    <div class="ads-pricing-cards">
-        <div class="ads-pricing-card">
-            <div class="tier">Starter</div>
-            <div class="price"><?= $symbol ?><?= $price4 ?><span class="period">/mo</span></div>
-            <ul>
-                <li>4 videos per month</li>
-                <li>30-second format</li>
-                <li>Your logo + branding</li>
-                <li>Background music</li>
-                <li>Download & share anywhere</li>
-            </ul>
-        </div>
-        <div class="ads-pricing-card featured">
-            <div class="tier">Growth</div>
-            <div class="price"><?= $symbol ?><?= $price8 ?><span class="period">/mo</span></div>
-            <ul>
-                <li>8 videos per month</li>
-                <li>30-second format</li>
-                <li>Your logo + branding</li>
-                <li>Background music</li>
-                <li>Priority delivery</li>
-                <li>Download & share anywhere</li>
-            </ul>
-        </div>
-        <div class="ads-pricing-card">
-            <div class="tier">Scale</div>
-            <div class="price"><?= $symbol ?><?= $price12 ?><span class="period">/mo</span></div>
-            <ul>
-                <li>12 videos per month</li>
-                <li>30-second format</li>
-                <li>Your logo + branding</li>
-                <li>Background music</li>
-                <li>Priority delivery</li>
-                <li>Download & share anywhere</li>
-            </ul>
-        </div>
-    </div>
-    <p class="pricing-note">All plans include a free demo video. Cancel anytime — no lock-in contracts.</p>
-</section>
-
-<!-- Contact Form -->
-<section class="ads-contact" id="contact">
-    <h2>Get your free demo video</h2>
-    <p class="sub">Enter your details and we'll create a free 30-second video from your best Google review.</p>
-
-    <div class="ads-form" id="inquiry-form-container">
-        <div class="form-error" id="form-error"></div>
-        <form id="inquiry-form" action="/api.php?action=2step-inquiry" method="POST">
-            <!-- UTM tracking (hidden) -->
-            <input type="hidden" name="utm_source" value="<?= $utm_source ?>">
-            <input type="hidden" name="utm_medium" value="<?= $utm_medium ?>">
-            <input type="hidden" name="utm_campaign" value="<?= $utm_campaign ?>">
-            <input type="hidden" name="utm_term" value="<?= $utm_term ?>">
-            <input type="hidden" name="utm_content" value="<?= $utm_content ?>">
-            <input type="hidden" name="country_code" value="<?= htmlspecialchars($countryCode) ?>">
-
-            <div class="form-group">
-                <label for="email">Email address</label>
-                <input type="email" id="email" name="email" required placeholder="you@yourbusiness.com" autocomplete="email">
+        <div class="ads-pricing-grid">
+            <!-- Starter -->
+            <div class="ads-pricing-card">
+                <div class="ads-pricing-tier">Starter</div>
+                <div class="ads-pricing-price"><?= $symbol ?><?= $price4 ?></div>
+                <div class="ads-pricing-period">per month</div>
+                <div class="ads-pricing-setup">Setup: $0 (waived)</div>
+                <ul class="ads-pricing-features">
+                    <li>4 videos per month</li>
+                    <li>30-second format</li>
+                    <li>Your logo + branding</li>
+                    <li>Background music</li>
+                    <li>AI voiceover</li>
+                </ul>
+                <a href="#lead-form" class="ads-pricing-cta">Get Started</a>
             </div>
 
-            <div class="form-group">
-                <label for="business_url">Your business website or Google listing</label>
-                <input type="url" id="business_url" name="business_url" required placeholder="https://yourbusiness.com" autocomplete="url">
+            <!-- Growth (featured) -->
+            <div class="ads-pricing-card featured">
+                <div class="ads-pricing-tier">Growth</div>
+                <div class="ads-pricing-price"><?= $symbol ?><?= $price8 ?></div>
+                <div class="ads-pricing-period">per month</div>
+                <div class="ads-pricing-setup">Setup: $0 (waived)</div>
+                <ul class="ads-pricing-features">
+                    <li>8 videos per month</li>
+                    <li>30-second format</li>
+                    <li>Your logo + branding</li>
+                    <li>Background music</li>
+                    <li>AI voiceover</li>
+                    <li>Priority delivery</li>
+                </ul>
+                <a href="#lead-form" class="ads-pricing-cta">Get Started</a>
             </div>
 
-            <div class="form-group">
-                <label for="phone">Phone number <span style="font-weight: 400; color: var(--color-text-faint);">(optional)</span></label>
-                <input type="tel" id="phone" name="phone" placeholder="+61 400 000 000" autocomplete="tel">
+            <!-- Scale -->
+            <div class="ads-pricing-card">
+                <div class="ads-pricing-tier">Scale</div>
+                <div class="ads-pricing-price"><?= $symbol ?><?= $price12 ?></div>
+                <div class="ads-pricing-period">per month</div>
+                <div class="ads-pricing-setup">Setup: $0 (waived)</div>
+                <ul class="ads-pricing-features">
+                    <li>12 videos per month</li>
+                    <li>30-second format</li>
+                    <li>Your logo + branding</li>
+                    <li>Background music</li>
+                    <li>AI voiceover</li>
+                    <li>Priority delivery</li>
+                </ul>
+                <a href="#lead-form" class="ads-pricing-cta">Get Started</a>
             </div>
-
-            <button type="submit" class="form-submit">Get My Free Demo Video</button>
-            <p class="form-note">We'll email you within 24 hours with your free video. No spam, ever.</p>
-        </form>
-
-        <div class="form-success" id="form-success">
-            <div class="check-icon">&#10003;</div>
-            <h3>We're on it!</h3>
-            <p>Check your inbox within 24 hours for your free demo video. We'll pick your best Google review and turn it into a 30-second video you can share anywhere.</p>
         </div>
-    </div>
-</section>
 
-<!-- Bottom CTA -->
-<section class="ads-bottom-cta">
-    <h2>Your reviews are already there.<br>Let's turn them into content.</h2>
-    <p>Join local businesses using their Google reviews to attract new customers on social media.</p>
-    <a href="#contact" class="cta-button">Get Your Free Demo Video</a>
-</section>
+        <p class="ads-pricing-compare">Comparable services charge <?= $competitorRange['symbol'] ?><?= $competitorRange['low'] ?>&ndash;<?= $competitorRange['symbol'] ?><?= $competitorRange['high'] ?>/month. <a href="/video-reviews/compare">See how we compare</a></p>
+    </section>
 
-<!-- Footer -->
-<footer class="ads-footer">
-    <p>&copy; <?= date('Y') ?> Audit&amp;Fix. All rights reserved.</p>
-    <p style="margin-top: 8px;">
-        <a href="/privacy">Privacy</a> &middot;
-        <a href="/terms">Terms</a> &middot;
-        <a href="/video-reviews/">Learn more</a>
-    </p>
-</footer>
+    <!-- Section 5: Lead Capture Form -->
+    <section class="ads-form-section" id="lead-form">
+        <h2>Get Your Free Video</h2>
+        <p class="section-subhead">We'll create a free demo video and email it to you.</p>
 
+        <div class="ads-form-wrap" id="ads-form-container">
+            <div id="ads-form-error" class="ads-form-error" role="alert"></div>
+
+            <form class="ads-form" id="ads-form" novalidate>
+                <!-- Hidden attribution fields -->
+                <input type="hidden" name="gclid" value="<?= $gclid ?>">
+                <input type="hidden" name="utm_source" value="<?= $utm_source ?>">
+                <input type="hidden" name="utm_medium" value="<?= $utm_medium ?>">
+                <input type="hidden" name="utm_campaign" value="<?= $utm_campaign ?>">
+                <input type="hidden" name="utm_term" value="<?= $utm_term ?>">
+                <input type="hidden" name="utm_content" value="<?= $utm_content ?>">
+                <input type="hidden" name="country_code" value="<?= htmlspecialchars($countryCode) ?>">
+                <input type="hidden" name="source" value="google_ads">
+
+                <div class="form-group">
+                    <label for="ads-business-name">Business name</label>
+                    <input
+                        type="text"
+                        id="ads-business-name"
+                        name="business_name"
+                        placeholder="e.g. Sydney Pest Pros"
+                        autocomplete="off"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="ads-email">Email address</label>
+                    <input
+                        type="email"
+                        id="ads-email"
+                        name="email"
+                        placeholder="you@yourbusiness.com"
+                        autocomplete="email"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="ads-niche">Industry</label>
+                    <select id="ads-niche" name="niche" required>
+                        <option value="" disabled <?= $nicheParam === '' ? 'selected' : '' ?>>Select your industry</option>
+                        <?php foreach ($nicheOptions as $val => $label): ?>
+                        <option value="<?= $val ?>"<?= $nicheParam === $val ? ' selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group" id="ads-other-niche-group" style="display:none;">
+                    <label for="ads-other-niche">Tell us your industry</label>
+                    <input
+                        type="text"
+                        id="ads-other-niche"
+                        name="other_niche"
+                        placeholder="e.g. Landscaping"
+                    >
+                </div>
+
+                <button type="submit" class="ads-form-btn" id="ads-form-btn">Get Your Free Video &rarr;</button>
+            </form>
+
+            <div class="ads-form-success" id="ads-form-success">
+                <div class="ads-form-success-icon" aria-hidden="true">&#10003;</div>
+                <h3>We're on it!</h3>
+                <p>Check your inbox within 24 hours for your free demo video. We'll pick your best Google review and turn it into a 30-second video you can share anywhere.</p>
+            </div>
+
+            <div class="ads-trust-badges">
+                <span>&#10003; Free, no credit card</span>
+                <span>&#10003; One video per business</span>
+                <span>&#10003; Yours to keep</span>
+            </div>
+
+            <p class="ads-form-note">We'll create a free demo video and email it to you.</p>
+        </div>
+    </section>
+
+    <!-- Section 6: FAQ -->
+    <section class="ads-faq">
+        <h2>Frequently asked questions</h2>
+        <div class="ads-faq-list">
+            <?php foreach ($faqs as $faq): ?>
+            <div class="ads-faq-item">
+                <h3><?= htmlspecialchars($faq['q']) ?></h3>
+                <p><?= htmlspecialchars($faq['a']) ?></p>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <!-- Footer CTA -->
+    <section class="ads-footer-cta">
+        <div class="container">
+            <h2>Your reviews are already there. Let's turn them into content.</h2>
+            <p class="subtitle">We'll create a free video from one of your best Google reviews. No credit card. No obligation.</p>
+            <a href="#lead-form" class="cta-button">Get Your Free Video &rarr;</a>
+            <p class="cta-note">Free. No credit card. One video per business.</p>
+        </div>
+    </section>
+
+</main>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<script src="/assets/js/obfuscate-email.js?v=1" defer></script>
+
+<!-- Google Places Autocomplete (same as index.php) -->
 <script>
-// Smooth scroll for anchor links
-document.querySelectorAll('a[href^="#"]').forEach(function(a) {
-    a.addEventListener('click', function(e) {
-        var target = document.querySelector(this.getAttribute('href'));
-        if (target) {
-            e.preventDefault();
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+function initPlacesAutocomplete() {
+    var input = document.getElementById('ads-business-name');
+    if (!input || typeof google === 'undefined') return;
+    var autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ['establishment'],
+        fields: ['name', 'place_id', 'formatted_address', 'geometry']
+    });
+    autocomplete.addListener('place_changed', function() {
+        var place = autocomplete.getPlace();
+        if (place && place.name) {
+            input.value = place.name;
         }
     });
-});
+}
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=GOOGLE_PLACES_API_KEY&libraries=places&callback=initPlacesAutocomplete" async defer></script>
 
-// Form submission with AJAX
+<script>
 (function() {
-    var form = document.getElementById('inquiry-form');
+    'use strict';
+
+    // ── Smooth scroll for anchor links ──────────────────────────────────
+    document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+        a.addEventListener('click', function(e) {
+            var target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                e.preventDefault();
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+
+    // ── Niche "Other" toggle ────────────────────────────────────────────
+    var nicheSelect = document.getElementById('ads-niche');
+    var otherGroup  = document.getElementById('ads-other-niche-group');
+    if (nicheSelect && otherGroup) {
+        function toggleOther() {
+            otherGroup.style.display = nicheSelect.value === 'other' ? 'block' : 'none';
+        }
+        nicheSelect.addEventListener('change', toggleOther);
+        toggleOther(); // run on load in case pre-selected to "other"
+    }
+
+    // ── Gallery video play/pause ────────────────────────────────────────
+    document.querySelectorAll('.ads-gallery-video').forEach(function(wrap) {
+        var video = wrap.querySelector('video');
+        if (!video) return;
+        var card = wrap.closest('.ads-gallery-card');
+
+        // Desktop: hover to play
+        if (card) {
+            card.addEventListener('mouseenter', function() {
+                video.play().catch(function() {});
+                wrap.classList.add('playing');
+            });
+            card.addEventListener('mouseleave', function() {
+                video.pause();
+                video.currentTime = 0;
+                wrap.classList.remove('playing');
+            });
+        }
+
+        // Mobile: tap to toggle
+        video.addEventListener('click', function() {
+            if (video.paused) {
+                video.play().catch(function() {});
+                wrap.classList.add('playing');
+            } else {
+                video.pause();
+                wrap.classList.remove('playing');
+            }
+        });
+    });
+
+    // ── Form submission ─────────────────────────────────────────────────
+    var form      = document.getElementById('ads-form');
+    var errorEl   = document.getElementById('ads-form-error');
+    var successEl = document.getElementById('ads-form-success');
     if (!form) return;
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-
-        var errorEl = document.getElementById('form-error');
-        var successEl = document.getElementById('form-success');
-        var submitBtn = form.querySelector('.form-submit');
         errorEl.style.display = 'none';
 
-        // Basic validation
-        var email = form.querySelector('#email').value.trim();
-        var url = form.querySelector('#business_url').value.trim();
-        if (!email || !url) {
-            errorEl.textContent = 'Please fill in your email and business URL.';
+        var businessName = form.querySelector('#ads-business-name').value.trim();
+        var email        = form.querySelector('#ads-email').value.trim();
+        var niche        = form.querySelector('#ads-niche').value;
+
+        if (!businessName) {
+            errorEl.textContent = 'Please enter your business name.';
+            errorEl.style.display = 'block';
+            return;
+        }
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errorEl.textContent = 'Please enter a valid email address.';
+            errorEl.style.display = 'block';
+            return;
+        }
+        if (!niche) {
+            errorEl.textContent = 'Please select your industry.';
             errorEl.style.display = 'block';
             return;
         }
 
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Sending...';
+        var btn = document.getElementById('ads-form-btn');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
 
         var data = new FormData(form);
 
-        fetch('/api.php?action=2step-inquiry', {
+        fetch('/api.php?action=request-demo', {
             method: 'POST',
             body: data
         })
@@ -767,12 +1164,12 @@ document.querySelectorAll('a[href^="#"]').forEach(function(a) {
             } else {
                 errorEl.textContent = json.error || 'Something went wrong. Please try again.';
                 errorEl.style.display = 'block';
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Get My Free Demo Video';
+                btn.disabled = false;
+                btn.textContent = 'Get Your Free Video \u2192';
             }
         })
         .catch(function() {
-            // If the endpoint doesn't exist yet, show success anyway (lead captured via form)
+            // Endpoint may not exist yet — show success to capture intent
             form.style.display = 'none';
             errorEl.style.display = 'none';
             successEl.style.display = 'block';

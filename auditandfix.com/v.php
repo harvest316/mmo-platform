@@ -60,9 +60,6 @@ $price4   = $videoPricing['monthly_4'];
 $price8   = $videoPricing['monthly_8'];
 $price12  = $videoPricing['monthly_12'];
 
-// Deal timer (same IP-hash system as homepage)
-$dealExpiresAt = getDealExpiresAt();
-$dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -110,13 +107,6 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
     </div>
 
     <div class="pitch-section">
-        <?php if ($dealActive): ?>
-        <div class="deal-banner">
-            <p>First-visit offer: <strong>20% off</strong> your setup fee</p>
-            <div class="timer" id="deal-timer">--:--</div>
-        </div>
-        <?php endif; ?>
-
         <h2>Your customers already love you</h2>
         <p>
             <?= $businessName ?> has <?= $reviewCount ?> Google reviews — and some of them are incredible.
@@ -142,19 +132,28 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
                 <div class="label">Starter</div>
                 <div class="price"><?= $symbol ?><?= $price4 ?><span class="period">/mo</span></div>
                 <p>4 videos per month</p>
+                <p style="color: #16a34a; font-size: 0.85rem;">Setup: <?= $symbol ?>0 (waived)</p>
             </div>
             <div class="pricing-card" style="border: 2px solid #2563eb;">
                 <div class="label">Growth</div>
                 <div class="price"><?= $symbol ?><?= $price8 ?><span class="period">/mo</span></div>
                 <p>8 videos per month</p>
+                <p style="color: #16a34a; font-size: 0.85rem;">Setup: <?= $symbol ?>0 (waived)</p>
                 <small style="color: #2563eb;">Most popular</small>
             </div>
             <div class="pricing-card">
                 <div class="label">Scale</div>
                 <div class="price"><?= $symbol ?><?= $price12 ?><span class="period">/mo</span></div>
                 <p>12 videos per month</p>
+                <p style="color: #16a34a; font-size: 0.85rem;">Setup: <?= $symbol ?>0 (waived)</p>
             </div>
         </div>
+
+        <?php $compRange = getCompetitorPriceRange($countryCode); ?>
+        <p style="color: #888; font-size: 0.85rem; margin-top: 1.5rem;">
+            Comparable services charge <?= $compRange['symbol'] ?><?= $compRange['low'] ?>–<?= $compRange['symbol'] ?><?= $compRange['high'] ?>/month.
+            <a href="/video-reviews/compare" style="color: #2563eb;">See how we compare</a>.
+        </p>
 
         <a href="#order" class="cta-button">Get Started</a>
     </div>
@@ -202,27 +201,6 @@ $dealActive = $dealExpiresAt > (int)(microtime(true) * 1000);
             }).catch(function() {});
         })();
 
-        <?php if ($dealActive): ?>
-        // Deal countdown timer
-        window.DEAL_EXPIRES_AT = <?= $dealExpiresAt ?>;
-        (function() {
-            var timer = document.getElementById('deal-timer');
-            if (!timer) return;
-            function update() {
-                var remaining = window.DEAL_EXPIRES_AT - Date.now();
-                if (remaining <= 0) {
-                    timer.textContent = 'Expired';
-                    document.querySelector('.deal-banner').style.display = 'none';
-                    return;
-                }
-                var mins = Math.floor(remaining / 60000);
-                var secs = Math.floor((remaining % 60000) / 1000);
-                timer.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
-                setTimeout(update, 1000);
-            }
-            update();
-        })();
-        <?php endif; ?>
     </script>
 </body>
 </html>

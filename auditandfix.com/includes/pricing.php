@@ -41,12 +41,31 @@ function getPricing(): array {
  */
 function get2StepPricing(): array {
     return [
-        'AU' => ['monthly_4' => 139, 'monthly_8' => 249, 'monthly_12' => 349, 'setup' => 899,  'currency' => 'AUD', 'symbol' => 'A$'],
-        'US' => ['monthly_4' =>  99, 'monthly_8' => 179, 'monthly_12' => 249, 'setup' => 625,  'currency' => 'USD', 'symbol' => '$'],
-        'UK' => ['monthly_4' =>  79, 'monthly_8' => 139, 'monthly_12' => 199, 'setup' => 489,  'currency' => 'GBP', 'symbol' => '£'],
-        'CA' => ['monthly_4' => 129, 'monthly_8' => 229, 'monthly_12' => 329, 'setup' => 849,  'currency' => 'CAD', 'symbol' => 'CA$'],
-        'NZ' => ['monthly_4' => 149, 'monthly_8' => 279, 'monthly_12' => 389, 'setup' => 989,  'currency' => 'NZD', 'symbol' => 'NZ$'],
+        'AU' => ['monthly_4' => 139, 'monthly_8' => 249, 'monthly_12' => 349, 'setup' => 0, 'currency' => 'AUD', 'symbol' => 'A$'],
+        'US' => ['monthly_4' =>  99, 'monthly_8' => 179, 'monthly_12' => 249, 'setup' => 0, 'currency' => 'USD', 'symbol' => '$'],
+        'UK' => ['monthly_4' =>  79, 'monthly_8' => 139, 'monthly_12' => 199, 'setup' => 0, 'currency' => 'GBP', 'symbol' => '£'],
+        'CA' => ['monthly_4' => 129, 'monthly_8' => 229, 'monthly_12' => 329, 'setup' => 0, 'currency' => 'CAD', 'symbol' => 'CA$'],
+        'NZ' => ['monthly_4' => 149, 'monthly_8' => 279, 'monthly_12' => 389, 'setup' => 0, 'currency' => 'NZD', 'symbol' => 'NZ$'],
     ];
+}
+
+/**
+ * Competitor price range for the video review service, by country.
+ * Used on pricing sections: "Comparable services charge $X-$Y/mo"
+ * Ranges based on market research (March 2026): Testimonial.to $20-80,
+ * Vocal Video $69-139, Widewail $500-750/location, agencies $1,000-5,000.
+ */
+function getCompetitorPriceRange(string $countryCode): array {
+    $ranges = [
+        'AU' => ['low' => 30,  'high' => 1100, 'symbol' => 'A$'],
+        'US' => ['low' => 20,  'high' => 750,  'symbol' => '$'],
+        'UK' => ['low' => 15,  'high' => 600,  'symbol' => '£'],
+        'CA' => ['low' => 25,  'high' => 1000, 'symbol' => 'CA$'],
+        'NZ' => ['low' => 30,  'high' => 1100, 'symbol' => 'NZ$'],
+    ];
+    $code = strtoupper($countryCode);
+    if ($code === 'GB') $code = 'UK';
+    return $ranges[$code] ?? $ranges['US'];
 }
 
 /**
