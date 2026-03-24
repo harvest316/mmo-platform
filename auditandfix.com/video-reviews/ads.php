@@ -38,33 +38,33 @@ $utm_content  = isset($_GET['utm_content'])  ? htmlspecialchars(strip_tags($_GET
 $niches = [
     'pest_control' => [
         'label'   => 'Pest Control',
-        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/sample-pest-control.mp4',
-        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-pest-control.jpg',
+        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900001-1773998424007.mp4',
+        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900001-1773998436379.jpg',
         'review'  => '"Called them about a termite problem and they were out the same day. Thorough inspection and treatment."',
-        'biz'     => 'Sydney Pest Pros',
-        'stars'   => '4.8',
-        'count'   => '47',
-        'initial' => 'S',
+        'biz'     => 'ACME Pest Control',
+        'stars'   => '4.9',
+        'count'   => '492',
+        'initial' => 'A',
     ],
     'plumber' => [
         'label'   => 'Plumber',
-        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/sample-plumber.mp4',
-        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-plumber.jpg',
+        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900003-1773998522268.mp4',
+        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900003-1773998536448.jpg',
         'review'  => '"Had a burst pipe at 11pm and they answered straight away. Fixed everything within the hour."',
-        'biz'     => 'Fast Flow Plumbing',
-        'stars'   => '4.9',
-        'count'   => '62',
-        'initial' => 'M',
+        'biz'     => 'ACME Plumbing',
+        'stars'   => '4.7',
+        'count'   => '256',
+        'initial' => 'A',
     ],
     'house_cleaning' => [
         'label'   => 'House Cleaning',
-        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/sample-house-cleaning.mp4',
-        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-house-cleaning.jpg',
+        'video'   => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-p25.mp4',
+        'poster'  => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-p25.jpg',
         'review'  => '"They left our place spotless. Even cleaned behind the fridge without us asking. Absolutely recommend."',
-        'biz'     => 'Sparkle Clean Co',
-        'stars'   => '4.7',
-        'count'   => '31',
-        'initial' => 'J',
+        'biz'     => 'Maid2Go Cleaning Sydney',
+        'stars'   => '4.9',
+        'count'   => '827',
+        'initial' => 'M',
     ],
 ];
 
@@ -781,18 +781,13 @@ $faqs = [
 <?php require_once __DIR__ . '/../includes/consent-banner.php'; ?>
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
+<?php
+$headerCta = ['text' => 'Get Your Free Video', 'href' => '#lead-form'];
+require_once __DIR__ . '/../includes/header.php';
+?>
+
 <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
-<header class="ads-hero">
-    <nav class="nav" aria-label="Site navigation">
-        <a href="/" class="logo">
-            <img src="/assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-            <span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span>
-        </a>
-        <div class="nav-right">
-            <a href="#lead-form" class="nav-cta">Get Your Free Video</a>
-        </div>
-    </nav>
+<header class="ads-hero" style="padding-top: 0;">
 
     <div class="ads-hero-body">
         <h1><?= htmlspecialchars($heroHeadline) ?></h1>

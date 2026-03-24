@@ -681,18 +681,10 @@ $price12 = $videoPricing['monthly_12'];
 <?php require_once __DIR__ . '/../includes/consent-banner.php'; ?>
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
+<?php require_once __DIR__ . '/../includes/header.php'; ?>
+
 <!-- ── Hero + Example Videos ─────────────────────────────────────────────── -->
-<header class="vod-hero">
-    <nav class="nav" aria-label="Site navigation">
-        <a href="/" class="logo">
-            <img src="/assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-            <span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span>
-        </a>
-        <div class="nav-right">
-            <a href="/scan" class="nav-cta">Free Website Score</a>
-        </div>
-    </nav>
+<header class="vod-hero" style="padding-top: 0;">
 
     <div class="vod-hero-body">
         <p class="pre-headline">Free video demo</p>
@@ -714,13 +706,13 @@ $price12 = $videoPricing['monthly_12'];
             </div>
             <div class="example-arrow">&darr;</div>
             <div class="example-video-wrap">
-                <video preload="metadata" playsinline muted loop poster="">
-                    <source src="https://pub-xxx.r2.dev/sample-pest-control.mp4" type="video/mp4">
+                <video preload="metadata" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900001-1773998436379.jpg">
+                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900001-1773998424007.mp4" type="video/mp4">
                 </video>
             </div>
             <div class="example-meta">
-                <div class="example-meta-name">Sydney Pest Pros</div>
-                <div class="example-meta-info">4.8&#9733; &middot; 47 reviews</div>
+                <div class="example-meta-name">ACME Pest Control</div>
+                <div class="example-meta-info">4.9&#9733; &middot; 492 reviews</div>
                 <span class="example-meta-niche">Pest Control</span>
             </div>
         </div>
@@ -736,13 +728,13 @@ $price12 = $videoPricing['monthly_12'];
             </div>
             <div class="example-arrow">&darr;</div>
             <div class="example-video-wrap">
-                <video preload="metadata" playsinline muted loop poster="">
-                    <source src="https://pub-xxx.r2.dev/sample-plumber.mp4" type="video/mp4">
+                <video preload="metadata" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900003-1773998536448.jpg">
+                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900003-1773998522268.mp4" type="video/mp4">
                 </video>
             </div>
             <div class="example-meta">
-                <div class="example-meta-name">Fast Flow Plumbing</div>
-                <div class="example-meta-info">4.9&#9733; &middot; 62 reviews</div>
+                <div class="example-meta-name">ACME Plumbing</div>
+                <div class="example-meta-info">4.7&#9733; &middot; 256 reviews</div>
                 <span class="example-meta-niche">Plumber</span>
             </div>
         </div>
@@ -758,13 +750,13 @@ $price12 = $videoPricing['monthly_12'];
             </div>
             <div class="example-arrow">&darr;</div>
             <div class="example-video-wrap">
-                <video preload="metadata" playsinline muted loop poster="">
-                    <source src="https://pub-xxx.r2.dev/sample-house-cleaning.mp4" type="video/mp4">
+                <video preload="metadata" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-p25.jpg">
+                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-p25.mp4" type="video/mp4">
                 </video>
             </div>
             <div class="example-meta">
-                <div class="example-meta-name">Sparkle Clean Co</div>
-                <div class="example-meta-info">4.7&#9733; &middot; 31 reviews</div>
+                <div class="example-meta-name">Maid2Go Cleaning Sydney</div>
+                <div class="example-meta-info">4.9&#9733; &middot; 827 reviews</div>
                 <span class="example-meta-niche">House Cleaning</span>
             </div>
         </div>

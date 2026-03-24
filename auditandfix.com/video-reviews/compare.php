@@ -318,18 +318,13 @@ $price12      = $videoPricing['monthly_12'];
 <?php require_once __DIR__ . '/../includes/consent-banner.php'; ?>
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
+<?php
+$headerCta = ['text' => 'Get Your Free Video', 'href' => '/video-reviews/'];
+require_once __DIR__ . '/../includes/header.php';
+?>
+
 <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
-<header class="cmp-hero">
-    <nav class="nav" aria-label="Site navigation">
-        <a href="/" class="logo">
-            <img src="/assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-            <span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span>
-        </a>
-        <div class="nav-right">
-            <a href="/video-reviews/" class="nav-cta">Get Your Free Video</a>
-        </div>
-    </nav>
+<header class="cmp-hero" style="padding-top: 0;">
 
     <div class="cmp-hero-body">
         <h1>How we compare to other video review services</h1>
