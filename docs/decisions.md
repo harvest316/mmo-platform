@@ -1141,14 +1141,14 @@ Token: 64-char hex, 24h TTL. Stored in `scan_emails.verification_token + email_v
 
 ---
 
-### DR-092: Allow "- Marcus" short signature in SMS body (2026-03-25)
+### DR-092: SMS signature in body — all three forms allowed; US/CA no signature (2026-03-25)
 
-**Context:** Proofreader was reworking every SMS message containing "- Marcus" in the body, treating it the same as the full "- Marcus, Audit&Fix" (which is system-appended). PROPOSAL.md was contradictory — two rules said to include sender ID in SMS body, two others said the system appends it automatically.
+**Context:** Proofreader was reworking every SMS message containing "- Marcus" in the body, treating it the same as the full "- Marcus, Audit&Fix" (which is system-appended). PROPOSAL.md was contradictory — two rules said to include sender ID in SMS body, two others said the system appends it automatically. Additionally, proposal generator was baking "Reply STOP to opt out." into the body because PROPOSAL.md line 278 said "TCPA opt-out is REQUIRED" (ambiguous — model included it manually). Grade scale in PROPOSAL.md also mismatched score.js: examples showed 58/100 = D+ (correct: F), score bands 0-40/41-65/66-82 (correct per score.js: F=0-59, D-–C-=60-72, C–B-=73-81).
 
-**Decision:** All three signature forms are allowed in SMS body: `"- Marcus, Audit&Fix"` (preferred, use when chars allow), `"- Audit&Fix"`, or `"- Marcus"` (fallback when tighter). Use the longest form that fits within the 120-char body limit. Opt-out text in body is still always flagged (system-appended). US and CA (`requiresSenderIdInBody=true`) are SMS-blocked anyway. *(Amended same day: initial decision allowed only "- Marcus"; clarified all forms OK, longer preferred when budget allows.)*
+**Decision:** (1) All three signature forms allowed in non-US/CA SMS body: `"- Marcus, Audit&Fix"` (preferred), `"- Audit&Fix"`, `"- Marcus"` (fallback). Keep total body ≤120 chars. (2) US/CA: no signature in body — system appends "Reply STOP to opt out. - Audit&Fix". (3) Opt-out text ("Reply STOP to opt out.") is ALWAYS system-appended — never include it in body for any market. (4) Grade scale corrected to match score.js throughout PROPOSAL.md.
 
 **Status:** Accepted
-**Impl:** `prompts/PROPOSAL.md` lines 222, 416, 426 updated; `prompts/PROOFREAD.md` SMS compliance section updated
+**Impl:** `prompts/PROPOSAL.md` lines 278–279, 384–390, 399, 34, 364–366, 429 updated; `prompts/PROOFREAD.md` SMS compliance section updated
 
 ---
 
@@ -1176,3 +1176,22 @@ Playwright retained as fallback (if `OUTSCRAPER_API_KEY` missing or API returns 
 
 **Status:** Blocked — user action required: dash.cloudflare.com/profile/api-tokens → add Workers Scripts:Edit + Workers KV Storage:Edit → then `wrangler kv namespace create VIDEO-DEMOS` + fill IDs + `wrangler deploy`
 **Impl:** `333Method/workers/auditandfix-api/wrangler.toml`
+
+---
+
+### DR-092: Outscraper reviewsQuery matching behaviour — confirmed (2026-03-25)
+
+**Context:** Building review-criteria configs for 2Step video pipeline. Needed to know how Outscraper's `reviewsQuery` parameter matches text in Google reviews to design optimal search terms.
+
+**Decision:** Live API tests (5 tests, 2 businesses) confirmed:
+
+1. **Whole-word matching** — `roach` does NOT match `cockroach`. Both returned different reviews with zero overlap. Must include both forms as separate terms.
+2. **Multi-word terms = phrase match** — `rat infestation` (space-separated) returns 0 results even though `rat` returns 1 and `infestation` returns 4 separately. Spaces within a term enforce adjacent-word matching. Use single words, not phrases, to maximise recall.
+3. **Commas = spaces** — `rat,mice`, `rat mice`, `rat, mice` all return identical results. No special delimiter behaviour.
+4. **No quoted phrase support** — `"rat infestation"` returns 0. Quotes are stripped/ignored.
+5. **Word-boundary safe** — `rat` matched "rat in the roof" but NOT "grateful" or "brat". No false positives detected.
+
+**Implications for review-criteria configs:** Use single whole words as OR terms. Include all morphological variants (roach + cockroach, mouse + mice). Avoid multi-word phrases (they accidentally become AND queries). `rat` is safe to use as a standalone term.
+
+**Status:** Accepted
+**Impl:** `2Step/data/review-criteria/` — configs updated; findings documented in JSON `_comment` blocks
