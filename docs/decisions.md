@@ -1195,3 +1195,24 @@ Playwright retained as fallback (if `OUTSCRAPER_API_KEY` missing or API returns 
 
 **Status:** Accepted
 **Impl:** `2Step/data/review-criteria/` — configs updated; findings documented in JSON `_comment` blocks
+
+---
+
+### DR-094: AdManager source bugs fixed during PHPUnit test suite build (2026-03-25)
+
+**Context:** Building the first PHPUnit test suite for `AdManager/` revealed several bugs in the source code that prevented tests from passing.
+
+**Decisions / fixes applied:**
+
+1. **PHP class name collision in `AdGroup.php`** — `use Google\Ads\...\Resources\AdGroup` imported the same short name as `class AdGroup`. PHP fatal-errors on load. Fixed: added `as AdGroupProto` alias; changed all `new AdGroup([...])` to `new AdGroupProto([...])`.
+
+2. **`SitelinkAsset::final_urls` proto field placement** — `src/Assets.php` was setting `final_urls` inside the `SitelinkAsset` constructor, but the Google Ads proto schema places `final_urls` on the `Asset` resource wrapper, not on `SitelinkAsset`. Fixed: moved `final_urls` to the `Asset` constructor.
+
+3. **SDK v29 Request object API — positional args not supported** — All 10 source files were calling service clients with the old positional-arg convention (`$service->mutate($customerId, $ops)`). SDK v29 requires a Request object via the `::build()` factory (`$service->mutate(MutateXRequest::build($customerId, $ops))`). Fixed in: `AdGroup.php`, `Assets.php`, `Keywords.php`, `Campaign/Manager.php`, `Campaign/Search.php`, `Campaign/Display.php`, `Campaign/Video.php`, `Campaign/PMax.php`, `Campaign/DemandGen.php`, `Ads/ResponsiveSearch.php`.
+
+4. **`VIDEO_OUTSTREAM` constant does not exist in SDK v20** — `Campaign/Video.php` referenced `AdvertisingChannelSubType::VIDEO_OUTSTREAM`. The correct constant for the "video reach" subtype in this SDK version is `VIDEO_REACH_TARGET_FREQUENCY`. Fixed in source and test.
+
+5. **PHP reference capture bug in PHPUnit `willReturnCallback`** — All mock helper methods returned `[$mock, &$capturedOp]` (array reference), but PHP array destructuring (`[$a, $b] = fn()`) does not preserve references. The capture variables always stayed null. Fixed: replaced `$capturedOp = [null]` with a `stdClass` container (`$capture->op = null`), which is always shared by identity through closures.
+
+**Status:** Accepted — all 150 tests pass (805 assertions)
+**Impl:** `AdManager/src/` (source fixes), `AdManager/tests/` (test suite)
