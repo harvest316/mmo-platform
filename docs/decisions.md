@@ -1,6 +1,6 @@
 # Decision Register
 
-Architectural and technical decisions for the mmo-platform ecosystem (333Method, 2Step, distributed-infra).
+Architectural and technical decisions for the mmo-platform ecosystem (333Method, 2Step, AdManager, distributed-infra).
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
@@ -1216,3 +1216,39 @@ Playwright retained as fallback (if `OUTSCRAPER_API_KEY` missing or API returns 
 
 **Status:** Accepted — all 150 tests pass (805 assertions)
 **Impl:** `AdManager/src/` (source fixes), `AdManager/tests/` (test suite)
+
+### DR-095: AdManager expansion — multi-project ad platform with Google + Meta (2026-03-25)
+
+**Context:** AdManager started as a Google Ads API wrapper. User wants it to become a standalone, AI-powered ad platform managing multiple products across Google Ads + Meta.
+
+**Decision:**
+1. **Parallel namespaces**: `src/Google/` and `src/Meta/` for platform-specific code
+2. **Multi-project**: `projects` table as top-level entity, budgets per project+platform
+3. **Creative pipeline**: OpenRouter (Gemini Flash free, FLUX $0.04) for images, Kling for video, ffmpeg for text overlays
+4. **YouTube upload**: YouTube Data API v3 via same OAuth client for video ad automation
+5. **Meta API**: Direct curl (no SDK) to keep deps simple
+6. **Strategy engine**: Claude Code CLI (`claude -p`) for strategy generation, not OpenRouter
+7. **Upload-then-review**: campaigns always PAUSED, human reviews in HTML dashboard before enabling
+8. **Optimisation**: A/B split tests with z-test significance, keyword mining, budget reallocation, creative fatigue detection
+9. **Conversion tracking**: Google Ads API for conversion actions, partial automation for GA4/Meta pixel
+
+**Status:** Accepted — all 4 phases built, pushed to GitHub
+**Impl:** `~/code/AdManager/` — see `CLAUDE.md` for full architecture
+
+### DR-096: Sync-safe DB backup via Syncthing (2026-03-25)
+
+**Context:** Live `.db` files can't sync via Syncthing — inotify + WAL checkpoint races caused the 2026-03-20 data loss (DR-049). But having recent DB snapshots on remote machines is valuable for analysis and disaster recovery. Need a safe mechanism to sync backups without risking corruption.
+
+**Decision:**
+1. **Sync-snapshot symlinks**: each backup run creates a `sync-snapshot/` dir inside `db/backup/` (on `/store` via existing symlink) containing `*-latest.db.gz` symlinks pointing at the most recent backup. Syncthing syncs these; no live DB files ever touch Syncthing.
+2. **Atomic symlink swap**: `symlink()` to temp name + `rename()` to final name — avoids the `unlink` → `symlink` race where Syncthing could propagate a deletion.
+3. **Gzip all backups**: `db.backup()` → integrity check → gzip → delete `.db`. Saves ~60% on sites.db (~7 GB → ~3 GB per copy). Integrity check runs before gzip since `better-sqlite3` can't open `.gz`.
+4. **Grandfathered retention**: 4×4h + 4×daily + 4×weekly = 12 copies max per DB. Replaces old 7-daily + 4-weekly. Rotation by tier prefix in filename, not timestamp parsing.
+5. **All four DBs**: sites.db, ops.db, telemetry.db (333Method) + 2step.db (2Step). ops/telemetry use `db.backup()` (not raw file copy) for consistency.
+6. **data/scores/ + data/contacts/ tarballs**: `tar czf` with same retention tiers, symlinked into `sync-snapshot/`.
+7. **`.stignore` ordering**: specific `sync-snapshot/` file patterns listed BEFORE `(?d)333Method/db/backup` exclude — Syncthing first-match-wins means `!` exceptions don't work inside excluded parents. Also fixed existing typo (`backups` → `backup`).
+8. **No .gz on main drive**: all backup output goes to `/store` via the `db/backup` symlink. Temp files written to same dir (same filesystem → atomic rename).
+9. **Syncthing config**: Follow Symlinks enabled, Watch for Changes (inotify) for near-instant detection on symlink swap, 4h rescan interval as fallback only.
+
+**Status:** Approved — implementation pending
+**Impl:** `333Method/src/cron.js` (backup functions), `.stignore`, plan at `~/.claude/plans/warm-foraging-rabbit.md`
