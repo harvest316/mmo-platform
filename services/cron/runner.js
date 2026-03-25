@@ -18,12 +18,14 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ── Project registry ──────────────────────────────────────────────────────────
 // db      : absolute path to the project's SQLite database
 // runner  : absolute path to the project's cron entry-point script
 // root    : working directory for the runner process
-const PROJECTS = {
+export const PROJECTS = {
   '333method': {
     db: '/home/jason/code/333Method/db/sites.db',
     runner: '/home/jason/code/333Method/src/cron.js',
@@ -37,49 +39,80 @@ const PROJECTS = {
 };
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
-const projectArg = process.argv
-  .find((a) => a.startsWith('--project='))
-  ?.split('=')[1];
 
-const targets = projectArg
-  ? { [projectArg]: PROJECTS[projectArg] }
-  : PROJECTS;
+export function parseProjectArg(argv) {
+  const arg = argv.find((a) => a.startsWith('--project='));
+  return arg ? arg.split('=')[1] : null;
+}
 
-if (projectArg && !PROJECTS[projectArg]) {
-  console.error(`[mmo-cron] Unknown project: ${projectArg}`);
-  console.error(`[mmo-cron] Known projects: ${Object.keys(PROJECTS).join(', ')}`);
-  process.exit(1);
+export function resolveTargets(projectArg, projects = PROJECTS) {
+  if (!projectArg) return projects;
+
+  if (!projects[projectArg]) {
+    return { error: `Unknown project: ${projectArg}`, known: Object.keys(projects) };
+  }
+
+  return { [projectArg]: projects[projectArg] };
 }
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────
-for (const [project, cfg] of Object.entries(targets)) {
-  if (!existsSync(cfg.runner)) {
-    console.warn(`[mmo-cron] Skipping ${project} — runner not found: ${cfg.runner}`);
-    continue;
+
+export function dispatch(targets, { _execFileSync = execFileSync, _existsSync = existsSync } = {}) {
+  const results = [];
+
+  for (const [project, cfg] of Object.entries(targets)) {
+    if (!_existsSync(cfg.runner)) {
+      console.warn(`[mmo-cron] Skipping ${project} — runner not found: ${cfg.runner}`);
+      results.push({ project, status: 'skipped', reason: 'runner_not_found' });
+      continue;
+    }
+
+    if (!_existsSync(cfg.db)) {
+      console.warn(`[mmo-cron] Skipping ${project} — DB not found: ${cfg.db}`);
+      results.push({ project, status: 'skipped', reason: 'db_not_found' });
+      continue;
+    }
+
+    console.log(`[mmo-cron] Dispatching ${project}…`);
+
+    try {
+      _execFileSync(process.execPath, [cfg.runner], {
+        cwd: cfg.root,
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          DATABASE_PATH: cfg.db,
+          MMO_PROJECT: project,
+        },
+        timeout: 9 * 60 * 1000, // 9 min — under the 10 min systemd TimeoutStartSec
+      });
+      console.log(`[mmo-cron] ${project} completed`);
+      results.push({ project, status: 'completed' });
+    } catch (err) {
+      // Non-zero exit from a project runner is logged but does not abort others
+      console.error(`[mmo-cron] ${project} runner exited with error: ${err.message}`);
+      results.push({ project, status: 'error', error: err.message });
+    }
   }
 
-  if (!existsSync(cfg.db)) {
-    console.warn(`[mmo-cron] Skipping ${project} — DB not found: ${cfg.db}`);
-    continue;
+  return results;
+}
+
+/* c8 ignore start — direct-run guard cannot execute during import */
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+if (isDirectRun) {
+  const projectArg = parseProjectArg(process.argv);
+  const targets = resolveTargets(projectArg);
+
+  if (targets.error) {
+    console.error(`[mmo-cron] ${targets.error}`);
+    console.error(`[mmo-cron] Known projects: ${targets.known.join(', ')}`);
+    process.exit(1);
   }
 
-  console.log(`[mmo-cron] Dispatching ${project}…`);
-
-  try {
-    execFileSync(process.execPath, [cfg.runner], {
-      cwd: cfg.root,
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        DATABASE_PATH: cfg.db,
-        MMO_PROJECT: project,
-      },
-      timeout: 9 * 60 * 1000, // 9 min — under the 10 min systemd TimeoutStartSec
-    });
-    console.log(`[mmo-cron] ${project} completed`);
-  } catch (err) {
-    // Non-zero exit from a project runner is logged but does not abort others
-    console.error(`[mmo-cron] ${project} runner exited with error: ${err.message}`);
+  const results = dispatch(targets);
+  if (results.some(r => r.status === 'error')) {
     process.exitCode = 1;
   }
 }
+/* c8 ignore stop */

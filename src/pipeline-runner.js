@@ -35,19 +35,24 @@ const twostepRoot = resolve(mmoRoot, '../2Step');
 
 let shuttingDown = false;
 
-function requestShutdown(signal) {
+export function isShuttingDown() {
+  return shuttingDown;
+}
+
+export function resetShutdown() {
+  shuttingDown = false;
+}
+
+export function requestShutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`\n[unified] Received ${signal} — finishing current stage then exiting...`);
 }
 
-process.on('SIGINT', () => requestShutdown('SIGINT'));
-process.on('SIGTERM', () => requestShutdown('SIGTERM'));
-
 // ── Safe dynamic imports ─────────────────────────────────────────────────────
 // Each stage is imported lazily so a missing/broken stage doesn't block others.
 
-async function safeImport(specifier, exportName) {
+export async function safeImport(specifier, exportName) {
   try {
     const mod = await import(specifier);
     return mod[exportName] || mod.default;
@@ -57,7 +62,7 @@ async function safeImport(specifier, exportName) {
   }
 }
 
-async function safeRun(name, fn, options = {}) {
+export async function safeRun(name, fn, options = {}) {
   if (shuttingDown) return { skipped: 'shutdown' };
   if (!fn) return { skipped: 'not_loaded' };
 
@@ -77,7 +82,7 @@ async function safeRun(name, fn, options = {}) {
 
 // ── One pipeline iteration ───────────────────────────────────────────────────
 
-async function runIteration(projectFilter) {
+export async function runIteration(projectFilter, { _safeImport = safeImport, _safeRun = safeRun } = {}) {
   const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
   console.log(`\n[unified] ===== Iteration at ${ts} =====`);
 
@@ -85,43 +90,40 @@ async function runIteration(projectFilter) {
 
   // 333Method stages (non-LLM: browser automation + data processing)
   if (!projectFilter || projectFilter === '333method') {
-    // 333Method pipeline runner is already standalone — import its stages
-    // These are the non-LLM stages (browser/scraping work).
-    // LLM stages (proposals, scoring, enrichment) are handled by the orchestrator.
-    const runEnrichmentStage = await safeImport(
+    const runEnrichmentStage = await _safeImport(
       resolve(methodRoot, 'src/stages/enrich.js'), 'runEnrichmentStage'
     );
 
     if (runEnrichmentStage) {
-      summary['333m:enrich'] = await safeRun('333m:enrich', runEnrichmentStage, { limit: 5 });
+      summary['333m:enrich'] = await _safeRun('333m:enrich', runEnrichmentStage, { limit: 5 });
     }
   }
 
   // 2Step stages (non-LLM)
   if (!projectFilter || projectFilter === '2step') {
-    const runEnrichStage = await safeImport(
+    const runEnrichStage = await _safeImport(
       resolve(twostepRoot, 'src/stages/enrich.js'), 'runEnrichStage'
     );
-    const runVideoStage = await safeImport(
+    const runVideoStage = await _safeImport(
       resolve(twostepRoot, 'src/stages/video.js'), 'runVideoStage'
     );
 
     if (runEnrichStage) {
-      summary['2step:enrich'] = await safeRun('2step:enrich', runEnrichStage, { limit: 5 });
+      summary['2step:enrich'] = await _safeRun('2step:enrich', runEnrichStage, { limit: 5 });
     }
     if (runVideoStage) {
-      summary['2step:video'] = await safeRun('2step:video', runVideoStage, { limit: 5 });
+      summary['2step:video'] = await _safeRun('2step:video', runVideoStage, { limit: 5 });
     }
   }
 
   // Shared stages — outreach runs once, drains both projects
   if (!projectFilter || projectFilter === 'shared') {
-    const runOutreachStage = await safeImport(
+    const runOutreachStage = await _safeImport(
       resolve(twostepRoot, 'src/stages/outreach.js'), 'runOutreachStage'
     );
 
     if (runOutreachStage) {
-      summary['shared:outreach'] = await safeRun('shared:outreach', runOutreachStage, {
+      summary['shared:outreach'] = await _safeRun('shared:outreach', runOutreachStage, {
         limit: 50,
         methods: ['email', 'sms'],
       });
@@ -134,7 +136,8 @@ async function runIteration(projectFilter) {
 
 // ── Main loop ────────────────────────────────────────────────────────────────
 
-async function main() {
+/* c8 ignore start — glue code: all components individually tested */
+export async function main() {
   const { values: args } = parseArgs({
     options: {
       once: { type: 'boolean', default: false },
@@ -175,8 +178,17 @@ async function main() {
   console.log('[unified] Exiting cleanly.');
   process.exit(0);
 }
+/* c8 ignore stop */
 
-main().catch(err => {
-  console.error('[unified] Fatal:', err.message);
-  process.exit(1);
-});
+/* c8 ignore start — direct-run guard cannot execute during import */
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+if (isDirectRun) {
+  process.on('SIGINT', () => requestShutdown('SIGINT'));
+  process.on('SIGTERM', () => requestShutdown('SIGTERM'));
+
+  main().catch(err => {
+    console.error('[unified] Fatal:', err.message);
+    process.exit(1);
+  });
+}
+/* c8 ignore stop */

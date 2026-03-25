@@ -24,7 +24,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Get the messages.db Database instance.
  * Accepts an injected db or opens from MESSAGES_DB_PATH env.
  */
-function getMessagesDb(injectedDb) {
+async function getMessagesDb(injectedDb) {
   if (injectedDb) return { db: injectedDb, owned: false };
 
   const messagesDbPath =
@@ -220,4 +220,5 @@ export function seed2StepPricing(db) {
   seedMany(rows);
 }
 
-export default { getPricingRow, getPricingRowByNiche, getPricingDisplay, seed333MethodPricing, seed2StepPricing };
+export { getMessagesDb };
+export default { getPricingRow, getPricingRowByNiche, getPricingDisplay, seed333MethodPricing, seed2StepPricing, getMessagesDb };
