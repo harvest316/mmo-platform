@@ -1252,3 +1252,82 @@ Playwright retained as fallback (if `OUTSCRAPER_API_KEY` missing or API returns 
 
 **Status:** Approved — implementation pending
 **Impl:** `333Method/src/cron.js` (backup functions), `.stignore`, plan at `~/.claude/plans/warm-foraging-rabbit.md`
+
+### DR-098: Legal compliance — correcting spelling in Google Reviews used in video ads (2026-03-26)
+
+**Context:** 2Step video ads feature real Google Reviews as testimonials. Some reviews contain obvious spelling errors (e.g. "cockroches", "agian"). Question: can we silently correct these while keeping meaning identical, or must we display verbatim text?
+
+**Decision:** Do not silently correct spelling. Use verbatim review text in all ads. Rationale:
+
+1. **ACL s.29(1)(e)/(f)** — Prohibits false or misleading representations purporting to be testimonials, including genuine testimonials that are "misrepresented or misquoted." The burden of proof is reversed: the representation is presumed misleading unless the business proves otherwise. There is no statutory carve-out for spelling-only edits.
+
+2. **ACCC enforcement pattern** — PhotobookShop (2023, $39,600 penalty) was fined partly because it edited an influencer review to remove negative language and reposted it. HealthEngine (2020, $2.9M penalty) edited ~3,000 reviews. Citymove was fined twice for copying and modifying testimonials. The ACCC has never publicly distinguished "minor corrections" from "substantive edits" — all editing is treated as a risk category.
+
+3. **FTC Endorsement Guides (2023)** — More permissive: an ad "need not present an endorser's message in the exact words" unless quotation marks imply verbatim text, but "the endorsement may not be reworded so as to distort in any way the endorser's opinion." Since our video ads display review text in quotes on screen (implying verbatim), the FTC standard also requires exactness.
+
+4. **Copyright** — Google reviews are copyrighted by the reviewer. Reproducing them in paid ads without permission is technically infringement under Australian copyright law and Google Maps ToS, independent of ACL issues. Best practice: get written consent from reviewers before featuring their reviews in ads.
+
+5. **Reviewer dispute risk** — If a reviewer sees their review quoted with corrections they didn't make, they may dispute the ad's authenticity or claim misrepresentation. An unmodified screenshot of the original review is the strongest defence.
+
+**Safe alternatives:** (a) Display verbatim text including typos. (b) Use [sic] if the review is shown in a documentary/editorial context (not appropriate for video ads). (c) Contact the reviewer and ask them to correct their review themselves, then screenshot the corrected version. (d) Use only reviews that happen to be spelled correctly. (e) Show the review as a visual screenshot of the actual Google review card — the source is self-evident and less likely to be challenged.
+
+**Status:** Accepted
+
+### DR-099: Syncthing root cause confirmed — .stignore + Postgres migration (2026-03-27)
+
+**Context:** Two major SQLite DB failures in 6 days (Mar 20 wipe, Mar 25-26 corruption). Investigation confirmed Syncthing is syncing `~/code/` (`.stfolder` present at `~/code/`), which includes `333Method/db/sites.db` and WAL/SHM files. Syncthing syncs these files independently, breaking SQLite's atomicity guarantees. Mar 25: `disk I/O error` at 99% during SQLite backup API. Mar 26: `database disk image is malformed`.
+
+**Decision:**
+1. **Immediate:** Add `~/code/.stignore` excluding all SQLite DB files (`*.db`, `*.db-wal`, `*.db-shm`) across 333Method, 2Step, and future projects
+2. **Short-term:** Migrate 333Method from SQLite to PostgreSQL — 5.3GB DB, 660K+ sites, 5+ concurrent writer processes (cron, orchestrator, enrich, proposals, scoring, outreach) exceeds SQLite's single-writer design
+3. **Rationale for Postgres over SQLite fixes:** The `.stignore` prevents Syncthing corruption, but SQLite at this scale with concurrent writers is operating at the edge. Two incidents in 6 days, each costing hours of downtime and data loss, is unacceptable for a production outreach pipeline
+
+**Impact:** Requires replacing `better-sqlite3` with a Postgres client (`pg`, `drizzle-orm`, or `kysely`), standing up Postgres on NixOS host, schema migration (mostly portable SQL), and connection string changes across all pipeline stages.
+
+**Status:** Accepted — .stignore is immediate, Postgres migration to be planned
+**Impl:** 2Step video ad production workflow
+
+### DR-097: Niche landing pages — single template file via ?niche= param (2026-03-26)
+
+**Context:** auditandfix.com/video-reviews needed SEO-targeted landing pages for specific trade verticals (pest-control, plumber, house-cleaning) to capture bottom-of-funnel Google search traffic (e.g. "pest control video reviews"). Options: one PHP file per niche, a single template file, or a build-time generator.
+
+**Decision:** Single template file `video-reviews/niche.php` parameterised by `?niche=`. .htaccess rewrites `/video-reviews/{slug}` → `niche.php?niche={slug}`. The `$niches` config array inside the file holds all per-niche data (title, meta, hero copy, video URL, review snippet, FAQs). Adding a new vertical = one array entry + one .htaccess line. Per-niche files would duplicate ~400 lines of HTML/CSS/PHP per vertical with no benefit; a build-time generator is over-engineered for 3 verticals.
+
+**Status:** Accepted
+**Impl:** `auditandfix.com/video-reviews/niche.php`; .htaccess rewrite required on Hostinger: `RewriteRule ^video-reviews/([a-z-]+)/?$ video-reviews/niche.php?niche=$1 [L,QSA]` (add after line 71, before the blog rules)
+
+### DR-098: Cross-project opt-out suppression list — dedicated suppression.db (2026-03-26)
+
+**Context:** The existing `opt_outs` table in `messages.db` handles cross-project opt-outs at the channel level (sms/email method split). However, the system needs a simpler, project-agnostic suppression list where any opt-out from any project (333Method, 2Step, future projects) blocks outreach across all projects. The existing system requires callers to know the channel; the new system should block by identity (email or phone) regardless of channel. Options: (a) extend `messages.db` opt_outs table, (b) create a dedicated `suppression.db`, (c) use a flat file.
+
+**Decision:** Dedicated `suppression.db` at `mmo-platform/db/suppression.db` with a `suppression_list` table. Single row per identity with both email and phone (merged when both are known for the same contact). Case-insensitive email matching via `COLLATE NOCASE`. Unique indexes on email and phone separately (partial indexes, WHERE NOT NULL). Merge/consolidation logic handles the case where email and phone are initially added as separate entries then later linked. Sync polling via `getSuppressionsAfter(timestamp)` for child projects to pull new suppressions. The `checkBeforeSend({ email, phone })` function is the primary integration point for outreach pipelines. This complements (does not replace) the existing `opt_outs` table in `messages.db` — that table retains channel-level granularity (sms vs email method), while `suppression.db` provides blanket identity-level blocking.
+
+**Status:** Accepted
+**Impl:** `mmo-platform/src/suppression.js` (module), `mmo-platform/db/suppression.db` (database), `mmo-platform/tests/unit/suppression.test.js` (80 tests). Integration: 333Method `src/outreach/email.js` + `src/outreach/sms.js`; 2Step `src/stages/outreach.js` — call `checkBeforeSend()` before send.
+
+### DR-100: Webhook signature verification audit and hardening (2026-03-26)
+
+**Context:** Security audit of all inbound webhook endpoints in 333Method found the Cloudflare Workers (Resend, PayPal) properly verify signatures at the edge, but the Express fallback server in `webhook-handler.js` accepted raw POST requests without any PayPal signature verification. Additionally, the PayPal Worker's GET/DELETE `/paypal-events.json` endpoints lacked authentication (unlike the Resend Worker which uses `requireSecret()`), exposing order IDs and payer info to anyone who knows the Worker URL.
+
+**Decision:** (1) Add `verifyWebhookSignature()` to the Express PayPal webhook handler — calls PayPal's `/v1/notifications/verify-webhook-signature` API using the same approach as the Cloudflare Worker. Raw body is captured via `express.json({ verify })` middleware. Forged requests get 401 before any business logic runs. (2) Add `requireSecret()` auth gate to PayPal Worker's GET/DELETE endpoints, gated by `PAYPAL_WORKER_SECRET` (same pattern as Resend Worker). (3) Update `poll-paypal-events.js` to send `X-Auth-Secret` header when polling the Worker. No restructuring of existing code — guards were added as pre-checks.
+
+**Status:** Implemented
+**Impl:** `333Method/src/payment/webhook-handler.js` (verifyWebhookSignature + Express middleware), `333Method/workers/paypal-webhook/src/index.js` (requireSecret), `333Method/src/payment/poll-paypal-events.js` (auth header). Tests: 10 new tests in `tests/payments/webhook-handler.test.js`, all 72 payment tests pass. Deployment: run `wrangler secret put PAYPAL_WORKER_SECRET` on the PayPal worker, add `PAYPAL_WORKER_SECRET` to `.env`.
+
+### DR-101: Humanizing AI-generated content — anti-AI-pattern rules in LLM prompts (2026-03-26)
+
+**Context:** Research into Google SEO penalties and email spam filter detection of AI-generated content. Google does not penalize AI content per se (targets "scaled content abuse" at 50-500+ pages/day — we're nowhere near). Email spam filters don't have explicit AI detection, but AI writing triggers existing signals harder: content uniformity, formulaic openers, uniform sentence length, imperative verb clustering, template fingerprinting. Yahoo flags ~90% of AI emails in phishing tests; Gmail moderate; Outlook ~4%. Evidence: B2B SaaS deliverability dropped 96% → 78% after scaling AI outreach due to repetitive patterns.
+
+**Decision:** Add "Human Voice" anti-AI-pattern instructions to all LLM prompts that generate customer-facing text. Rules: vary sentence length (no 3+ similar-length sentences in a row), avoid formulaic openers spam filters trained on, use n-dashes with spaces not m-dashes, allow natural imperfections (fragments, "And"/"But" starters), vary paragraph structure across variants, one soft CTA stated conversationally. The HAIKU-POLISH prompt (final gate before send) also gets a "de-robotify" check pass. **Exception:** Audit reports (paid deliverables) keep professional tone — no "minor errors" or informal language. Spintax templates reviewed — already adequate (word-level variation + multiple authors/approaches), no changes needed.
+
+**Status:** Implemented
+**Impl:** `333Method/prompts/PROPOSAL.md` (Human Voice section), `333Method/prompts/FOLLOWUP.md` (Human Voice section), `333Method/prompts/HAIKU-POLISH.md` (de-robotify pass + character normalisation), `333Method/prompts/autoresponder.md` (Human Voice section), `2Step/prompts/DM-OUTREACH.md` (Human Voice section). Full humanizing reference prompt stored in memory: `reference_humanizing_prompt.md`.
+
+### DR-102: LLM output sanitisation, phone-based TCPA timezone, SMS idempotency (2026-03-26)
+
+**Context:** Security audit of three items: (1) LLM-generated proposal text was validated for structure (llm-response-validator.js) and input HTML was sanitised (llm-sanitizer.js), but there was no OUTPUT path sanitisation -- script tags, javascript: URLs, or attacker-controlled URLs from scraped websites could flow through LLM responses into outreach emails. (2) TCPA business hours check derived timezone from city+country only; US/CA sites without city data fell back to America/New_York, risking out-of-hours SMS to Pacific/Mountain prospects. (3) Twilio SMS sends had no idempotency mechanism; a 30s timeout + retry could deliver the same message twice.
+
+**Decision:** (1) Added `sanitizeLlmOutput()` to llm-sanitizer.js -- strips script tags, javascript:/vbscript:/data: URLs, event handlers, HTML comments, injection markers, and unauthorised URLs (only auditandfix.com and the prospect's own domain are allowed). Integrated into proposal-generator-v2.js `storeProposalVariant()` on the output path after spintax resolution, before DB storage. (2) Added `timezoneFromPhone()` to timezone-detector.js -- maps US/CA phone area codes to IANA timezones (350+ area codes covering Eastern/Central/Mountain/Pacific/Alaska/Hawaii). Integrated as fallback in `getSiteTimezone()` when city-based lookup returns the default. (3) Added `generateIdempotencyKey()` (SHA-256 of outreachId+phone+body) and a `sending` status guard to sms.js -- marks messages as 'sending' before Twilio call, skips sends if status is 'sent' or 'sending', resets to NULL on timeout for valid retry.
+
+**Status:** Implemented
+**Impl:** `333Method/src/utils/llm-sanitizer.js` (sanitizeLlmOutput), `333Method/src/proposal-generator-v2.js` (output path integration), `333Method/src/utils/timezone-detector.js` (timezoneFromPhone + getSiteTimezone fallback), `333Method/src/outreach/sms.js` (idempotency key + sending guard). Tests: `tests/utils/llm-output-sanitizer.test.js` (31 tests), `tests/pipeline/timezone-phone-fallback.test.js` (35 tests), `tests/outreach/sms-idempotency-guards.test.js` (14 tests). All 80 new tests pass; all existing tests pass (zero regressions).
