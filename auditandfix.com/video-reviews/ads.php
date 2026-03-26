@@ -782,7 +782,8 @@ $faqs = [
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
 <?php
-$headerCta = ['text' => 'Get Your Free Video', 'href' => '#lead-form'];
+$headerCta   = ['text' => 'Get Your Free Video', 'href' => '#lead-form'];
+$headerTheme = 'light';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 

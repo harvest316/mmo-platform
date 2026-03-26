@@ -14,8 +14,7 @@
  */
 
 // Defaults
-$_headerTheme = $headerTheme ?? 'dark';
-$_headerLogo  = $_headerTheme === 'dark' ? '/assets/img/logo-light.svg' : '/assets/img/logo.svg';
+$_headerTheme   = $headerTheme ?? 'dark';
 $_headerCtaText = $headerCta['text'] ?? 'Free Website Score';
 $_headerCtaHref = $headerCta['href'] ?? '/scan';
 ?>
@@ -54,10 +53,28 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
     z-index: 1002;
 }
 
-.site-header__logo-img {
+/* Stack both logo variants in the same grid cell for crossfade */
+.site-header__logo-imgs {
+    display: grid;
+    height: 36px;
+}
+
+.site-header__logo-on-dark,
+.site-header__logo-on-light {
+    grid-row: 1;
+    grid-column: 1;
     height: 36px;
     width: auto;
+    transition: opacity 0.35s ease;
 }
+
+/* Default (dark hero / always-dark header): show white logo */
+.site-header__logo-on-dark  { opacity: 1; }
+.site-header__logo-on-light { opacity: 0; pointer-events: none; }
+
+/* Light-hero pages: at top show coloured logo, on scroll show white */
+.site-header--light-hero:not(.site-header--scrolled) .site-header__logo-on-dark  { opacity: 0; pointer-events: none; }
+.site-header--light-hero:not(.site-header--scrolled) .site-header__logo-on-light { opacity: 1; pointer-events: auto; }
 
 .site-header__logo-text {
     font-size: 22px;
@@ -92,8 +109,14 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
     height: 2px;
     background: #ffffff;
     border-radius: 2px;
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    transition: background 0.35s ease,
+                transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
                 opacity 0.3s ease;
+}
+
+/* Dark lines on light-hero pages before the header darkens */
+.site-header--light-hero:not(.site-header--scrolled) .site-header__hamburger-line {
+    background: #1a2a3a;
 }
 
 .site-header__hamburger-line + .site-header__hamburger-line {
@@ -270,11 +293,13 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
 }
 </style>
 
-<header class="site-header" id="site-header">
+<header class="site-header<?= $_headerTheme === 'light' ? ' site-header--light-hero' : '' ?>" id="site-header">
     <div class="site-header__inner">
         <a href="/" class="site-header__logo">
-            <img src="<?= htmlspecialchars($_headerLogo) ?>" alt="Audit&amp;Fix" class="site-header__logo-img"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+            <span class="site-header__logo-imgs">
+                <img src="/assets/img/logo-light.svg" alt="Audit&amp;Fix" class="site-header__logo-on-dark">
+                <img src="/assets/img/logo.svg" alt="" aria-hidden="true" class="site-header__logo-on-light">
+            </span>
             <span class="site-header__logo-text" style="display:none">Audit<span class="site-header__logo-amp">&amp;</span>Fix</span>
         </a>
 

@@ -319,7 +319,8 @@ $price12      = $videoPricing['monthly_12'];
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
 <?php
-$headerCta = ['text' => 'Get Your Free Video', 'href' => '/video-reviews/'];
+$headerCta   = ['text' => 'Get Your Free Video', 'href' => '/video-reviews/'];
+$headerTheme = 'light';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
