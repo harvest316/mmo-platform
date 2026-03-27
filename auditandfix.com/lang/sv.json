@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Er granskning är strikt konfidentiell. Vi delar eller publicerar aldrig kunders URL:er.",
   "order.phone_label": "Telefon (valfritt)",
   "order.phone_placeholder": "+46 70 123 45 67",
+  "order.country_label": "Land / Valuta",
   "order.currency_label": "Valuta",
   "order.currency_hint": "— automatiskt identifierad, ändra vid behov",
   "order.price_label": "Totalt:",

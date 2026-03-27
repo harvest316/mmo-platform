@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Ihr Audit ist streng vertraulich. Wir teilen oder veröffentlichen niemals Kunden-URLs.",
   "order.phone_label": "Telefon (optional)",
   "order.phone_placeholder": "+49 30 12345678",
+  "order.country_label": "Land / Währung",
   "order.currency_label": "Währung",
   "order.currency_hint": "— automatisch erkannt, bei Bedarf ändern",
   "order.price_label": "Gesamt:",

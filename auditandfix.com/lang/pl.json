@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Twój audyt jest ściśle poufny. Nigdy nie udostępniamy ani nie publikujemy adresów stron klientów.",
   "order.phone_label": "Telefon (opcjonalnie)",
   "order.phone_placeholder": "+48 123 456 789",
+  "order.country_label": "Kraj / Waluta",
   "order.currency_label": "Waluta",
   "order.currency_hint": "— wykryta automatycznie, zmień w razie potrzeby",
   "order.price_label": "Razem:",

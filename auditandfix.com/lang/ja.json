@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 レポートは厳密に機密扱いです。お客様のURLを共有・公開することは一切ありません。",
   "order.phone_label": "電話番号（任意）",
   "order.phone_placeholder": "+81 90 1234 5678",
+  "order.country_label": "国 / 通貨",
   "order.currency_label": "通貨",
   "order.currency_hint": "— 自動検出されます。必要に応じて変更してください",
   "order.price_label": "合計：",

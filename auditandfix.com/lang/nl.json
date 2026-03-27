@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Uw audit is strikt vertrouwelijk. Wij delen of publiceren nooit klant-URL's.",
   "order.phone_label": "Telefoon (optioneel)",
   "order.phone_placeholder": "+31 6 12345678",
+  "order.country_label": "Land / Valuta",
   "order.currency_label": "Valuta",
   "order.currency_hint": "— automatisch gedetecteerd, wijzig indien nodig",
   "order.price_label": "Totaal:",

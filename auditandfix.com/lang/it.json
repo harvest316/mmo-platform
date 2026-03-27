@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Il Suo audit è strettamente confidenziale. Non condividiamo né pubblichiamo mai gli URL dei clienti.",
   "order.phone_label": "Telefono (opzionale)",
   "order.phone_placeholder": "+39 02 1234567",
+  "order.country_label": "Paese / Valuta",
   "order.currency_label": "Valuta",
   "order.currency_hint": "— rilevata automaticamente, modifichi se necessario",
   "order.price_label": "Totale:",

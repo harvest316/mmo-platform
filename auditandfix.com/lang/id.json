@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Audit Anda bersifat rahasia. Kami tidak pernah membagikan atau mempublikasikan URL klien.",
   "order.phone_label": "Telepon (opsional)",
   "order.phone_placeholder": "+62 812 3456 7890",
+  "order.country_label": "Negara / Mata Uang",
   "order.currency_label": "Mata Uang",
   "order.currency_hint": "— terdeteksi otomatis, ubah jika perlu",
   "order.price_label": "Total:",

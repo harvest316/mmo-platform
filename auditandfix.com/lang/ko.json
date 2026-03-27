@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 감사 내용은 철저히 기밀로 유지됩니다. 고객 URL을 공유하거나 공개하지 않습니다.",
   "order.phone_label": "전화번호 (선택)",
   "order.phone_placeholder": "+82 10 1234 5678",
+  "order.country_label": "국가 / 통화",
   "order.currency_label": "통화",
   "order.currency_hint": "— 자동 감지됩니다. 필요시 변경하세요",
   "order.price_label": "합계:",

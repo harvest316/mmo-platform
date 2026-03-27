@@ -12,7 +12,7 @@
  * English (en.json) is always the master / fallback.
  */
 
-define('SUPPORTED_LANGS', ['en', 'de', 'fr', 'es', 'ja', 'pt', 'nl', 'da', 'sv', 'ko', 'it', 'pl', 'zh', 'id']);
+define('SUPPORTED_LANGS', ['en', 'de', 'fr', 'es', 'ja', 'pt', 'nl', 'da', 'sv', 'ko', 'it', 'pl', 'zh', 'id', 'ru', 'hi', 'ar', 'tr', 'th', 'nb']);
 define('LANG_DIR', __DIR__ . '/../lang/');
 
 /**
@@ -117,5 +117,11 @@ function langNames(): array {
         'pl' => 'Polski',
         'zh' => 'Chinese / 中文',
         'id' => 'Bahasa Indonesia',
+        'ru' => 'Русский',
+        'hi' => 'Hindi / हिन्दी',
+        'ar' => 'العربية',
+        'tr' => 'Türkçe',
+        'th' => 'Thai / ไทย',
+        'nb' => 'Norsk',
     ];
 }

@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Sua auditoria é estritamente confidencial. Nunca compartilhamos ou publicamos URLs de clientes.",
   "order.phone_label": "Telefone (opcional)",
   "order.phone_placeholder": "+55 11 91234-5678",
+  "order.country_label": "País / Moeda",
   "order.currency_label": "Moeda",
   "order.currency_hint": "— detectada automaticamente, altere se necessário",
   "order.price_label": "Total:",

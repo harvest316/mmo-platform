@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Din audit er strengt fortrolig. Vi deler eller offentliggør aldrig kunders URL'er.",
   "order.phone_label": "Telefon (valgfrit)",
   "order.phone_placeholder": "+45 12 34 56 78",
+  "order.country_label": "Land / Valuta",
   "order.currency_label": "Valuta",
   "order.currency_hint": "— automatisk registreret, kan ændres",
   "order.price_label": "Total:",

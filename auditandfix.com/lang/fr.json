@@ -86,6 +86,7 @@
   "order.url_hint": "🔒 Votre audit est strictement confidentiel. Nous ne partageons ni ne publions jamais les URL de nos clients.",
   "order.phone_label": "Téléphone (optionnel)",
   "order.phone_placeholder": "+33 1 23 45 67 89",
+  "order.country_label": "Pays / Devise",
   "order.currency_label": "Devise",
   "order.currency_hint": "— détectée automatiquement, modifiable si nécessaire",
   "order.price_label": "Total :",
