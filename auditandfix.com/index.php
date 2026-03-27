@@ -26,6 +26,7 @@ $priceData     = getPriceForCountry($countryCode, $pricing);
 $productPriceData = getProductPriceForCountry($countryCode, $product);
 $paypalClientId = PAYPAL_CLIENT_ID;
 $paypalCurrency = $productPriceData['currency'];
+$sitesScored    = number_format($pricing['_meta']['sites_scored'] ?? 10000);
 
 // Buy link params: conversation ID from 333Method outreach, language override
 $cid         = isset($_GET['cid']) ? (int)$_GET['cid'] : null; // conversation_id
@@ -111,24 +112,15 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
 <body>
 <?php require_once __DIR__ . '/includes/consent-banner.php'; ?>
     <a href="#main-content" class="skip-link">Skip to main content</a>
-    <!-- First-visit discount banner (shown by JS if cookie is fresh) -->
-    <div id="deal-banner" class="deal-banner" style="display:none" role="alert" aria-live="polite">
-        <?= t('deal.banner') ?>
-    </div>
+
+<?php
+$headerBanner = '<div id="deal-banner" class="deal-banner" style="display:none" role="alert" aria-live="polite">' . t('deal.banner') . '</div>';
+$headerCta = ['text' => t('nav.cta'), 'href' => '#order'];
+require_once __DIR__ . '/includes/header.php';
+?>
 
     <!-- Hero Section -->
     <header class="hero" id="main-content">
-        <nav class="nav" aria-label="Site navigation">
-            <a href="/" class="logo"><img src="assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span></a>
-            <div class="nav-right">
-                <select class="lang-switcher" aria-label="<?= t('lang.switcher_label') ?>" onchange="var p=new URLSearchParams(window.location.search);p.set('lang',this.value);window.location.href='?'+p.toString()+(window.location.hash||'')">
-                    <?php foreach (langNames() as $code => $name): ?>
-                    <option value="<?= htmlspecialchars($code) ?>"<?= $code === $lang ? ' selected' : '' ?>><?= htmlspecialchars($name) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <a href="#order" class="nav-cta"><?= t('nav.cta') ?></a>
-            </div>
-        </nav>
 
         <div class="hero-body">
             <div class="hero-content">
@@ -240,7 +232,7 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
     <section class="usp">
         <div class="container">
             <h2><?= t('usp.title') ?></h2>
-            <p><?= t('usp.p1') ?></p>
+            <p><?= t('usp.p1', ['sites_scored' => $sitesScored]) ?></p>
             <p><?= t('usp.p2') ?></p>
         </div>
     </section>
@@ -255,7 +247,7 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
                     <p class="urgency-scarcity"><?= t('urgency.scarcity') ?></p>
                 </div>
                 <div class="urgency-cta">
-                    <a href="#order" class="cta-button cta-button--light"><?= t('urgency.cta_button', ['price' => $priceData['formatted']]) ?></a>
+                    <a href="#order" class="cta-button"><?= t('urgency.cta_button', ['price' => $priceData['formatted']]) ?></a>
                     <p class="urgency-note"><?= t('urgency.cta_sub') ?></p>
                 </div>
             </div>
@@ -272,7 +264,7 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
                     <h2><?= t('expert.name') ?></h2>
                     <p class="expert-title"><?= t('expert.title') ?></p>
                     <p><?= t('expert.p1') ?></p>
-                    <p><?= t('expert.p2') ?></p>
+                    <p><?= t('expert.p2', ['sites_scored' => $sitesScored]) ?></p>
                     <p><?= t('expert.p3') ?></p>
                 </div>
             </div>
