@@ -59,6 +59,12 @@ try {
         case 'verify-demo':
             verifyDemo($input);
             break;
+        case 'create-subscription':
+            createSubscription($input);
+            break;
+        case 'activate-subscription':
+            activateSubscription($input);
+            break;
 
         default:
             http_response_code(400);
@@ -1030,4 +1036,222 @@ function ga4Event(string $eventName, array $params, string $clientId): void {
     ]);
     curl_exec($ch);
     curl_close($ch);
+}
+
+// ── Video Subscription (2Step) ─────────────────────────────────────────────
+
+function getSubscriptionDb(): PDO {
+    $dbPath = getenv('AUDITANDFIX_SITE_PATH')
+        ? rtrim(getenv('AUDITANDFIX_SITE_PATH'), '/') . '/data/subscriptions.sqlite'
+        : __DIR__ . '/data/subscriptions.sqlite';
+
+    $dataDir = dirname($dbPath);
+    if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
+
+    $db = new PDO('sqlite:' . $dbPath);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    $db->exec("CREATE TABLE IF NOT EXISTS subscriptions (
+        id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+        paypal_subscription_id TEXT    UNIQUE NOT NULL,
+        email                  TEXT    NOT NULL,
+        business_name          TEXT,
+        video_hash             TEXT,
+        plan_tier              TEXT    NOT NULL,
+        country_code           TEXT    NOT NULL,
+        currency               TEXT    NOT NULL,
+        amount                 INTEGER NOT NULL,
+        status                 TEXT    DEFAULT 'pending',
+        created_at             TEXT    NOT NULL DEFAULT (datetime('now')),
+        activated_at           TEXT
+    )");
+
+    return $db;
+}
+
+function createSubscription(array $input): void {
+    $email = filter_var($input['email'] ?? '', FILTER_VALIDATE_EMAIL);
+    $tier  = $input['tier'] ?? '';
+    $country = strtoupper($input['country'] ?? detectCountry());
+    $businessName = trim($input['business_name'] ?? '');
+    $videoHash = trim($input['video_hash'] ?? '');
+
+    if (!$email) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Valid email required']);
+        return;
+    }
+
+    $validTiers = ['monthly_4', 'monthly_8', 'monthly_12'];
+    if (!in_array($tier, $validTiers, true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid tier. Use: ' . implode(', ', $validTiers)]);
+        return;
+    }
+
+    $planId = get2StepPlanId($country, $tier);
+    if (!$planId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No plan available for this country/tier']);
+        return;
+    }
+
+    $pricing = get2StepPriceForCountry($country);
+    $amount  = $pricing[$tier] ?? 0;
+    $currency = $pricing['currency'] ?? 'USD';
+
+    $apiBase = getApiBase($input);
+    $token   = getPayPalAccessToken($apiBase);
+
+    $returnUrl = 'https://auditandfix.com/v/' . urlencode($videoHash) . '?subscription_activated=1';
+    $cancelUrl = 'https://auditandfix.com/v/' . urlencode($videoHash) . '?subscription_cancelled=1';
+
+    $body = [
+        'plan_id' => $planId,
+        'subscriber' => [
+            'name' => ['given_name' => $businessName ?: 'Customer'],
+            'email_address' => $email,
+        ],
+        'application_context' => [
+            'brand_name'          => 'Audit&Fix Video Reviews',
+            'shipping_preference' => 'NO_SHIPPING',
+            'user_action'         => 'SUBSCRIBE_NOW',
+            'return_url'          => $returnUrl,
+            'cancel_url'          => $cancelUrl,
+        ],
+    ];
+
+    $ch = curl_init($apiBase . '/v1/billing/subscriptions');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($body),
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $token,
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT => 20,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode < 200 || $httpCode >= 300) {
+        http_response_code(502);
+        echo json_encode(['error' => 'PayPal subscription creation failed', 'detail' => $response]);
+        return;
+    }
+
+    $data = json_decode($response, true);
+    $subscriptionId = $data['id'] ?? '';
+    $approveUrl = '';
+    foreach ($data['links'] ?? [] as $link) {
+        if ($link['rel'] === 'approve') {
+            $approveUrl = $link['href'];
+            break;
+        }
+    }
+
+    if (!$subscriptionId || !$approveUrl) {
+        http_response_code(502);
+        echo json_encode(['error' => 'PayPal did not return subscription ID or approve URL']);
+        return;
+    }
+
+    // Store pending subscription
+    $db = getSubscriptionDb();
+    $stmt = $db->prepare("INSERT INTO subscriptions
+        (paypal_subscription_id, email, business_name, video_hash, plan_tier, country_code, currency, amount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$subscriptionId, $email, $businessName, $videoHash, $tier, $country, $currency, $amount]);
+
+    echo json_encode([
+        'id'          => $subscriptionId,
+        'approve_url' => $approveUrl,
+    ]);
+}
+
+function activateSubscription(array $input): void {
+    $subscriptionId = trim($input['subscription_id'] ?? '');
+    $videoHash = trim($input['video_hash'] ?? '');
+
+    if (!$subscriptionId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'subscription_id required']);
+        return;
+    }
+
+    $apiBase = getApiBase($input);
+    $token   = getPayPalAccessToken($apiBase);
+
+    // Verify subscription status with PayPal
+    $ch = curl_init($apiBase . '/v1/billing/subscriptions/' . urlencode($subscriptionId));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $token,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_TIMEOUT => 15,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Could not verify subscription with PayPal']);
+        return;
+    }
+
+    $data = json_decode($response, true);
+    $status = $data['status'] ?? '';
+
+    if (!in_array($status, ['ACTIVE', 'APPROVED'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Subscription not active', 'status' => $status]);
+        return;
+    }
+
+    // Update local DB
+    $db = getSubscriptionDb();
+    $stmt = $db->prepare("UPDATE subscriptions SET status = 'active', activated_at = datetime('now')
+        WHERE paypal_subscription_id = ?");
+    $stmt->execute([$subscriptionId]);
+
+    // Notify CF Worker (fire-and-forget)
+    if (CF_WORKER_URL) {
+        $row = $db->prepare("SELECT * FROM subscriptions WHERE paypal_subscription_id = ?")->fetch(PDO::FETCH_ASSOC);
+        if (!empty($row)) {
+            $workerBody = json_encode([
+                'subscription_id' => $subscriptionId,
+                'email'           => $row['email'] ?? '',
+                'business_name'   => $row['business_name'] ?? '',
+                'video_hash'      => $row['video_hash'] ?? '',
+                'plan_tier'       => $row['plan_tier'] ?? '',
+                'country_code'    => $row['country_code'] ?? '',
+                'currency'        => $row['currency'] ?? '',
+                'amount'          => $row['amount'] ?? 0,
+            ]);
+
+            $ch = curl_init(CF_WORKER_URL . '/subscription');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $workerBody,
+                CURLOPT_HTTPHEADER     => [
+                    'Content-Type: application/json',
+                    'X-Auth-Secret: ' . CF_WORKER_SECRET,
+                ],
+                CURLOPT_TIMEOUT => 5,
+            ]);
+            curl_exec($ch);
+            curl_close($ch);
+        }
+    }
+
+    echo json_encode(['status' => 'active', 'subscription_id' => $subscriptionId]);
 }

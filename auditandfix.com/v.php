@@ -130,12 +130,32 @@ $price12  = $videoPricing['monthly_12'];
         <h2>Ready to turn your reviews into a content machine?</h2>
         <p style="color: #666; margin-bottom: 2rem;">Choose your plan. Cancel anytime.</p>
 
+        <?php if (!empty($_GET['subscription_activated'])): ?>
+        <div id="subscription-success" style="background: #f0fdf4; border: 2px solid #16a34a; border-radius: 12px; padding: 2rem; margin-bottom: 2rem; max-width: 500px; margin-left: auto; margin-right: auto;">
+            <h3 style="color: #16a34a; margin-bottom: 0.5rem;">You're subscribed!</h3>
+            <p style="color: #444;">Your first batch of videos will arrive within 48 hours. We'll email you at the address you provided.</p>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($_GET['subscription_cancelled'])): ?>
+        <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; max-width: 500px; margin-left: auto; margin-right: auto;">
+            <p style="color: #92400e;">No worries — you weren't charged. Your free video is still yours.</p>
+        </div>
+        <?php endif; ?>
+
+        <div id="subscribe-email-gate" style="max-width: 400px; margin: 0 auto 2rem; <?= !empty($_GET['subscription_activated']) ? 'display:none' : '' ?>">
+            <label for="subscribe-email" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; color: #444;">Your email (for video delivery)</label>
+            <input type="email" id="subscribe-email" placeholder="you@yourbusiness.com" style="width: 100%; padding: 12px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-bottom: 4px;">
+            <div id="subscribe-error" style="color: #dc2626; font-size: 0.85rem; display: none;"></div>
+        </div>
+
         <div class="pricing-cards">
             <div class="pricing-card">
                 <div class="label">Starter</div>
                 <div class="price"><?= $symbol ?><?= $price4 ?><span class="period">/mo</span></div>
                 <p>4 videos per month</p>
                 <p style="color: #16a34a; font-size: 0.85rem;">Setup: <?= $symbol ?>0 (waived)</p>
+                <button class="cta-button subscribe-btn" data-tier="monthly_4" style="margin-top: 1rem; width: 100%; padding: 12px; font-size: 0.95rem;">Subscribe</button>
             </div>
             <div class="pricing-card" style="border: 2px solid #2563eb;">
                 <div class="label">Growth</div>
@@ -143,12 +163,14 @@ $price12  = $videoPricing['monthly_12'];
                 <p>8 videos per month</p>
                 <p style="color: #16a34a; font-size: 0.85rem;">Setup: <?= $symbol ?>0 (waived)</p>
                 <small style="color: #2563eb;">Most popular</small>
+                <button class="cta-button subscribe-btn" data-tier="monthly_8" style="margin-top: 1rem; width: 100%; padding: 12px; font-size: 0.95rem;">Subscribe</button>
             </div>
             <div class="pricing-card">
                 <div class="label">Scale</div>
                 <div class="price"><?= $symbol ?><?= $price12 ?><span class="period">/mo</span></div>
                 <p>12 videos per month</p>
                 <p style="color: #16a34a; font-size: 0.85rem;">Setup: <?= $symbol ?>0 (waived)</p>
+                <button class="cta-button subscribe-btn" data-tier="monthly_12" style="margin-top: 1rem; width: 100%; padding: 12px; font-size: 0.95rem;">Subscribe</button>
             </div>
         </div>
 
@@ -157,8 +179,6 @@ $price12  = $videoPricing['monthly_12'];
             Comparable services charge <?= $compRange['symbol'] ?><?= $compRange['low'] ?>–<?= $compRange['symbol'] ?><?= $compRange['high'] ?>/month.
             <a href="/video-reviews/compare" style="color: #2563eb;">See how we compare</a>.
         </p>
-
-        <a href="#order" class="cta-button">Get Started</a>
     </div>
 
     <div class="footer-note">
@@ -204,6 +224,80 @@ $price12  = $videoPricing['monthly_12'];
             }).catch(function() {});
         })();
 
+    </script>
+
+    <!-- Subscription checkout -->
+    <script>
+    (function() {
+        var buttons = document.querySelectorAll('.subscribe-btn');
+        var emailInput = document.getElementById('subscribe-email');
+        var errorEl = document.getElementById('subscribe-error');
+        if (!buttons.length || !emailInput) return;
+
+        // Handle PayPal return — activate the subscription
+        var params = new URLSearchParams(window.location.search);
+        var subId = params.get('subscription_id');
+        if (subId && params.get('subscription_activated') === '1') {
+            fetch('/api.php?action=activate-subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subscription_id: subId,
+                    video_hash: '<?= $hash ?>'
+                })
+            }).catch(function() {});
+        }
+
+        function showError(msg) {
+            if (errorEl) { errorEl.textContent = msg; errorEl.style.display = ''; }
+        }
+        function hideError() {
+            if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+        }
+
+        buttons.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                hideError();
+                var email = (emailInput.value || '').trim();
+                if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+                    showError('Please enter a valid email address.');
+                    emailInput.focus();
+                    return;
+                }
+
+                var tier = btn.getAttribute('data-tier');
+                btn.disabled = true;
+                btn.textContent = 'Redirecting to PayPal…';
+
+                fetch('/api.php?action=create-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tier: tier,
+                        email: email,
+                        country: '<?= htmlspecialchars($countryCode) ?>',
+                        business_name: '<?= $businessName ?>',
+                        video_hash: '<?= $hash ?>'
+                    })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.approve_url) {
+                        window.location.href = data.approve_url;
+                    } else {
+                        showError(data.error || 'Something went wrong. Please try again.');
+                        btn.disabled = false;
+                        btn.textContent = 'Subscribe';
+                    }
+                })
+                .catch(function() {
+                    showError('Network error. Please try again.');
+                    btn.disabled = false;
+                    btn.textContent = 'Subscribe';
+                });
+            });
+        });
+    })();
     </script>
 </body>
 </html>
