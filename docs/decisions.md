@@ -1285,7 +1285,15 @@ Playwright retained as fallback (if `OUTSCRAPER_API_KEY` missing or API returns 
 **Impact:** Requires replacing `better-sqlite3` with a Postgres client (`pg`, `drizzle-orm`, or `kysely`), standing up Postgres on NixOS host, schema migration (mostly portable SQL), and connection string changes across all pipeline stages.
 
 **Status:** Accepted — .stignore is immediate, Postgres migration to be planned
-**Impl:** 2Step video ad production workflow
+
+### DR-100: English-only markets — no non-English outreach (2026-03-27)
+
+**Context:** FR (36), IT (30), and other non-English country sites are leaking into outreach despite `ENGLISH_ONLY_MARKETS=AU,CA,GB,IE,IN,NZ,UK,US,ZA` in `.env`. The individual stage scripts (`proposals.js`, `scoring.js`, `enrich.js`) enforce this filter, but `claude-batch.js` (orchestrator path) does not — pre-existing non-English sites that were enriched/scored before the filter was added leak through to proposals and sends. Messages are a mess: half-English, half-translated, or wrong language entirely.
+
+**Decision:** Non-English markets are out of scope. Only `ENGLISH_ONLY_MARKETS` countries receive outreach. `claude-batch.js` must enforce the same `ENGLISH_ONLY_MARKETS` filter on all proposal, proofread, and outreach queries. India (IN) is included — English is a valid business language there.
+
+**Status:** Accepted
+**Impl:** `scripts/claude-batch.js` — add `ENGLISH_ONLY_MARKETS` filter to `fetchProposalSites`, `fetchProofreadBatch`, and outreach-eligible queries
 
 ### DR-097: Niche landing pages — single template file via ?niche= param (2026-03-26)
 
