@@ -53,6 +53,9 @@ $reviewCount  = (int)($video['review_count'] ?? 0);
 $countryCode  = $video['country_code'] ?? detectCountry();
 $nicheTier    = $video['niche_tier'] ?? 'standard';
 
+// Store in session so the navbar can show "Your Free Video" link
+$_SESSION['my_video'] = ['hash' => $hash, 'biz' => $video['business_name'] ?? 'your business'];
+
 // Get 2Step video pricing for this visitor's country
 $videoPricing = get2StepPriceForCountry($countryCode);
 $symbol   = $videoPricing['symbol'];

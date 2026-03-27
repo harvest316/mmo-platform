@@ -13,20 +13,20 @@ if (!$_showImpressum && isset($lang) && $lang === 'de') {
 ?>
 <footer class="footer">
     <div class="container">
-        <a href="/" class="footer-logo"><img src="assets/img/logo.svg" alt="Audit&amp;Fix" class="footer-logo-img"></a>
+        <a href="/" class="footer-logo"><img src="/assets/img/logo.svg" alt="Audit&amp;Fix" class="footer-logo-img"></a>
         <p class="footer-contact"><?= $_t('footer.questions', 'Questions?') ?> <?= obfuscatedEmail(SUPPORT_EMAIL) ?></p>
         <p class="footer-privacy"><?= $_t('footer.confidentiality', 'All audits are strictly confidential. We never publish, share, or resell client data.') ?></p>
         <nav class="footer-links" aria-label="Site links" style="margin-bottom:12px;">
-            <a href="/scan">Free Website Score</a>
-            <a href="/video-reviews/">Video Reviews</a>
+            <a href="/scan">Conversion Audit</a>
+            <a href="/video-reviews/">Review Videos</a>
             <a href="/blog/">Blog</a>
         </nav>
         <nav class="footer-legal" aria-label="Legal">
-            <a href="privacy.php"><?= $_t('footer.privacy', 'Privacy Policy') ?></a>
-            <a href="terms.php"><?= $_t('footer.terms', 'Terms of Service') ?></a>
-            <a href="cookies.php"><?= $_t('footer.cookies', 'Cookie Policy') ?></a>
+            <a href="/privacy"><?= $_t('footer.privacy', 'Privacy Policy') ?></a>
+            <a href="/terms"><?= $_t('footer.terms', 'Terms of Service') ?></a>
+            <a href="/cookies"><?= $_t('footer.cookies', 'Cookie Policy') ?></a>
             <?php if ($_showImpressum): ?>
-            <a href="impressum.php"><?= $_t('footer.impressum', 'Impressum') ?></a>
+            <a href="/impressum"><?= $_t('footer.impressum', 'Impressum') ?></a>
             <?php endif; ?>
         </nav>
     </div>

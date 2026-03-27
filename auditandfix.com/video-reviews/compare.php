@@ -96,104 +96,229 @@ $price12      = $videoPricing['monthly_12'];
         /* ── Comparison table section ─────────────────────────────── */
         .cmp-table-section {
             padding: 60px 20px 80px;
-            background: #ffffff;
+            background: #f8fafc;
         }
         .cmp-table-wrap {
             max-width: 1080px;
             margin: 0 auto;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 24px rgba(0,0,0,0.06);
+            background: #ffffff;
         }
         .cmp-table {
             width: 100%;
             min-width: 780px;
             border-collapse: separate;
             border-spacing: 0;
-            font-size: 0.92rem;
+            font-size: 0.93rem;
         }
+
+        /* ── Table header ── */
         .cmp-table thead th {
-            padding: 16px 14px;
+            padding: 18px 16px;
             text-align: left;
             font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #4a5568;
-            border-bottom: 2px solid #e2e8f0;
+            letter-spacing: 0.06em;
+            color: rgba(255,255,255,0.7);
+            background: linear-gradient(135deg, #1a365d 0%, #243b6a 100%);
+            border-bottom: none;
             white-space: nowrap;
             vertical-align: bottom;
         }
         .cmp-table thead th:first-child {
-            color: #1a365d;
+            color: rgba(255,255,255,0.95);
+            border-radius: 12px 0 0 0;
         }
+        .cmp-table thead th:last-child {
+            border-radius: 0 12px 0 0;
+        }
+
         /* Our column header */
         .cmp-table thead th.cmp-ours {
-            background: #eef4ff;
-            color: #1a365d;
-            border-bottom-color: #2563eb;
-            border-radius: 8px 8px 0 0;
+            background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+            color: #ffffff;
             position: relative;
+            border-left: 2px solid rgba(255,255,255,0.15);
+            border-right: 2px solid rgba(255,255,255,0.15);
         }
         .cmp-table thead th.cmp-ours::after {
-            content: 'Us';
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #2563eb;
+            content: 'Best Value';
+            display: block;
+            background: #e05d26;
             color: #fff;
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             font-weight: 700;
-            padding: 2px 10px;
-            border-radius: 10px;
+            padding: 3px 12px;
+            border-radius: 8px;
             text-transform: uppercase;
             letter-spacing: 0.06em;
+            margin-top: 6px;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
         }
+
+        /* ── Table body ── */
         .cmp-table tbody td {
-            padding: 14px 14px;
-            border-bottom: 1px solid #f0f4f8;
+            padding: 16px 16px;
+            border-bottom: 1px solid #edf2f7;
             color: #4a5568;
             vertical-align: top;
-            line-height: 1.5;
+            line-height: 1.55;
+            transition: background 0.15s ease;
         }
+        /* Zebra striping */
+        .cmp-table tbody tr:nth-child(even) td {
+            background: #f7fafc;
+        }
+        .cmp-table tbody tr:nth-child(even) td.cmp-ours {
+            background: #eff6ff;
+        }
+
+        /* Feature column (first col) */
         .cmp-table tbody td:first-child {
-            font-weight: 600;
+            font-weight: 700;
             color: #1a365d;
             white-space: nowrap;
+            font-size: 0.91rem;
         }
-        /* Our column cells */
+
+        /* Our column cells — highlighted */
         .cmp-table tbody td.cmp-ours {
-            background: #f7faff;
-            color: #1a365d;
+            background: #f0f7ff;
+            color: #1e3a5f;
             font-weight: 600;
+            border-left: 2px solid #dbeafe;
+            border-right: 2px solid #dbeafe;
+        }
+        .cmp-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .cmp-table tbody tr:last-child td:first-child {
+            border-radius: 0 0 0 12px;
+        }
+        .cmp-table tbody tr:last-child td:last-child {
+            border-radius: 0 0 12px 0;
         }
         .cmp-table tbody tr:last-child td.cmp-ours {
-            border-radius: 0 0 8px 8px;
+            border-bottom: 2px solid #dbeafe;
         }
+
+        /* Row hover */
         .cmp-table tbody tr:hover td {
-            background: #fafbfc;
+            background: #edf2f7;
         }
         .cmp-table tbody tr:hover td.cmp-ours {
-            background: #eef4ff;
+            background: #dbeafe;
         }
-        /* Check / cross icons */
+
+        /* ── Check / cross / partial icons ── */
         .cmp-yes {
-            color: #38a169;
+            color: #059669;
             font-weight: 700;
         }
         .cmp-no {
-            color: #c53030;
+            color: #a0aec0;
+            font-weight: 500;
         }
         .cmp-partial {
-            color: #d69e2e;
+            color: #d97706;
+            font-weight: 600;
         }
+
         /* Scroll hint on mobile */
         .cmp-scroll-hint {
             display: none;
             text-align: center;
-            font-size: 0.82rem;
-            color: #a0aec0;
-            margin-bottom: 12px;
+            font-size: 0.85rem;
+            color: #718096;
+            margin-bottom: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            background: #edf2f7;
+            border-radius: 8px;
+            animation: cmp-nudge 2s ease-in-out infinite;
+        }
+        @keyframes cmp-nudge {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(6px); }
+        }
+
+        /* ── Competitor reviews section ───────────────────────────── */
+        .cmp-reviews-section {
+            padding: 80px 20px;
+            background: #ffffff;
+        }
+        .cmp-reviews-section h2 {
+            text-align: center;
+            color: #1a365d;
+            font-size: 1.8rem;
+            margin-bottom: 48px;
+        }
+        .cmp-review-card {
+            max-width: 800px;
+            margin: 0 auto 32px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 36px 36px 32px;
+            transition: box-shadow 0.2s ease;
+        }
+        .cmp-review-card:last-child {
+            margin-bottom: 0;
+        }
+        .cmp-review-card:hover {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        }
+        .cmp-review-card h3 {
+            color: #1a365d;
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        .cmp-review-card dl {
+            margin: 0;
+        }
+        .cmp-review-card dt {
+            color: #2d3748;
+            font-weight: 700;
+            font-size: 0.88rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-top: 16px;
+            margin-bottom: 4px;
+        }
+        .cmp-review-card dt:first-child {
+            margin-top: 0;
+        }
+        .cmp-review-card dd {
+            color: #4a5568;
+            font-size: 0.95rem;
+            line-height: 1.65;
+            margin: 0 0 0 0;
+        }
+        .cmp-review-verdict {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #edf2f7;
+            color: #1a365d;
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1.55;
+        }
+        .cmp-review-card.cmp-review-ours {
+            border-color: #bfdbfe;
+            background: #f8fbff;
+        }
+
+        @media (max-width: 768px) {
+            .cmp-review-card {
+                padding: 24px 20px 20px;
+            }
         }
 
         /* ── Key differentiators ──────────────────────────────────── */
@@ -294,6 +419,9 @@ $price12      = $videoPricing['monthly_12'];
             .cmp-scroll-hint {
                 display: block;
             }
+            .cmp-table-wrap {
+                border-radius: 8px;
+            }
             .cmp-diff-grid {
                 grid-template-columns: 1fr;
                 max-width: 400px;
@@ -309,7 +437,13 @@ $price12      = $videoPricing['monthly_12'];
             }
             .cmp-table thead th,
             .cmp-table tbody td {
-                padding: 10px 10px;
+                padding: 12px 10px;
+            }
+            .cmp-table thead th:first-child {
+                border-radius: 8px 0 0 0;
+            }
+            .cmp-table thead th:last-child {
+                border-radius: 0 8px 0 0;
             }
         }
     </style>
@@ -426,6 +560,101 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                 </tbody>
             </table>
+        </div>
+    </section>
+
+    <!-- Competitor reviews -->
+    <section class="cmp-reviews-section">
+        <h2>A closer look at each option</h2>
+
+        <div class="cmp-review-card cmp-review-ours">
+            <h3>Audit&amp;Fix Video Reviews</h3>
+            <dl>
+                <dt>What it is</dt>
+                <dd>A done-for-you service that turns your existing Google reviews into professional short-form videos with AI voiceover and niche-matched footage.</dd>
+
+                <dt>How it works</dt>
+                <dd>You sign up and we pull your best Google reviews automatically. Each review is paired with a natural-sounding voiceover, relevant B-roll clips for your industry, and background music. The finished videos are delivered to you ready to post &mdash; no filming, no editing, no customer involvement.</dd>
+
+                <dt>Best for</dt>
+                <dd>Local businesses that want professional video content from the reviews they've already earned, without asking customers to do anything.</dd>
+
+                <dt>Main limitation</dt>
+                <dd>You don't have direct control over the footage selection &mdash; we choose the B-roll clips based on your niche and the review content.</dd>
+            </dl>
+            <p class="cmp-review-verdict">Verdict: The only option that produces videos without needing anyone to record themselves. If you've got Google reviews and want video content from them, this is the fastest route.</p>
+        </div>
+
+        <div class="cmp-review-card">
+            <h3>Testimonial.to</h3>
+            <dl>
+                <dt>What it is</dt>
+                <dd>A widget-based platform that embeds a testimonial request form on your website, inviting customers to record video reviews in their browser.</dd>
+
+                <dt>How it works</dt>
+                <dd>You install an embeddable widget or share a dedicated link. Customers visit the page, click record, and submit a video testimonial from their device. You can then curate and display these on a "wall of love" or embed them individually across your site.</dd>
+
+                <dt>Best for</dt>
+                <dd>SaaS companies and online businesses whose customers are already comfortable recording themselves on camera.</dd>
+
+                <dt>Main limitation</dt>
+                <dd>Most customers simply never record. Response rates are typically low, which means you'll spend time chasing testimonials and still end up with a handful at best.</dd>
+            </dl>
+            <p class="cmp-review-verdict">Verdict: A solid tool if your audience is tech-savvy and willing to record. For local businesses &mdash; tradies, dentists, restaurants &mdash; the ask is usually too big, and collection rates reflect that.</p>
+        </div>
+
+        <div class="cmp-review-card">
+            <h3>Vocal Video</h3>
+            <dl>
+                <dt>What it is</dt>
+                <dd>A guided video testimonial platform that walks customers through a structured questionnaire, prompting them to answer specific questions on camera.</dd>
+
+                <dt>How it works</dt>
+                <dd>You create a set of questions and send customers a unique link. They open the link, read each prompt, and record their answer one question at a time. Vocal Video stitches the clips together into a polished video with your branding. It's more structured than a blank recording widget, which helps customers who aren't sure what to say.</dd>
+
+                <dt>Best for</dt>
+                <dd>B2B companies that need detailed, story-driven testimonials and have customers willing to spend 5&ndash;10 minutes recording.</dd>
+
+                <dt>Main limitation</dt>
+                <dd>It still requires the customer to sit down, open a link, and record themselves &mdash; the guided prompts help, but the fundamental barrier (getting someone on camera) remains.</dd>
+            </dl>
+            <p class="cmp-review-verdict">Verdict: A step up from Testimonial.to's blank-canvas approach. The questionnaire format genuinely helps, but you're still dependent on customers making time to record, which is the bottleneck for most businesses.</p>
+        </div>
+
+        <div class="cmp-review-card">
+            <h3>Widewail</h3>
+            <dl>
+                <dt>What it is</dt>
+                <dd>An enterprise-focused managed service that handles outreach to your customers on your behalf to collect video testimonials.</dd>
+
+                <dt>How it works</dt>
+                <dd>Widewail assigns a team to reach out to your customers via SMS or email, asking them to record a short video testimonial. They manage the follow-ups, provide a recording portal, and handle the editing. It's a white-glove approach &mdash; you hand over your customer list and they do the chasing.</dd>
+
+                <dt>Best for</dt>
+                <dd>Multi-location enterprises (car dealerships, healthcare groups) with the budget for a managed service and a steady stream of new customers to contact.</dd>
+
+                <dt>Main limitation</dt>
+                <dd>Pricing starts around $500&ndash;750 per month with annual or multi-year contracts. The cost puts it out of reach for most small businesses, and even with managed outreach, the end result still depends on customers filming themselves.</dd>
+            </dl>
+            <p class="cmp-review-verdict">Verdict: If you're an enterprise with budget and volume, Widewail removes the admin burden of collecting testimonials. For small-to-medium businesses, the price and contract length are hard to justify &mdash; especially when the videos still rely on customer willingness to record.</p>
+        </div>
+
+        <div class="cmp-review-card">
+            <h3>DIY with InVideo or HeyGen</h3>
+            <dl>
+                <dt>What it is</dt>
+                <dd>AI-powered video creation tools that let you build review videos yourself using templates, stock footage, and text-to-speech.</dd>
+
+                <dt>How it works</dt>
+                <dd>You sign up for a tool like InVideo or HeyGen, choose a template, paste in a review, select background clips or an AI avatar, and export the video. You have full creative control over every element &mdash; footage, voiceover, text overlays, music. Some tools also offer AI avatars that "speak" the review on screen.</dd>
+
+                <dt>Best for</dt>
+                <dd>Business owners or marketers who enjoy video editing, want full creative control, and have the time to produce each video individually.</dd>
+
+                <dt>Main limitation</dt>
+                <dd>Each video takes 30&ndash;60 minutes of your time. You need basic design instincts to avoid the "made with a template" look, and the work scales linearly &mdash; ten videos means ten sessions.</dd>
+            </dl>
+            <p class="cmp-review-verdict">Verdict: Maximum control, maximum time investment. These tools are genuinely capable, but "doing it yourself" means exactly that. Most business owners try a few videos, then stop because the time cost isn't sustainable.</p>
         </div>
     </section>
 

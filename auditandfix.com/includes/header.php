@@ -9,14 +9,40 @@
  * Optional variables (set before including):
  *   $headerTheme  string  'dark' (default, light logo on dark bg) or 'light'
  *   $headerCta    array   ['text' => '...', 'href' => '...'] — override CTA button
+ *   $headerBanner string  Raw HTML for a banner strip inside the sticky header (e.g. deal countdown)
  *
  * Self-contained: all CSS and JS are inline.
  */
 
+// Bootstrap i18n if not already loaded (safe with require_once)
+require_once __DIR__ . '/i18n.php';
+
 // Defaults
-$_headerTheme   = $headerTheme ?? 'dark';
-$_headerCtaText = $headerCta['text'] ?? 'Free Website Score';
-$_headerCtaHref = $headerCta['href'] ?? '/scan';
+$_headerTheme  = $headerTheme ?? 'dark';
+$_headerBanner = $headerBanner ?? '';
+
+// CTA: page-level override wins, then UTM/referer detection, then default
+if (isset($headerCta)) {
+    $_headerCtaText = $headerCta['text'];
+    $_headerCtaHref = $headerCta['href'];
+} else {
+    $_utmSource   = $_GET['utm_source'] ?? '';
+    $_utmCampaign = $_GET['utm_campaign'] ?? '';
+    $_referer     = $_SERVER['HTTP_REFERER'] ?? '';
+    $_isVideo = (
+        stripos($_utmSource, 'video') !== false
+        || stripos($_utmCampaign, 'video') !== false
+        || stripos($_utmCampaign, 'review') !== false
+        || stripos($_referer, '/video-reviews') !== false
+    );
+    if ($_isVideo) {
+        $_headerCtaText = 'Get Your Free Video';
+        $_headerCtaHref = '/video-reviews/';
+    } else {
+        $_headerCtaText = 'Get Your Free Scan';
+        $_headerCtaHref = '/scan';
+    }
+}
 ?>
 
 <style>
@@ -40,9 +66,7 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 40px;
-    max-width: 1200px;
-    margin: 0 auto;
+    padding: 16px 24px;
 }
 
 /* Logo */
@@ -85,6 +109,58 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
 
 .site-header__logo-amp {
     color: #e05d26;
+}
+
+/* Right-side group (lang + hamburger) */
+.site-header__right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 1002;
+}
+
+/* Language selector */
+.site-header__lang {
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    padding: 6px 28px 6px 10px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    outline: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,0.7)'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    transition: background 0.2s, border-color 0.2s;
+}
+.site-header__lang:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+.site-header__lang option {
+    background: #1a2a3a;
+    color: #ffffff;
+}
+
+/* Light-hero: dark lang selector before scroll */
+.site-header--light-hero:not(.site-header--scrolled) .site-header__lang {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1a2a3a;
+    border-color: rgba(0, 0, 0, 0.15);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(0,0,0,0.5)'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+.site-header--light-hero:not(.site-header--scrolled) .site-header__lang:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* Hide on very small screens */
+@media (max-width: 400px) {
+    .site-header__lang { display: none; }
 }
 
 /* Hamburger button */
@@ -229,6 +305,37 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
     padding-left: 8px;
 }
 
+/* Child (indented sub-link with corner icon) */
+.site-menu-nav__link--child {
+    padding-left: 20px;
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.6);
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+.site-menu-nav__link--child::before {
+    content: "\2514";
+    margin-right: 8px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.85em;
+}
+.site-menu-nav__link--child:hover,
+.site-menu-nav__link--child:focus-visible {
+    padding-left: 26px;
+}
+
+/* Personal links (Your Free Video / Audit) */
+.site-menu-nav__link--personal {
+    color: #fbd38d;
+    font-weight: 600;
+}
+.site-menu-nav__link--personal::before {
+    content: "\2605";
+    margin-right: 6px;
+    font-size: 0.8em;
+}
+
 .site-menu-nav__link:last-child {
     border-bottom: none;
 }
@@ -297,11 +404,20 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
     <div class="site-header__inner">
         <a href="/" class="site-header__logo">
             <span class="site-header__logo-imgs">
-                <img src="/assets/img/logo-light.svg" alt="Audit&amp;Fix" class="site-header__logo-on-dark">
-                <img src="/assets/img/logo.svg" alt="" aria-hidden="true" class="site-header__logo-on-light">
+                <img src="/assets/img/logo.svg" alt="Audit&amp;Fix" class="site-header__logo-on-dark">
+                <img src="/assets/img/logo-light.svg" alt="" aria-hidden="true" class="site-header__logo-on-light">
             </span>
             <span class="site-header__logo-text" style="display:none">Audit<span class="site-header__logo-amp">&amp;</span>Fix</span>
         </a>
+
+        <?= $_headerBanner ?>
+
+        <div class="site-header__right">
+            <select class="site-header__lang" aria-label="Language" onchange="var p=new URLSearchParams(window.location.search);p.set('lang',this.value);window.location.href=window.location.pathname+'?'+p.toString()+(window.location.hash||'')">
+                <?php foreach (langNames() as $code => $name): ?>
+                <option value="<?= htmlspecialchars($code) ?>"<?= $code === $lang ? ' selected' : '' ?>><?= htmlspecialchars($name) ?></option>
+                <?php endforeach; ?>
+            </select>
 
         <button
             class="site-header__hamburger"
@@ -315,6 +431,7 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
             <span class="site-header__hamburger-line"></span>
             <span class="site-header__hamburger-line"></span>
         </button>
+        </div>
     </div>
 </header>
 
@@ -336,10 +453,17 @@ $_headerCtaHref = $headerCta['href'] ?? '/scan';
 
     <div class="site-menu-nav">
         <a href="/" class="site-menu-nav__link">Home</a>
-        <a href="/scan" class="site-menu-nav__link">Free Website Score</a>
-        <a href="/video-reviews/" class="site-menu-nav__link">Video Reviews</a>
-        <a href="/video-reviews/compare" class="site-menu-nav__link">Compare</a>
+        <a href="/scan" class="site-menu-nav__link">Conversion Audit</a>
+        <a href="/compare" class="site-menu-nav__link site-menu-nav__link--child">CRO Audit Comparison</a>
+        <a href="/video-reviews/" class="site-menu-nav__link">Review Videos</a>
+        <a href="/video-reviews/compare" class="site-menu-nav__link site-menu-nav__link--child">Video Comparison</a>
         <a href="/blog/" class="site-menu-nav__link">Blog</a>
+        <?php if (!empty($_SESSION['my_video']['hash'])): ?>
+        <a href="/v/<?= htmlspecialchars($_SESSION['my_video']['hash']) ?>" class="site-menu-nav__link site-menu-nav__link--personal">Your Free Video</a>
+        <?php endif; ?>
+        <?php if (!empty($_SESSION['my_audit']['id'])): ?>
+        <a href="/a/<?= htmlspecialchars($_SESSION['my_audit']['id']) ?>" class="site-menu-nav__link site-menu-nav__link--personal">Your Free Audit</a>
+        <?php endif; ?>
         <a href="<?= htmlspecialchars($_headerCtaHref) ?>" class="site-menu-nav__cta"><?= htmlspecialchars($_headerCtaText) ?> &rarr;</a>
     </div>
 </nav>

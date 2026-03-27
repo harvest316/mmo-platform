@@ -3,6 +3,11 @@
  * Audit&Fix Configuration
  */
 
+// Session (for personalized nav links — standard PHPSESSID, not a tracking cookie)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Cloudflare Worker
 // Use staging worker for sandbox mode, production worker otherwise
 define('CF_WORKER_URL',
@@ -174,5 +179,5 @@ function base62_decode(string $s): int {
 function asset_url(string $path): string {
     $abs = __DIR__ . '/../' . ltrim($path, '/');
     $mtime = file_exists($abs) ? filemtime($abs) : 0;
-    return $path . '?v=' . $mtime;
+    return '/' . ltrim($path, '/') . '?v=' . $mtime;
 }

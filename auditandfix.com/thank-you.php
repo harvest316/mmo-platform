@@ -22,10 +22,8 @@ if (!in_array($product, VALID_PRODUCTS, true)) {
 <body>
 <?php require_once __DIR__ . '/includes/consent-banner.php'; ?>
     <a href="#main-content" class="skip-link">Skip to main content</a>
+<?php require_once __DIR__ . '/includes/header.php'; ?>
     <header class="hero hero-short">
-        <nav class="nav">
-            <a href="/" class="logo"><img src="assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span></a>
-        </nav>
 
         <div class="hero-body">
             <div class="hero-content">

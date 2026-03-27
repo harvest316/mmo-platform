@@ -70,6 +70,11 @@ $grade   = !empty($prefill['grade'])   ? $prefill['grade']   : null;
 $email   = !empty($prefill['email'])   ? $prefill['email']   : null;
 $prefillCountry = !empty($prefill['country']) ? preg_replace('/[^A-Z]/', '', strtoupper($prefill['country'])) : null;
 
+// Store in session so the navbar can show "Your Free Audit" link
+if ($siteId && $domain) {
+    $_SESSION['my_audit'] = ['id' => $siteId, 'domain' => $domain];
+}
+
 // ── Country + pricing ─────────────────────────────────────────────────────
 
 $countryCode = ($prefillCountry && strlen($prefillCountry) === 2)
@@ -121,14 +126,9 @@ function gradeContext(float $score): string {
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
 <!-- ── Hero ────────────────────────────────────────────────────────────────── -->
+<?php require_once __DIR__ . '/includes/header.php'; ?>
+
 <header class="hero hero-short" id="main-content">
-    <nav class="nav" aria-label="Site navigation">
-        <a href="/" class="logo">
-            <img src="assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-            <span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span>
-        </a>
-    </nav>
 
     <div class="hero-body">
         <div class="hero-content">

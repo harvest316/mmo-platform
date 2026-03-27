@@ -260,6 +260,12 @@
     hide(stageScanning);
     show(stageResults);
 
+    // Collapse hero intro text so score + issue teaser fit on screen
+    var heroIntro = document.querySelectorAll('.scan-h1-sub, .hero-content > .subtitle');
+    for (var i = 0; i < heroIntro.length; i++) hide(heroIntro[i]);
+    var heroContent = document.querySelector('.hero-content');
+    if (heroContent) heroContent.classList.add('hero-content--results');
+
     const domain = result.domain || extractDomain(result.url || '');
 
     const statusEl = document.getElementById('scan-status');

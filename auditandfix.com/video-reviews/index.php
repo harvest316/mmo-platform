@@ -14,6 +14,7 @@
  */
 
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/i18n.php';
 require_once __DIR__ . '/../includes/geo.php';
 require_once __DIR__ . '/../includes/pricing.php';
 
@@ -31,18 +32,18 @@ $price8  = $videoPricing['monthly_8'];
 $price12 = $videoPricing['monthly_12'];
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= $lang ?>"<?= $lang === 'ar' ? ' dir="rtl"' : '' ?>>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Turn Google Reviews into Video Content — Free Demo | Audit&amp;Fix</title>
-    <meta name="description" content="Turn your 5-star Google reviews into professional 30-second videos — automatically. Free demo video included. Perfect for trades, dental, and local service businesses.">
+    <title><?= t('vr.page_title') ?></title>
+    <meta name="description" content="<?= t('vr.page_description') ?>">
     <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
     <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="/assets/img/favicon-32.png" sizes="32x32" type="image/png">
     <link rel="canonical" href="https://www.auditandfix.com/video-reviews/">
-    <meta property="og:title" content="Turn your Google reviews into 30-second videos">
-    <meta property="og:description" content="Your customers already wrote the script. We just filmed it. Free demo video — no signup required.">
+    <meta property="og:title" content="<?= t('vr.og_title') ?>">
+    <meta property="og:description" content="<?= t('vr.og_description') ?>">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.auditandfix.com/video-reviews/">
     <meta property="og:image" content="https://www.auditandfix.com/assets/img/og-image.png">
@@ -132,55 +133,31 @@ $price12 = $videoPricing['monthly_12'];
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
         }
         .example-review {
-            padding: 16px;
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            min-height: 90px;
-        }
-        .example-review-icon {
-            width: 36px;
-            height: 36px;
-            background: #4285f4;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.1rem;
-            font-weight: 700;
-            flex-shrink: 0;
-            color: #fff;
-        }
-        .example-review-text {
-            flex: 1;
-            min-width: 0;
+            padding: 14px 16px;
         }
         .example-review-stars {
             color: #fbbf24;
             font-size: 0.85rem;
             letter-spacing: 1px;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
         }
         .example-review-snippet {
             font-size: 0.82rem;
-            opacity: 0.8;
-            line-height: 1.4;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+            opacity: 0.85;
+            line-height: 1.5;
         }
-        .example-arrow {
-            text-align: center;
-            padding: 6px 0;
-            font-size: 1.2rem;
-            opacity: 0.5;
+        .example-review-snippet a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .example-review-snippet a:hover {
+            text-decoration: underline;
+            opacity: 1;
         }
         .example-video-wrap {
             position: relative;
             background: #0d1b2a;
             aspect-ratio: 9 / 16;
-            max-height: 280px;
             cursor: pointer;
         }
         .example-video-wrap video {
@@ -188,6 +165,14 @@ $price12 = $videoPricing['monthly_12'];
             height: 100%;
             object-fit: cover;
             display: block;
+        }
+        /* Hide native browser play button — we use our own overlay */
+        .example-video-wrap video::-webkit-media-controls-panel,
+        .example-video-wrap video::-webkit-media-controls-play-button,
+        .example-video-wrap video::-webkit-media-controls-start-playback-button,
+        .example-video-wrap video::-webkit-media-controls {
+            display: none !important;
+            -webkit-appearance: none;
         }
         .example-play-btn {
             position: absolute;
@@ -209,19 +194,83 @@ $price12 = $videoPricing['monthly_12'];
             opacity: 0;
             pointer-events: none;
         }
+
+        /* ── Video lightbox ─────────────────────────────────── */
+        .video-lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .video-lightbox--open {
+            display: flex;
+        }
+        .video-lightbox__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .video-lightbox__content {
+            position: relative;
+            max-width: 420px;
+            width: 90vw;
+            max-height: 90vh;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        .video-lightbox__video {
+            width: 100%;
+            display: block;
+            background: #000;
+            cursor: pointer;
+        }
+        .video-lightbox__close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: 22px;
+            line-height: 40px;
+            text-align: center;
+            cursor: pointer;
+            z-index: 1;
+            transition: background 0.2s;
+        }
+        .video-lightbox__close:hover {
+            background: rgba(0, 0, 0, 0.75);
+        }
+
         .example-meta {
             padding: 12px 16px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
         }
         .example-meta-name {
+            display: block;
             font-weight: 600;
             font-size: 0.92rem;
             margin-bottom: 2px;
+            color: inherit;
+            text-decoration: none;
         }
+        .example-meta-name:hover { text-decoration: underline; }
         .example-meta-info {
+            display: block;
             font-size: 0.78rem;
             opacity: 0.6;
+            color: inherit;
+            text-decoration: none;
         }
+        .example-meta-info:hover { opacity: 0.85; }
         .example-meta-niche {
             display: inline-block;
             background: rgba(224, 93, 38, 0.2);
@@ -503,17 +552,17 @@ $price12 = $videoPricing['monthly_12'];
         /* ── Pricing section ───────────────────────────────────── */
         .vod-pricing-section {
             padding: 80px 20px;
-            background: #f7fafc;
+            background: linear-gradient(135deg, #1a365d 0%, #2a4a7f 100%);
         }
         .vod-pricing-section h2 {
             text-align: center;
-            color: #1a365d;
+            color: #ffffff;
             margin-bottom: 8px;
             font-size: 1.8rem;
         }
         .vod-pricing-sub {
             text-align: center;
-            color: #718096;
+            color: rgba(255, 255, 255, 0.75);
             margin-bottom: 40px;
             font-size: 1rem;
         }
@@ -541,7 +590,7 @@ $price12 = $videoPricing['monthly_12'];
             position: relative;
         }
         .vod-pricing-card.featured::before {
-            content: 'Most Popular';
+            content: '<?= t('vr.pricing_most_popular') ?>';
             position: absolute;
             top: -12px;
             left: 50%;
@@ -732,7 +781,7 @@ $price12 = $videoPricing['monthly_12'];
 </head>
 <body>
 <?php require_once __DIR__ . '/../includes/consent-banner.php'; ?>
-<a href="#main-content" class="skip-link">Skip to main content</a>
+<a href="#main-content" class="skip-link"><?= t('vr.skip_link') ?></a>
 
 <?php $headerTheme = 'light'; require_once __DIR__ . '/../includes/header.php'; ?>
 
@@ -740,9 +789,9 @@ $price12 = $videoPricing['monthly_12'];
 <header class="vod-hero" style="padding-top: 0;">
 
     <div class="vod-hero-body">
-        <p class="pre-headline">Free video demo</p>
-        <h1>Turn your 5-star Google reviews into a 30-second video &mdash; automatically.</h1>
-        <p class="subtitle">Your customers already wrote the script. We just filmed it.</p>
+        <p class="pre-headline"><?= t('vr.hero_pre_headline') ?></p>
+        <h1><?= t('vr.hero_title') ?></h1>
+        <p class="subtitle"><?= t('vr.hero_subtitle') ?></p>
     </div>
 
     <!-- 3 example cards: review screenshot -> video player -->
@@ -750,82 +799,67 @@ $price12 = $videoPricing['monthly_12'];
 
         <!-- Example 1: Pest Control -->
         <div class="example-card">
-            <div class="example-review">
-                <div class="example-review-icon">L</div>
-                <div class="example-review-text">
-                    <div class="example-review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-                    <div class="example-review-snippet">"Came across Pest Power with fantastic reviews. Mac was professional, knowledgeable, and did a thorough inspection. Highly recommend."</div>
-                </div>
-            </div>
-            <div class="example-arrow">&darr;</div>
             <div class="example-video-wrap">
-                <video preload="metadata" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900001-1773998436379.jpg">
-                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900001-1773998424007.mp4" type="video/mp4">
+                <video preload="auto" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s3-1774578500984.jpg">
+                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s3-1774578488894.mp4" type="video/mp4">
                 </video>
-                <div class="example-play-btn" aria-label="Play video">
+                <div class="example-play-btn" aria-label="<?= t('vr.play_video') ?>">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 </div>
             </div>
+            <div class="example-review">
+                <div class="example-review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+                <div class="example-review-snippet"><a href="https://search.google.com/local/reviews?placeid=ChIJH_Q423e9EmsRC_df825qoBo&q=R+VM" target="_blank" rel="noopener">&ldquo;Reece and the team were knowledgeable, responsive, and easy to book. Despite difficult to access to attic space, two possums were safely trapped and released over four days. We were advised leaving the cage out an extra night to get more &mdash; which proved helpful when a third returned briefly before moving on. After another company suggested rats (despite the noise clearly indicating otherwise), we were relieved to have the issue correctly identified and resolved. The team also sealed any likely entry points, even though both companies remain unsure of continued access. Possums have not returned.&rdquo; &mdash; R VM</a></div>
+            </div>
             <div class="example-meta">
-                <div class="example-meta-name">Pest Power Sydney</div>
-                <div class="example-meta-info">5.0&#9733; &middot; 257 reviews</div>
-                <span class="example-meta-niche">Pest Control</span>
+                <a href="https://search.google.com/local/reviews?placeid=ChIJH_Q423e9EmsRC_df825qoBo" target="_blank" rel="noopener" class="example-meta-name">BugFree Pest Control</a>
+                <a href="https://search.google.com/local/reviews?placeid=ChIJH_Q423e9EmsRC_df825qoBo" target="_blank" rel="noopener" class="example-meta-info">4.9&#9733; &middot; 5,103 reviews</a>
             </div>
         </div>
 
         <!-- Example 2: Plumber -->
         <div class="example-card">
-            <div class="example-review">
-                <div class="example-review-icon">P</div>
-                <div class="example-review-text">
-                    <div class="example-review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-                    <div class="example-review-snippet">"Had an underground water leak we didn&rsquo;t know about. Proximity responded quickly, turned up on time, and got it done professionally."</div>
-                </div>
-            </div>
-            <div class="example-arrow">&darr;</div>
             <div class="example-video-wrap">
-                <video preload="metadata" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900003-1773998536448.jpg">
-                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900003-1773998522268.mp4" type="video/mp4">
+                <video preload="auto" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s19-1774577448578.jpg">
+                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s19-1774577432668.mp4" type="video/mp4">
                 </video>
-                <div class="example-play-btn" aria-label="Play video">
+                <div class="example-play-btn" aria-label="<?= t('vr.play_video') ?>">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 </div>
             </div>
+            <div class="example-review">
+                <div class="example-review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+                <div class="example-review-snippet"><a href="https://search.google.com/local/reviews?placeid=ChIJJ8arvB27EmsRbyFxWhykxr8&q=Selena+Lin" target="_blank" rel="noopener">&ldquo;Jim and Dan came to our place today to fix a plumbing issue and did an outstanding job. They managed to clear a 20+-year-old plumbing blockage, which made a huge difference. We&rsquo;ve just moved into this house, and from a long-term perspective the service was absolutely worth it &mdash; 200% value. Huge thanks to Jim and Dan for delivering such an excellent result for our new home! I would definitely recommend them and will be asking for Jim and Dan again in the future.&rdquo; &mdash; Selena Lin</a></div>
+            </div>
             <div class="example-meta">
-                <div class="example-meta-name">Proximity Plumbing</div>
-                <div class="example-meta-info">4.9&#9733; &middot; 2,238 reviews</div>
-                <span class="example-meta-niche">Plumber</span>
+                <a href="https://search.google.com/local/reviews?placeid=ChIJJ8arvB27EmsRbyFxWhykxr8" target="_blank" rel="noopener" class="example-meta-name">Fix n Flow</a>
+                <a href="https://search.google.com/local/reviews?placeid=ChIJJ8arvB27EmsRbyFxWhykxr8" target="_blank" rel="noopener" class="example-meta-info">4.8&#9733; &middot; 812 reviews</a>
             </div>
         </div>
 
         <!-- Example 3: House Cleaning -->
         <div class="example-card">
-            <div class="example-review">
-                <div class="example-review-icon">M</div>
-                <div class="example-review-text">
-                    <div class="example-review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-                    <div class="example-review-snippet">"They left our place spotless. Even cleaned behind the fridge without us asking. Absolutely recommend."</div>
-                </div>
-            </div>
-            <div class="example-arrow">&darr;</div>
             <div class="example-video-wrap">
-                <video preload="metadata" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-p25.jpg">
-                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-p25.mp4" type="video/mp4">
+                <video preload="auto" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s25-1774578668477.jpg">
+                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s25-1774578655370.mp4" type="video/mp4">
                 </video>
-                <div class="example-play-btn" aria-label="Play video">
+                <div class="example-play-btn" aria-label="<?= t('vr.play_video') ?>">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 </div>
             </div>
+            <div class="example-review">
+                <div class="example-review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+                <div class="example-review-snippet"><a href="https://search.google.com/local/reviews?placeid=ChIJX_yV9selEmsR4F5SE40gR28&q=Mandy+Kwon" target="_blank" rel="noopener">&ldquo;I recently booked a deep clean with Maid2Go, and I cannot express how much of a relief the experience was. As someone with ADHD, I often struggle with keeping up with cleaning, and the task of a &lsquo;deep clean&rsquo; always felt too overwhelming to start. The quote was really reasonable. I also want to specifically mention how wonderful the cleaner, Rahman, was throughout the process. He was incredibly respectful, professional, and left the place absolutely sparkling. He cleaned places that I wouldn&rsquo;t have even thought to touch. Every hidden corner and neglected surface was addressed with such care and the level of thoroughness was truly incredible. &hellip;&rdquo; &mdash; Mandy Kwon</a></div>
+            </div>
             <div class="example-meta">
-                <div class="example-meta-name">Maid2Go Cleaning Sydney</div>
-                <div class="example-meta-info">4.9&#9733; &middot; 827 reviews</div>
-                <span class="example-meta-niche">House Cleaning</span>
+                <a href="https://search.google.com/local/reviews?placeid=ChIJX_yV9selEmsR4F5SE40gR28" target="_blank" rel="noopener" class="example-meta-name">Maid2Go Cleaning Sydney</a>
+                <a href="https://search.google.com/local/reviews?placeid=ChIJX_yV9selEmsR4F5SE40gR28" target="_blank" rel="noopener" class="example-meta-info">4.9&#9733; &middot; 827 reviews</a>
             </div>
         </div>
 
     </div>
 
-    <p class="example-disclaimer">Demo videos created from public Google reviews. Not a paid endorsement.</p>
+    <p class="example-disclaimer"><?= t('vr.example_disclaimer') ?></p>
 </header>
 
 <!-- ── Main Content ─────────────────────────────────────────────────────── -->
@@ -833,96 +867,117 @@ $price12 = $videoPricing['monthly_12'];
 
     <!-- How it works -->
     <section class="vod-steps-section">
-        <h2>How it works</h2>
-        <p class="section-subhead">From Google review to polished video in three simple steps.</p>
+        <h2><?= t('vr.steps_title') ?></h2>
+        <p class="section-subhead"><?= t('vr.steps_subtitle') ?></p>
         <div class="vod-steps-grid">
             <div class="vod-step">
                 <div class="vod-step-number">1</div>
-                <h3>Tell us your business</h3>
-                <p>Enter your business name and niche. We scan your Google reviews and pick one that tells a great story.</p>
+                <h3><?= t('vr.step1_title') ?></h3>
+                <p><?= t('vr.step1_desc') ?></p>
             </div>
             <div class="vod-step">
                 <div class="vod-step-number">2</div>
-                <h3>We create your video</h3>
-                <p>AI-powered production turns the review into a polished 30-second video with voiceover, music, and your logo.</p>
+                <h3><?= t('vr.step2_title') ?></h3>
+                <p><?= t('vr.step2_desc') ?></p>
             </div>
             <div class="vod-step">
                 <div class="vod-step-number">3</div>
-                <h3>Post it everywhere</h3>
-                <p>Download your video and share it on social media, embed it on your site, or use it in ads. It's yours to keep.</p>
+                <h3><?= t('vr.step3_title') ?></h3>
+                <p><?= t('vr.step3_desc') ?></p>
             </div>
         </div>
     </section>
 
     <!-- Section 2: Get Your Free Video form -->
     <section class="vod-form-section" id="get-video">
-        <h2>Get Your Free Video</h2>
-        <p class="section-subhead">One free video per business. No credit card required. Yours to keep forever.</p>
+        <h2><?= t('vr.form_title') ?></h2>
+        <p class="section-subhead"><?= t('vr.form_subtitle') ?></p>
 
         <div class="vod-form-wrap" id="vod-form-container">
             <div id="vod-form-error" class="vod-form-error" role="alert"></div>
             <form class="vod-form" id="vod-form" novalidate>
                 <div class="form-group">
-                    <label for="vod-business-name">Business name</label>
+                    <label for="vod-business-name"><?= t('vr.label_business_name') ?></label>
                     <input
                         type="text"
                         id="vod-business-name"
                         name="business_name"
-                        placeholder="e.g. Sydney Pest Pros"
+                        placeholder="<?= t('vr.placeholder_business_name') ?>"
                         autocomplete="off"
                         required
                     >
                 </div>
 
                 <div class="form-group">
-                    <label for="vod-niche">Industry</label>
+                    <label for="vod-niche"><?= t('vr.label_industry') ?></label>
                     <select id="vod-niche" name="niche" required>
-                        <option value="" disabled selected>Select your industry</option>
-                        <option value="pest_control">Pest Control</option>
-                        <option value="plumber">Plumber</option>
-                        <option value="dentist">Dentist</option>
-                        <option value="electrician">Electrician</option>
-                        <option value="roofer">Roofer</option>
-                        <option value="hvac">HVAC</option>
-                        <option value="real_estate">Real Estate</option>
-                        <option value="chiropractor">Chiropractor</option>
-                        <option value="personal_injury_lawyer">Personal Injury Lawyer</option>
-                        <option value="pool_installer">Pool Installer</option>
-                        <option value="dog_trainer">Dog Trainer</option>
-                        <option value="med_spa">Med Spa</option>
-                        <option value="house_cleaning">House Cleaning</option>
-                        <option value="other">Other</option>
+                        <option value="" disabled selected><?= t('vr.select_industry') ?></option>
+                        <option value="pest_control"><?= t('vr.niche_pest_control') ?></option>
+                        <option value="plumber"><?= t('vr.niche_plumber') ?></option>
+                        <option value="dentist"><?= t('vr.niche_dentist') ?></option>
+                        <option value="electrician"><?= t('vr.niche_electrician') ?></option>
+                        <option value="roofer"><?= t('vr.niche_roofer') ?></option>
+                        <option value="hvac"><?= t('vr.niche_hvac') ?></option>
+                        <option value="real_estate"><?= t('vr.niche_real_estate') ?></option>
+                        <option value="chiropractor"><?= t('vr.niche_chiropractor') ?></option>
+                        <option value="personal_injury_lawyer"><?= t('vr.niche_personal_injury_lawyer') ?></option>
+                        <option value="pool_installer"><?= t('vr.niche_pool_installer') ?></option>
+                        <option value="dog_trainer"><?= t('vr.niche_dog_trainer') ?></option>
+                        <option value="med_spa"><?= t('vr.niche_med_spa') ?></option>
+                        <option value="house_cleaning"><?= t('vr.niche_house_cleaning') ?></option>
+                        <option value="other"><?= t('vr.niche_other') ?></option>
                     </select>
                 </div>
 
                 <div class="form-group vod-form-other-niche" id="vod-other-niche-group">
-                    <label for="vod-other-niche">Tell us your industry</label>
+                    <label for="vod-other-niche"><?= t('vr.label_other_niche') ?></label>
                     <input
                         type="text"
                         id="vod-other-niche"
                         name="other_niche"
-                        placeholder="e.g. Landscaping"
+                        placeholder="<?= t('vr.placeholder_other_niche') ?>"
                     >
                 </div>
 
                 <div class="form-group">
-                    <label for="vod-country">Country</label>
+                    <label for="vod-country"><?= t('vr.label_country') ?></label>
+                    <?php
+                    $countries = [
+                        'AF'=>'Afghanistan','AL'=>'Albania','DZ'=>'Algeria','AR'=>'Argentina','AT'=>'Austria',
+                        'AU'=>'Australia','BH'=>'Bahrain','BD'=>'Bangladesh','BE'=>'Belgium','BR'=>'Brazil',
+                        'BG'=>'Bulgaria','KH'=>'Cambodia','CA'=>'Canada','CL'=>'Chile','CN'=>'China',
+                        'CO'=>'Colombia','HR'=>'Croatia','CY'=>'Cyprus','CZ'=>'Czech Republic','DK'=>'Denmark',
+                        'EG'=>'Egypt','EE'=>'Estonia','FI'=>'Finland','FR'=>'France','DE'=>'Germany',
+                        'GH'=>'Ghana','GR'=>'Greece','HK'=>'Hong Kong','HU'=>'Hungary','IN'=>'India',
+                        'ID'=>'Indonesia','IE'=>'Ireland','IL'=>'Israel','IT'=>'Italy','JP'=>'Japan',
+                        'JO'=>'Jordan','KE'=>'Kenya','KW'=>'Kuwait','LV'=>'Latvia','LB'=>'Lebanon',
+                        'LT'=>'Lithuania','LU'=>'Luxembourg','MY'=>'Malaysia','MT'=>'Malta','MX'=>'Mexico',
+                        'MA'=>'Morocco','NL'=>'Netherlands','NZ'=>'New Zealand','NG'=>'Nigeria','NO'=>'Norway',
+                        'OM'=>'Oman','PK'=>'Pakistan','PE'=>'Peru','PH'=>'Philippines','PL'=>'Poland',
+                        'PT'=>'Portugal','QA'=>'Qatar','RO'=>'Romania','SA'=>'Saudi Arabia','RS'=>'Serbia',
+                        'SG'=>'Singapore','SK'=>'Slovakia','SI'=>'Slovenia','ZA'=>'South Africa',
+                        'KR'=>'South Korea','ES'=>'Spain','LK'=>'Sri Lanka','SE'=>'Sweden',
+                        'CH'=>'Switzerland','TW'=>'Taiwan','TH'=>'Thailand','TR'=>'Turkey',
+                        'UA'=>'Ukraine','AE'=>'United Arab Emirates','UK'=>'United Kingdom',
+                        'US'=>'United States','VN'=>'Vietnam',
+                    ];
+                    $detected = in_array($countryCode, array_keys($countries), true) ? $countryCode : 'US';
+                    if ($countryCode === 'GB') $detected = 'UK';
+                    ?>
                     <select id="vod-country" name="country" required>
-                        <option value="AU" <?= $countryCode === 'AU' ? 'selected' : '' ?>>Australia</option>
-                        <option value="NZ" <?= $countryCode === 'NZ' ? 'selected' : '' ?>>New Zealand</option>
-                        <option value="US" <?= ($countryCode === 'US' || !in_array($countryCode, ['AU','NZ','UK','CA','GB'], true)) ? 'selected' : '' ?>>United States</option>
-                        <option value="UK" <?= ($countryCode === 'UK' || $countryCode === 'GB') ? 'selected' : '' ?>>United Kingdom</option>
-                        <option value="CA" <?= $countryCode === 'CA' ? 'selected' : '' ?>>Canada</option>
+                        <?php foreach ($countries as $code => $name): ?>
+                        <option value="<?= $code ?>"<?= $code === $detected ? ' selected' : '' ?>><?= htmlspecialchars($name) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
 
-                <button type="submit" class="vod-form-btn" id="vod-form-btn">Get Your Free Video &rarr;</button>
+                <button type="submit" class="vod-form-btn" id="vod-form-btn"><?= t('vr.form_cta') ?></button>
             </form>
 
             <div class="vod-trust-badges">
-                <span>&#10003; Free, no credit card</span>
-                <span>&#10003; One video per business</span>
-                <span>&#10003; Yours to keep</span>
+                <span>&#10003; <?= t('vr.trust_free') ?></span>
+                <span>&#10003; <?= t('vr.trust_one_video') ?></span>
+                <span>&#10003; <?= t('vr.trust_yours_to_keep') ?></span>
             </div>
         </div>
     </section>
@@ -930,22 +985,22 @@ $price12 = $videoPricing['monthly_12'];
     <!-- Section 3: Email verification gate (hidden until form submit) -->
     <section class="vod-email-section" id="vod-email-section">
         <div class="vod-email-wrap">
-            <h2>Enter your email to receive your free video</h2>
-            <p>We'll email you a verification link. Click it to start creating your video.</p>
+            <h2><?= t('vr.email_title') ?></h2>
+            <p><?= t('vr.email_desc') ?></p>
             <div id="vod-email-error" class="vod-email-error" role="alert"></div>
             <form class="vod-email-form" id="vod-email-form" novalidate>
-                <label for="vod-email-input" class="sr-only">Your email address</label>
+                <label for="vod-email-input" class="sr-only"><?= t('vr.email_sr_label') ?></label>
                 <input
                     type="email"
                     id="vod-email-input"
                     name="email"
-                    placeholder="your@email.com"
+                    placeholder="<?= t('vr.email_placeholder') ?>"
                     autocomplete="email"
                     required
                 >
-                <button type="submit" id="vod-email-btn">Send My Video</button>
+                <button type="submit" id="vod-email-btn"><?= t('vr.email_cta') ?></button>
             </form>
-            <p class="vod-email-note">We'll email you a verification link. Click it to start creating your video.</p>
+            <p class="vod-email-note"><?= t('vr.email_note') ?></p>
         </div>
     </section>
 
@@ -953,11 +1008,11 @@ $price12 = $videoPricing['monthly_12'];
     <section class="vod-email-sent-section" id="vod-email-sent-section">
         <div class="vod-email-sent-wrap">
             <div class="vod-email-sent-icon" aria-hidden="true">&#9993;</div>
-            <h2>Check your inbox!</h2>
-            <p>We sent a verification link to <span class="vod-email-sent-address" id="vod-email-sent-address"></span>.</p>
-            <p style="margin-top:12px;">Click the link in that email to start creating your free video. It should arrive within a minute.</p>
+            <h2><?= t('vr.email_sent_title') ?></h2>
+            <p id="vod-email-sent-desc"><?= t('vr.email_sent_desc', ['email' => '<span class="vod-email-sent-address" id="vod-email-sent-address"></span>']) ?></p>
+            <p style="margin-top:12px;"><?= t('vr.email_sent_instruction') ?></p>
             <p class="vod-email-note" style="margin-top:20px;font-size:0.85rem;color:#718096;">
-                Can't find it? Check your spam folder. The link expires in 24 hours.
+                <?= t('vr.email_sent_spam') ?>
             </p>
         </div>
     </section>
@@ -966,111 +1021,111 @@ $price12 = $videoPricing['monthly_12'];
     <section class="vod-confirmation-section" id="vod-confirmation-section">
         <div class="vod-confirmation-wrap">
             <div class="vod-confirmation-icon" aria-hidden="true">&#10003;</div>
-            <h2 id="vod-confirmation-title">Your video is being created!</h2>
-            <p id="vod-confirmation-desc">Check your email soon. We'll send you a link to your personalised video as soon as it's ready.</p>
+            <h2 id="vod-confirmation-title"><?= t('vr.confirm_title') ?></h2>
+            <p id="vod-confirmation-desc"><?= t('vr.confirm_desc') ?></p>
             <div class="vod-progress-bar">
                 <div class="vod-progress-fill"></div>
             </div>
-            <p class="vod-progress-label">Scanning your reviews and creating your video...</p>
+            <p class="vod-progress-label"><?= t('vr.confirm_progress') ?></p>
         </div>
     </section>
 
     <!-- Section 5: Pricing (always visible) -->
     <section class="vod-pricing-section" id="pricing">
-        <h2>Simple, transparent pricing</h2>
-        <p class="vod-pricing-sub">Setup: $0 (waived). Monthly subscription. Cancel anytime.</p>
+        <h2><?= t('vr.pricing_title') ?></h2>
+        <p class="vod-pricing-sub"><?= t('vr.pricing_subtitle') ?></p>
 
         <div class="vod-pricing-grid">
             <!-- Starter -->
             <div class="vod-pricing-card">
-                <div class="vod-pricing-tier">Starter</div>
+                <div class="vod-pricing-tier"><?= t('vr.pricing_tier_starter') ?></div>
                 <div class="vod-pricing-price"><?= $symbol ?><?= $price4 ?></div>
-                <div class="vod-pricing-period">per month</div>
-                <div class="vod-pricing-setup">Setup: $0 (waived)</div>
+                <div class="vod-pricing-period"><?= t('vr.pricing_per_month') ?></div>
+                <div class="vod-pricing-setup"><?= t('vr.pricing_setup') ?></div>
                 <ul class="vod-pricing-features">
-                    <li>4 videos per month</li>
-                    <li>30-second format</li>
-                    <li>Your logo + branding</li>
-                    <li>Background music</li>
-                    <li>AI voiceover</li>
+                    <li><?= t('vr.pricing_videos_per_month', ['count' => '4']) ?></li>
+                    <li><?= t('vr.pricing_30s_format') ?></li>
+                    <li><?= t('vr.pricing_logo_branding') ?></li>
+                    <li><?= t('vr.pricing_background_music') ?></li>
+                    <li><?= t('vr.pricing_ai_voiceover') ?></li>
                 </ul>
-                <a href="#get-video" class="vod-pricing-cta">Get Started</a>
+                <a href="#get-video" class="vod-pricing-cta"><?= t('vr.pricing_cta') ?></a>
             </div>
 
             <!-- Growth (featured) -->
             <div class="vod-pricing-card featured">
-                <div class="vod-pricing-tier">Growth</div>
+                <div class="vod-pricing-tier"><?= t('vr.pricing_tier_growth') ?></div>
                 <div class="vod-pricing-price"><?= $symbol ?><?= $price8 ?></div>
-                <div class="vod-pricing-period">per month</div>
-                <div class="vod-pricing-setup">Setup: $0 (waived)</div>
+                <div class="vod-pricing-period"><?= t('vr.pricing_per_month') ?></div>
+                <div class="vod-pricing-setup"><?= t('vr.pricing_setup') ?></div>
                 <ul class="vod-pricing-features">
-                    <li>8 videos per month</li>
-                    <li>30-second format</li>
-                    <li>Your logo + branding</li>
-                    <li>Background music</li>
-                    <li>AI voiceover</li>
-                    <li>Priority delivery</li>
+                    <li><?= t('vr.pricing_videos_per_month', ['count' => '8']) ?></li>
+                    <li><?= t('vr.pricing_30s_format') ?></li>
+                    <li><?= t('vr.pricing_logo_branding') ?></li>
+                    <li><?= t('vr.pricing_background_music') ?></li>
+                    <li><?= t('vr.pricing_ai_voiceover') ?></li>
+                    <li><?= t('vr.pricing_priority_delivery') ?></li>
                 </ul>
-                <a href="#get-video" class="vod-pricing-cta">Get Started</a>
+                <a href="#get-video" class="vod-pricing-cta"><?= t('vr.pricing_cta') ?></a>
             </div>
 
             <!-- Scale -->
             <div class="vod-pricing-card">
-                <div class="vod-pricing-tier">Scale</div>
+                <div class="vod-pricing-tier"><?= t('vr.pricing_tier_scale') ?></div>
                 <div class="vod-pricing-price"><?= $symbol ?><?= $price12 ?></div>
-                <div class="vod-pricing-period">per month</div>
-                <div class="vod-pricing-setup">Setup: $0 (waived)</div>
+                <div class="vod-pricing-period"><?= t('vr.pricing_per_month') ?></div>
+                <div class="vod-pricing-setup"><?= t('vr.pricing_setup') ?></div>
                 <ul class="vod-pricing-features">
-                    <li>12 videos per month</li>
-                    <li>30-second format</li>
-                    <li>Your logo + branding</li>
-                    <li>Background music</li>
-                    <li>AI voiceover</li>
-                    <li>Priority delivery</li>
+                    <li><?= t('vr.pricing_videos_per_month', ['count' => '12']) ?></li>
+                    <li><?= t('vr.pricing_30s_format') ?></li>
+                    <li><?= t('vr.pricing_logo_branding') ?></li>
+                    <li><?= t('vr.pricing_background_music') ?></li>
+                    <li><?= t('vr.pricing_ai_voiceover') ?></li>
+                    <li><?= t('vr.pricing_priority_delivery') ?></li>
                 </ul>
-                <a href="#get-video" class="vod-pricing-cta">Get Started</a>
+                <a href="#get-video" class="vod-pricing-cta"><?= t('vr.pricing_cta') ?></a>
             </div>
         </div>
 
-        <p class="vod-pricing-compare">Comparable services charge <?= $competitorRange['symbol'] ?><?= $competitorRange['low'] ?>&ndash;<?= $competitorRange['symbol'] ?><?= $competitorRange['high'] ?>/month. <a href="/video-reviews/compare">See how we compare</a></p>
+        <p class="vod-pricing-compare"><?= t('vr.pricing_compare', ['symbol' => $competitorRange['symbol'], 'low' => $competitorRange['low'], 'symbol2' => $competitorRange['symbol'], 'high' => $competitorRange['high']]) ?> <a href="/video-reviews/compare"><?= t('vr.pricing_compare_link') ?></a></p>
     </section>
 
     <!-- FAQ -->
     <section class="vod-faq faq">
-        <h2>Frequently asked questions</h2>
+        <h2><?= t('vr.faq_title') ?></h2>
 
         <div class="faq-item">
-            <h3>How does the free demo work?</h3>
-            <p>We make one video from your best Google review at no cost. It's yours to keep and use however you want &mdash; no obligation to subscribe.</p>
+            <h3><?= t('vr.faq1_q') ?></h3>
+            <p><?= t('vr.faq1_a') ?></p>
         </div>
         <div class="faq-item">
-            <h3>What kind of businesses is this for?</h3>
-            <p>Any local service business with Google reviews &mdash; pest control, plumbers, dentists, HVAC, roofers, dog trainers, and more. If your customers leave reviews, we can turn them into videos.</p>
+            <h3><?= t('vr.faq2_q') ?></h3>
+            <p><?= t('vr.faq2_a') ?></p>
         </div>
         <div class="faq-item">
-            <h3>Do I need to do anything?</h3>
-            <p>Nothing. We handle everything &mdash; finding reviews, creating videos, and delivering them to you. Just post them.</p>
+            <h3><?= t('vr.faq3_q') ?></h3>
+            <p><?= t('vr.faq3_a') ?></p>
         </div>
         <div class="faq-item">
-            <h3>How long until I receive my video?</h3>
-            <p>Most videos are delivered within 24 hours. We'll email you a link as soon as it's ready.</p>
+            <h3><?= t('vr.faq4_q') ?></h3>
+            <p><?= t('vr.faq4_a') ?></p>
         </div>
         <div class="faq-item">
-            <h3>Can I cancel anytime?</h3>
-            <p>Yes. Monthly subscriptions with no lock-in. Cancel whenever you want.</p>
+            <h3><?= t('vr.faq5_q') ?></h3>
+            <p><?= t('vr.faq5_a') ?></p>
         </div>
         <div class="faq-item">
-            <h3>What format are the videos?</h3>
-            <p>Each video is about 30 seconds in vertical (9:16) format &mdash; perfect for Instagram Reels, TikTok, YouTube Shorts, and Facebook Stories. Long enough to tell a story, short enough to keep people watching.</p>
+            <h3><?= t('vr.faq6_q') ?></h3>
+            <p><?= t('vr.faq6_a') ?></p>
         </div>
     </section>
 
     <!-- Footer CTA -->
     <section class="vod-footer-cta">
         <div class="container">
-            <h2>Your reviews are already there. Let's turn them into content.</h2>
-            <a href="#get-video" class="cta-button">Get Your Free Video &rarr;</a>
-            <p>Free. No credit card. One video per business.</p>
+            <h2><?= t('vr.footer_cta_title') ?></h2>
+            <a href="#get-video" class="cta-button"><?= t('vr.footer_cta_button') ?></a>
+            <p><?= t('vr.footer_cta_sub') ?></p>
         </div>
     </section>
 
@@ -1131,43 +1186,145 @@ if ($googleMapsKey):
         });
     }
 
-    // Play example videos on click/tap; hover previews on desktop
+    // ── Lightbox ──────────────────────────────────────────────────────────
+    var lightbox = document.createElement('div');
+    lightbox.className = 'video-lightbox';
+    lightbox.innerHTML = '<div class="video-lightbox__backdrop"></div>' +
+        '<div class="video-lightbox__content">' +
+        '<video class="video-lightbox__video" playsinline preload="auto"></video>' +
+        '<button class="video-lightbox__close" aria-label="Close">&times;</button>' +
+        '</div>';
+    document.body.appendChild(lightbox);
+    var lbVideo = lightbox.querySelector('.video-lightbox__video');
+    var lbClose = lightbox.querySelector('.video-lightbox__close');
+    var lbBackdrop = lightbox.querySelector('.video-lightbox__backdrop');
+    var activeCardVideo = null;
+
+    function openLightbox(cardVideo) {
+        activeCardVideo = cardVideo;
+        // Pause card video, transfer src and position to lightbox
+        var wasPlaying = !cardVideo.paused;
+        var pos = cardVideo.currentTime < 3 ? 0 : cardVideo.currentTime;
+        cardVideo.pause();
+        cardVideo.muted = true;
+        lbVideo.src = cardVideo.querySelector('source').src;
+        lbVideo.currentTime = pos;
+        lbVideo.muted = false;
+        lbVideo.loop = false;
+        lightbox.classList.add('video-lightbox--open');
+        document.body.style.overflow = 'hidden';
+        // Play once ready
+        function playLb() {
+            lbVideo.play().catch(function() {});
+        }
+        if (lbVideo.readyState >= 3) {
+            lbVideo.currentTime = pos;
+            playLb();
+        } else {
+            lbVideo.addEventListener('loadeddata', function() {
+                lbVideo.currentTime = pos;
+                playLb();
+            }, { once: true });
+        }
+    }
+
+    function closeLightbox() {
+        lbVideo.pause();
+        lightbox.classList.remove('video-lightbox--open');
+        document.body.style.overflow = '';
+        // Resume position back on card but stay paused and muted
+        if (activeCardVideo) {
+            activeCardVideo.currentTime = lbVideo.currentTime;
+            activeCardVideo.muted = true;
+            var w = activeCardVideo.closest('.example-video-wrap');
+            if (w) { w.classList.remove('playing'); w.__userPlaying = false; }
+        }
+        lbVideo.removeAttribute('src');
+        activeCardVideo = null;
+    }
+
+    // Tap lightbox video to pause/resume
+    lbVideo.addEventListener('click', function() {
+        if (lbVideo.paused) { lbVideo.play().catch(function(){}); }
+        else { lbVideo.pause(); }
+    });
+    lbVideo.addEventListener('ended', closeLightbox);
+    lbClose.addEventListener('click', closeLightbox);
+    lbBackdrop.addEventListener('click', closeLightbox);
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && lightbox.classList.contains('video-lightbox--open')) closeLightbox();
+    });
+
+    // ── Card video interactions ─────────────────────────────────────────
     document.querySelectorAll('.example-video-wrap').forEach(function(wrap) {
         var video   = wrap.querySelector('video');
         var playBtn = wrap.querySelector('.example-play-btn');
         if (!video) return;
 
-        function startPlay() {
-            video.play().then(function() {
-                wrap.classList.add('playing');
-            }).catch(function() {});
+        var userPlaying = false;
+
+        function userPlay() {
+            // Pause any other card videos
+            document.querySelectorAll('.example-video-wrap video').forEach(function(v) {
+                if (v !== video && !v.paused) {
+                    v.pause(); v.muted = true;
+                    var w = v.closest('.example-video-wrap');
+                    if (w) { w.classList.remove('playing'); w.__userPlaying = false; }
+                }
+            });
+            video.loop = false;
+            userPlaying = true;
+            wrap.__userPlaying = true;
+            function playUnmuted() {
+                video.muted = false;
+                video.play().then(function() {
+                    wrap.classList.add('playing');
+                    // Open lightbox after a brief moment so user sees the transition
+                    setTimeout(function() { openLightbox(video); }, 300);
+                }).catch(function() {});
+            }
+            if (video.readyState >= 3) { playUnmuted(); }
+            else { video.addEventListener('canplay', playUnmuted, { once: true }); }
         }
-        function stopPlay() {
+
+        function userPause() {
             video.pause();
-            video.currentTime = 0;
+            // Don't reset position — resume where we left off
+            userPlaying = false;
+            wrap.__userPlaying = false;
             wrap.classList.remove('playing');
         }
 
-        // Click the play button or the video itself → play/pause
         [playBtn, video].forEach(function(el) {
             if (!el) return;
             el.addEventListener('click', function(e) {
                 e.stopPropagation();
-                if (video.paused) { startPlay(); } else { stopPlay(); }
+                if (userPlaying) { userPause(); } else { userPlay(); }
             });
         });
 
-        // Desktop hover preview (no sound — already muted)
+        // Desktop hover preview (muted, no interference)
         wrap.addEventListener('mouseenter', function() {
-            if (video.paused) video.play().catch(function() {});
+            if (!userPlaying && video.paused) {
+                video.muted = true;
+                video.play().catch(function() {});
+            }
         });
         wrap.addEventListener('mouseleave', function() {
-            if (!video.paused) stopPlay();
+            if (!userPlaying && !video.paused) {
+                video.pause();
+                video.currentTime = 0;
+                wrap.classList.remove('playing');
+            }
         });
 
-        // Reset overlay if video ends (loop keeps playing but just in case)
-        video.addEventListener('pause', function() { wrap.classList.remove('playing'); });
-        video.addEventListener('play',  function() { wrap.classList.add('playing'); });
+        video.addEventListener('ended', function() {
+            video.muted = true;
+            video.loop = true;
+            userPlaying = false;
+            wrap.__userPlaying = false;
+            wrap.classList.remove('playing');
+        });
     });
 })();
 </script>

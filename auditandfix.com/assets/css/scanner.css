@@ -209,6 +209,19 @@
   animation: fadeIn 0.5s ease;
 }
 
+/* Centre score + domain against the issue-teaser box when results are showing */
+.hero-content--results .score-reveal {
+  text-align: center;
+}
+.hero-content--results .score-gauge-wrap {
+  margin-left: auto;
+  margin-right: auto;
+}
+.hero-content--results .score-domain-label,
+.hero-content--results .score-context {
+  text-align: center;
+}
+
 .score-gauge-wrap {
   position: relative;
   display: inline-block;
@@ -744,6 +757,11 @@
   vertical-align: top;
   position: relative;
   top: 0.15em;
+}
+.cta-button .pricing-currency {
+  font-size: inherit;
+  vertical-align: baseline;
+  position: static;
 }
 
 .pricing-features {

@@ -65,7 +65,9 @@ function loadRelatedPosts(string $currentSlug, array $currentTags, int $limit = 
         if ($basename === $currentSlug) continue;
 
         unset($post_title, $post_slug, $post_date, $post_excerpt, $post_author, $post_read_time, $post_tags, $post_published);
+        ob_start();
         include $file;
+        ob_end_clean();
 
         if (isset($post_published) && $post_published === false) continue;
         if (empty($post_title) || empty($post_slug) || empty($post_date)) continue;
@@ -165,29 +167,6 @@ $relatedPosts = loadRelatedPosts($slug, $post_tags);
     </script>
 
     <style>
-        /* Nav */
-        .post-nav {
-            background: var(--color-navy-deep);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 24px;
-        }
-        .post-nav .logo-text {
-            font-size: 20px;
-            font-weight: 700;
-            color: #fff;
-            text-decoration: none;
-        }
-        .post-nav .logo-amp { color: var(--color-orange); }
-        .post-nav-links { display: flex; gap: 16px; align-items: center; }
-        .post-nav-links a {
-            color: rgba(255,255,255,0.8);
-            text-decoration: none;
-            font-size: 0.88rem;
-        }
-        .post-nav-links a:hover { color: #fff; }
-
         /* Breadcrumbs */
         .breadcrumbs {
             max-width: 740px;
@@ -274,6 +253,8 @@ $relatedPosts = loadRelatedPosts($slug, $post_tags);
         }
         .post-body a { color: var(--color-link); }
         .post-body a:hover { text-decoration: underline; }
+        .post-body .cta-button { color: #ffffff; }
+        .post-body .cta-button:hover { text-decoration: none; }
 
         /* Mid-article CTA */
         .post-cta {
@@ -328,11 +309,7 @@ $relatedPosts = loadRelatedPosts($slug, $post_tags);
             width: 72px;
             height: 72px;
             border-radius: 50%;
-            background: var(--color-navy);
-            color: #fff;
-            font-size: 1.6rem;
-            font-weight: 700;
-            line-height: 72px;
+            object-fit: cover;
             text-align: center;
             flex-shrink: 0;
         }
@@ -405,15 +382,7 @@ $relatedPosts = loadRelatedPosts($slug, $post_tags);
 </head>
 <body>
 <?php require_once __DIR__ . '/../includes/consent-banner.php'; ?>
-
-<nav class="post-nav">
-    <a href="/" class="logo-text">Audit<span class="logo-amp">&amp;</span>Fix</a>
-    <div class="post-nav-links">
-        <a href="/">Home</a>
-        <a href="/blog/">Blog</a>
-        <a href="/scan">Free Scanner</a>
-    </div>
-</nav>
+<?php $headerTheme = 'light'; require_once __DIR__ . '/../includes/header.php'; ?>
 
 <nav class="breadcrumbs" aria-label="Breadcrumb">
     <a href="/">Home</a><span class="sep">/</span>
@@ -447,11 +416,11 @@ $relatedPosts = loadRelatedPosts($slug, $post_tags);
 
     <!-- Author Bio -->
     <aside class="author-bio">
-        <div class="author-bio-avatar">MW</div>
+        <img src="/assets/img/marcus-webb.jpg" alt="Marcus Webb" class="author-bio-avatar">
         <div class="author-bio-text">
             <div class="author-name">Marcus Webb</div>
             <div class="author-title">CRO Specialist, Audit&amp;Fix</div>
-            <p>Marcus has analysed over 23,000 small business websites to understand what converts visitors into customers. He writes plain-English guides for business owners who want more enquiries without the jargon.</p>
+            <p>Marcus has analysed over 35,000 small business websites to understand what converts visitors into customers. He writes plain-English guides for business owners who want more enquiries without the jargon.</p>
         </div>
     </aside>
 

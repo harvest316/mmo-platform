@@ -29,7 +29,7 @@
     // Set the Quick Fixes CTA link
     var cta = document.getElementById('exit-modal-cta');
     if (cta) {
-      var domain = encodeURIComponent('https://' + window.__af_scan_domain);
+      var domain = encodeURIComponent(window.__af_scan_domain);
       cta.href = '/?domain=' + domain + '&product=quick_fixes#order';
     }
 

@@ -26,7 +26,9 @@ function loadAllPosts(): array {
 
         // Extract post variables without executing in global scope
         unset($post_title, $post_slug, $post_date, $post_excerpt, $post_author, $post_read_time, $post_tags, $post_published);
+        ob_start();
         include $file;
+        ob_end_clean();
 
         // Skip unpublished posts
         if (isset($post_published) && $post_published === false) continue;
@@ -95,7 +97,8 @@ $posts = loadAllPosts();
         .blog-header {
             background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-mid) 100%);
             color: #fff;
-            padding: 3rem 1rem 2.5rem;
+            padding: calc(76px + 3rem) 1rem 2.5rem;
+            margin-top: -76px;
             text-align: center;
         }
         .blog-header h1 {
@@ -137,14 +140,20 @@ $posts = loadAllPosts();
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 1.5rem;
         }
+        .post-card-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
         .post-card {
             background: #fff;
             border: 1px solid var(--color-border);
             border-radius: 10px;
             padding: 1.75rem;
             transition: box-shadow 0.2s, transform 0.15s;
+            cursor: pointer;
         }
-        .post-card:hover {
+        .post-card-link:hover .post-card {
             box-shadow: 0 4px 16px rgba(0,0,0,0.08);
             transform: translateY(-2px);
         }
@@ -162,28 +171,10 @@ $posts = loadAllPosts();
             margin-bottom: 0.5rem;
             line-height: 1.4;
         }
-        .post-card h2 a {
-            color: inherit;
-            text-decoration: none;
-        }
-        .post-card h2 a:hover {
-            color: var(--color-orange);
-            text-decoration: none;
-        }
         .post-card .excerpt {
             color: var(--color-text-mid);
             font-size: 0.92rem;
             line-height: 1.6;
-            margin-bottom: 1rem;
-        }
-        .post-card .read-more {
-            font-size: 0.88rem;
-            font-weight: 600;
-            color: var(--color-orange);
-            text-decoration: none;
-        }
-        .post-card .read-more:hover {
-            text-decoration: underline;
         }
 
         /* Empty state */
@@ -217,41 +208,11 @@ $posts = loadAllPosts();
             font-size: 0.95rem;
         }
 
-        /* Nav */
-        .blog-nav {
-            background: var(--color-navy-deep);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 24px;
-        }
-        .blog-nav .logo-text {
-            font-size: 20px;
-            font-weight: 700;
-            color: #fff;
-            text-decoration: none;
-        }
-        .blog-nav .logo-amp { color: var(--color-orange); }
-        .blog-nav-links { display: flex; gap: 16px; align-items: center; }
-        .blog-nav-links a {
-            color: rgba(255,255,255,0.8);
-            text-decoration: none;
-            font-size: 0.88rem;
-        }
-        .blog-nav-links a:hover { color: #fff; }
     </style>
 </head>
 <body>
 <?php require_once __DIR__ . '/../includes/consent-banner.php'; ?>
-
-<nav class="blog-nav">
-    <a href="/" class="logo-text">Audit<span class="logo-amp">&amp;</span>Fix</a>
-    <div class="blog-nav-links">
-        <a href="/">Home</a>
-        <a href="/scan">Free Scanner</a>
-        <a href="/video-reviews/">Video Reviews</a>
-    </div>
-</nav>
+<?php require_once __DIR__ . '/../includes/header.php'; ?>
 
 <header class="blog-header">
     <h1>The Audit&amp;Fix Blog</h1>
@@ -273,15 +234,16 @@ $posts = loadAllPosts();
     <?php else: ?>
     <div class="post-cards">
         <?php foreach ($posts as $post): ?>
+        <a href="/blog/<?= htmlspecialchars($post['slug']) ?>" class="post-card-link">
         <article class="post-card">
             <div class="post-card-meta">
                 <time datetime="<?= htmlspecialchars($post['date']) ?>"><?= date('j M Y', strtotime($post['date'])) ?></time>
                 <span><?= htmlspecialchars($post['read_time']) ?></span>
             </div>
-            <h2><a href="/blog/<?= htmlspecialchars($post['slug']) ?>"><?= htmlspecialchars($post['title']) ?></a></h2>
+            <h2><?= htmlspecialchars($post['title']) ?></h2>
             <p class="excerpt"><?= htmlspecialchars($post['excerpt']) ?></p>
-            <a href="/blog/<?= htmlspecialchars($post['slug']) ?>" class="read-more">Read more &rarr;</a>
         </article>
+        </a>
         <?php endforeach; ?>
     </div>
     <?php endif; ?>
