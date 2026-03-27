@@ -12,7 +12,9 @@ $post_tags      = ['social-media', 'video-marketing', 'local-business', 'reels']
 
 <p>Every article about social media for small businesses tells you to "post consistently" and "create engaging video content." Almost none of them address the obvious problem: a sole trader or small team doesn't have a videographer on staff, a content budget, or an extra two hours a week to learn video editing.</p>
 
-<p>This guide is for service businesses that need practical, low-friction answers. Which platforms are actually worth your time? What format works? And what's the lowest-effort way to create video content that doesn't look amateur? Let's get specific.</p>
+<p>At Audit&Fix, we've analysed over 35,000 local business websites across trades, health, hospitality, and professional services. One thing we see constantly – businesses investing in Google Ads or SEO but putting almost nothing into video content on social media. This guide is the practical answer to "where do I even start?"</p>
+
+<p>Which platforms are actually worth your time? What format works? And what's the lowest-effort way to create video content that doesn't look amateur? Let's get specific.</p>
 
 <h2>Which Platforms Actually Matter for Local Service Businesses</h2>
 
@@ -98,7 +100,7 @@ $post_tags      = ['social-media', 'video-marketing', 'local-business', 'reels']
 
 <p>But producing three videos a week from scratch is unsustainable for most small businesses. So the practical answer is to identify your lowest-effort, repeatable format and automate or batch it as much as possible.</p>
 
-<p>Review videos are the obvious candidate. Most established local service businesses have dozens of Google reviews. That's months of content. If you're automating the production (turning each review into a video without manual editing), you can maintain weekly posting with essentially zero ongoing effort.</p>
+<p>Review videos are the obvious candidate. Most established local service businesses have dozens of Google reviews. That's months of content sitting there unused. When we analyse websites for our CRO audits, we often see businesses with 50+ Google reviews but not a single piece of video content anywhere – on their site or on social media. If you're automating the production (turning each review into a video without manual editing), you can maintain weekly posting with essentially zero ongoing effort.</p>
 
 <p>Supplement that with occasional before/after or behind-the-scenes content shot opportunistically — when you happen to have your phone out on a job — and you have a content mix that's both consistent and credible. That's a more sustainable content programme than anything requiring weekly creative planning sessions.</p>
 

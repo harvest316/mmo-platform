@@ -18,6 +18,8 @@ $post_tags      = ['video-reviews', 'google-reviews', 'local-business', 'social-
 
 <p>Most businesses think video testimonials mean convincing a happy customer to sit in front of a camera and say nice things. That sounds reasonable until you try it. The customer is busy. They feel awkward on camera. You follow up twice, they apologise, nothing happens. You get maybe one video testimonial a year if you're lucky.</p>
 
+<p>We've scored over 35,000 local business websites at Audit&Fix, and one pattern comes up again and again – businesses with great Google reviews but zero video content on their socials. The reviews are doing the heavy lifting on Google, but they're invisible everywhere else. That's the gap this approach fills.</p>
+
 <p>The reviews-to-video approach flips this. Your customers have already written the testimonial — it's sitting on your Google Business Profile right now. The video is built from that existing text, combined with stock footage that matches your trade (a plumber working under a sink, a pest technician at a front door, a cleaner making a kitchen shine). An AI voiceover reads the review aloud. The result is a polished 30-second vertical video ready for any platform.</p>
 
 <p>No camera. No scheduling. No awkward requests. The raw material already exists.</p>
@@ -87,6 +89,8 @@ $post_tags      = ['video-reviews', 'google-reviews', 'local-business', 'social-
 </ul>
 
 <p>Star rating alone isn't the filter. A four-star review with three detailed sentences will outperform a five-star review that says "Highly recommend!" every time.</p>
+
+<p>In our experience working with trades and service businesses, the reviews that mention a specific suburb or job type also tend to perform well as videos – they feel local and relevant, which is exactly what social media algorithms reward.</p>
 
 <h2>Getting Started</h2>
 

@@ -30,6 +30,8 @@ $post_tags      = ['video-reviews', 'testimonials', 'conversion', 'local-busines
 
 <p>For a local service business specifically, trust is the entire conversion problem. Someone calling a plumber they've never used, or booking a pest control treatment before a property settlement, is making a decision based almost entirely on perceived reliability. Video accelerates the formation of that trust in a way text simply can't match.</p>
 
+<p>We see this first-hand. Across the 35,000+ local business websites we've scored at Audit&Fix, one of the ten conversion factors we measure is "trust and credibility signals" – things like reviews, badges, and certifications visible above the fold. Nearly 60% of sites score poorly on this factor. The businesses that do show social proof prominently tend to score significantly higher overall. And video is the strongest form of social proof you can put on a page.</p>
+
 <h2>The Real Reason Most Businesses Don't Have Video Testimonials</h2>
 
 <p>It's not that business owners don't know video works. Ask any tradie or service business owner whether they'd like more video reviews, and they'll say yes immediately. The problem is the collection process.</p>
