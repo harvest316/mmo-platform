@@ -1359,8 +1359,8 @@ Rejected multi-database: cross-schema JOINs are load-bearing in the pipeline hot
 
 Additional decisions: peer auth (no passwords, all processes run as `jason`), SCRAM-SHA-256 for future TCP, JSONB for all JSON columns, BIGSERIAL for high-growth tables, monthly partitioning for `site_status` and `pipeline_metrics`, wal2json logical decoding for data change audit log (~200KB/day compressed), automated backup verification (prevent March 20 repeat).
 
-**Status:** Accepted — implementation in progress
-**Impl:** Plan at `~/.claude/plans/moonlit-splashing-walrus.md`. NixOS config: `mmo-platform/infra/nixos/postgresql.nix`. Schema init: `mmo-platform/db/pg-init-schemas.sql`.
+**Status:** Implemented (2026-03-28)
+**Impl:** NixOS: `mmo-platform/infra/nixos/postgresql.nix` + `pg-backup.nix`. Schema: `333Method/db/pg-schema.sql` (36 tables). Migration: `333Method/scripts/migrate-sqlite-to-pg.js`. Cutover: `333Method/scripts/cutover-to-pg.sh`. 2Step: `2Step/src/utils/db.js` rewritten. ~95 src files + ~120 test files converted.
 
 ### DR-105: SQLite-to-PostgreSQL 16 schema conversion for 333Method (2026-03-27)
 
