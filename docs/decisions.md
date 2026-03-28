@@ -1385,3 +1385,21 @@ Additional decisions: peer auth (no passwords, all processes run as `jason`), SC
 
 **Status:** Implemented
 **Impl:** `333Method/db/pg-schema.sql` (1112 lines, directly executable via `psql -d mmo -f pg-schema.sql`)
+
+### DR-106: PostgreSQL migration cutover — data migration, validation, cleanup (2026-03-28)
+
+**Context:** DR-104/DR-105 established schema and topology. This covers the actual data migration, production cutover, and post-migration cleanup.
+
+**Decision:** Full cutover from SQLite to PostgreSQL completed in a single session:
+
+1. **Data migration** — `migrate-sqlite-to-pg.js` loaded all 5 schemas (m333, ops, tel, twostep, msgs) from 4 SQLite files + messages.db. Total: ~5M rows across 45 tables. WAL temporarily disabled during bulk load to prevent 78GB WAL blowout on root volume.
+2. **Deduplication** — UNIQUE constraint on `sites.domain` was missing in original PG schema. SERPs stage inserted 2.2M duplicate rows (91% of table) before discovery. Deduped to 210K unique domains keeping most-progressed row per domain. UNIQUE index added.
+3. **Schema gaps fixed** — 6 missing tables created (processed_webhooks, free_scans, scan_email_sequence, email_exclusion_list, phone_exclusion_list, llm_cost_budgets, tel.llm_usage). 3 missing columns added (conversation_id, product on purchases; estimated_cost on sites). `dead_letter` added to status CHECK constraint.
+4. **claude-store.js** — 1400-line batch storage script converted from sync SQLite to async PG (34 query calls, SAVEPOINTs per item).
+5. **Security fixes** — P0 opt-out INSERT using wrong columns (compliance breach), P1 command allowlist for cron shell execution, P2 payment verification guard.
+6. **Backup system** — `backupDatabase` cron handler now runs pg_dump (677MB, ~100s). `walCheckpoint` repurposed for WAL archive cleanup (>7 days). Old SQLite backup crons (backup2StepDb, backupOpsAndTelemetry) disabled. ~44GB stale SQLite backups removed from store volume.
+7. **Validation** — All tables compared against SQLite backup. All deltas accounted for (FK orphan drops, dedup, new data from running pipeline). No data loss.
+8. **Test coverage** — 89.16% line coverage (target 87%). 352 new tests added for PG compatibility. Test mock infrastructure (pg-mock.js) updated across ~120 test files.
+
+**Status:** Implemented
+**Impl:** Pipeline running on PG since 2026-03-28 21:33 UTC. WAL re-enabled (logical). Services: 333method-pipeline.service, 333method-orchestrator.timer. DATABASE_URL: `postgresql://jason@/mmo?host=/run/postgresql`.
