@@ -4,108 +4,69 @@
  * Centralised suppression list for all mmo-platform projects (333Method, 2Step, etc.).
  * When a prospect opts out in any project, they are suppressed across ALL projects.
  *
- * DB: ~/code/mmo-platform/db/suppression.db
- * Schema: suppression_list table — one row per (email, phone) pair.
+ * Table: msgs.suppression_list (PostgreSQL)
+ * Both 333Method and 2Step include msgs in their search_path, so unqualified
+ * queries resolve correctly.
  *
  * Integration:
- *   - 333Method: src/outreach/email.js, src/outreach/sms.js call isSuppressed() before send
- *   - 2Step: src/stages/outreach.js calls isSuppressed() before send
- *   - Both call addSuppression() when an opt-out is received (STOP, unsubscribe, bounce, etc.)
+ *   - 333Method: src/outreach/email.js, src/outreach/sms.js call checkBeforeSend()
+ *   - 2Step: src/stages/outreach.js calls checkBeforeSend()
+ *   - Both call addSuppression() when an opt-out is received
  *
- * The module is designed for injection: pass a db instance or let it open the default path.
- * Tests use :memory: databases via openDb(':memory:').
+ * Migration: Converted from SQLite (suppression.db) to PG on 2026-03-28 (DR-106).
  */
 
-import Database from 'better-sqlite3';
-import { resolve } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import pg from 'pg';
 
-// ── Default DB path ─────────────────────────────────────────────────────────
+// ── PG connection ──────────────────────────────────────────────────────────
 
-const DEFAULT_DB_DIR = resolve(
-  import.meta.dirname ?? new URL('.', import.meta.url).pathname,
-  '..',
-  'db'
-);
-const DEFAULT_DB_PATH = resolve(DEFAULT_DB_DIR, 'suppression.db');
-
-// ── Schema ──────────────────────────────────────────────────────────────────
-
-const SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS suppression_list (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    email         TEXT    COLLATE NOCASE,
-    phone         TEXT,
-    source        TEXT    NOT NULL,
-    opted_out_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-    reason        TEXT,
-    created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
-    updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
-  );
-
-  -- Unique on normalised email (case-insensitive) to prevent duplicates
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_suppression_email
-    ON suppression_list(email COLLATE NOCASE) WHERE email IS NOT NULL;
-
-  -- Unique on phone to prevent duplicates
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_suppression_phone
-    ON suppression_list(phone) WHERE phone IS NOT NULL;
-
-  -- Fast lookup for sync polling
-  CREATE INDEX IF NOT EXISTS idx_suppression_opted_out_at
-    ON suppression_list(opted_out_at);
-
-  -- Source filter
-  CREATE INDEX IF NOT EXISTS idx_suppression_source
-    ON suppression_list(source);
-`;
-
-// ── Database lifecycle ──────────────────────────────────────────────────────
+let _pool = null;
 
 /**
- * Open (or create) the suppression database.
- * @param {string} [dbPath] - Path to the SQLite file, or ':memory:' for tests.
- * @returns {Database} - better-sqlite3 instance with schema applied
+ * Get or create the PG pool. Uses the same DATABASE_URL as the calling project.
+ * For tests, call setPool() to inject a mock.
  */
-export function openDb(dbPath = DEFAULT_DB_PATH) {
-  if (dbPath !== ':memory:') {
-    const dir = resolve(dbPath, '..');
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+function getPool() {
+  if (!_pool) {
+    const connectionString = process.env.DATABASE_URL || 'postgresql://jason@/mmo?host=/run/postgresql';
+    _pool = new pg.Pool({
+      connectionString,
+      max: 3, // suppression checks are lightweight
+      idleTimeoutMillis: 60_000,
+    });
+    _pool.on('connect', async (client) => {
+      try {
+        await client.query("SET search_path TO msgs, public");
+      } catch (_) { /* */ }
+    });
+    _pool.on('error', () => { /* prevent crash on idle error */ });
   }
+  return _pool;
+}
 
-  const db = new Database(dbPath);
+/**
+ * Inject a pool (for testing or when the caller already has one).
+ */
+export function setPool(pool) {
+  _pool = pool;
+}
 
-  // Performance + concurrency pragmas
-  db.pragma('journal_mode = WAL');
-  db.pragma('busy_timeout = 10000');
-  db.pragma('foreign_keys = ON');
-
-  db.exec(SCHEMA_SQL);
-
-  return db;
+/**
+ * Legacy compatibility — callers that did openDb() + close().
+ * Returns a lightweight handle with a no-op close().
+ */
+export function openDb() {
+  return { close() {} };
 }
 
 // ── Normalisation helpers ───────────────────────────────────────────────────
 
-/**
- * Normalise an email to lowercase for consistent dedup.
- * @param {string|null|undefined} email
- * @returns {string|null}
- */
 export function normaliseEmail(email) {
   if (!email || typeof email !== 'string') return null;
   const trimmed = email.trim().toLowerCase();
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/**
- * Normalise a phone number: strip whitespace, ensure E.164 prefix.
- * Does NOT perform full validation — just basic cleanup.
- * @param {string|null|undefined} phone
- * @returns {string|null}
- */
 export function normalisePhone(phone) {
   if (!phone || typeof phone !== 'string') return null;
   const trimmed = phone.replace(/[\s()-]/g, '');
@@ -116,352 +77,203 @@ export function normalisePhone(phone) {
 
 /**
  * Add a suppression entry. Deduplicates on email and phone independently.
- *
- * If the same email or phone already exists, the row is updated with the
- * latest source, reason, and opted_out_at timestamp.
- *
- * @param {Object} opts
- * @param {string|null} opts.email - Email address (normalised internally)
- * @param {string|null} opts.phone - Phone number in E.164 (normalised internally)
- * @param {string} opts.source - Which project triggered the opt-out ('333method', '2step', 'manual', etc.)
- * @param {string} [opts.reason] - Why the opt-out happened ('stop_keyword', 'unsubscribe', 'bounce', 'complaint', 'manual')
- * @param {string} [opts.opted_out_at] - ISO timestamp; defaults to now
- * @param {Database} db - better-sqlite3 instance
- * @returns {{ id: number, merged: boolean }} - ID of the inserted/updated row, and whether it was a merge
+ * The `db` parameter is accepted for backward compatibility but ignored.
  */
-export function addSuppression({ email, phone, source, reason, opted_out_at }, db) {
+export async function addSuppression({ email, phone, source, reason, opted_out_at }, _db) {
   const normEmail = normaliseEmail(email);
   const normPhone = normalisePhone(phone);
 
   if (!normEmail && !normPhone) {
     throw new Error('addSuppression requires at least one of email or phone');
   }
-
   if (!source || typeof source !== 'string') {
     throw new Error('addSuppression requires a source string');
   }
 
-  const ts = opted_out_at || new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const ts = opted_out_at || new Date().toISOString();
+  const pool = getPool();
 
-  // Strategy: check if a row already exists for this email or phone.
-  // If it does, merge the data (add missing email/phone, update timestamp).
-  // If not, insert a new row.
-
-  const existing = findExistingRow(normEmail, normPhone, db);
+  // Check for existing row by email or phone
+  const existing = await findExistingRow(normEmail, normPhone, pool);
 
   if (existing) {
-    // Merge: update the row with any new identifiers and refresh the timestamp.
-    // But first, check if the other identifier already lives on a DIFFERENT row.
-    // If so, delete that other row and consolidate into `existing`.
     const mergedEmail = existing.email || normEmail;
     const mergedPhone = existing.phone || normPhone;
 
-    // Check for conflicts: does the new phone/email belong to a different row?
+    // Consolidate conflicting rows
     if (normPhone && !existing.phone) {
-      const phoneRow = db.prepare(
-        'SELECT id FROM suppression_list WHERE phone = ? AND id != ? LIMIT 1'
-      ).get(normPhone, existing.id);
-      if (phoneRow) {
-        // Delete the conflicting row — we are consolidating into `existing`
-        db.prepare('DELETE FROM suppression_list WHERE id = ?').run(phoneRow.id);
-      }
+      await pool.query('DELETE FROM suppression_list WHERE phone = $1 AND id != $2', [normPhone, existing.id]);
     }
     if (normEmail && !existing.email) {
-      const emailRow = db.prepare(
-        'SELECT id FROM suppression_list WHERE email = ? COLLATE NOCASE AND id != ? LIMIT 1'
-      ).get(normEmail, existing.id);
-      if (emailRow) {
-        db.prepare('DELETE FROM suppression_list WHERE id = ?').run(emailRow.id);
-      }
+      await pool.query('DELETE FROM suppression_list WHERE LOWER(email) = LOWER($1) AND id != $2', [normEmail, existing.id]);
     }
 
-    db.prepare(`
-      UPDATE suppression_list
-      SET email = ?, phone = ?, source = ?, reason = ?,
-          opted_out_at = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(mergedEmail, mergedPhone, source, reason ?? existing.reason, ts, existing.id);
-
+    await pool.query(
+      `UPDATE suppression_list
+       SET email = $1, phone = $2, source = $3, reason = $4,
+           opted_out_at = $5, updated_at = NOW()
+       WHERE id = $6`,
+      [mergedEmail, mergedPhone, source, reason ?? existing.reason, ts, existing.id]
+    );
     return { id: existing.id, merged: true };
   }
 
   // New row
-  const result = db.prepare(`
-    INSERT INTO suppression_list (email, phone, source, reason, opted_out_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(normEmail, normPhone, source, reason ?? null, ts);
-
-  return { id: Number(result.lastInsertRowid), merged: false };
+  const result = await pool.query(
+    `INSERT INTO suppression_list (email, phone, source, reason, opted_out_at)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [normEmail, normPhone, source, reason ?? null, ts]
+  );
+  return { id: result.rows[0].id, merged: false };
 }
 
-/**
- * Find an existing suppression row by email or phone.
- * @param {string|null} email
- * @param {string|null} phone
- * @param {Database} db
- * @returns {Object|null} - Row object or null
- */
-function findExistingRow(email, phone, db) {
-  if (email && phone) {
-    // Check email first, then phone — prefer the email match
-    const byEmail = db.prepare(
-      'SELECT * FROM suppression_list WHERE email = ? COLLATE NOCASE LIMIT 1'
-    ).get(email);
-    if (byEmail) return byEmail;
-
-    return db.prepare(
-      'SELECT * FROM suppression_list WHERE phone = ? LIMIT 1'
-    ).get(phone) ?? null;
-  }
-
+async function findExistingRow(email, phone, pool) {
   if (email) {
-    return db.prepare(
-      'SELECT * FROM suppression_list WHERE email = ? COLLATE NOCASE LIMIT 1'
-    ).get(email) ?? null;
+    const r = await pool.query('SELECT * FROM suppression_list WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    if (r.rows[0]) return r.rows[0];
   }
-
   if (phone) {
-    return db.prepare(
-      'SELECT * FROM suppression_list WHERE phone = ? LIMIT 1'
-    ).get(phone) ?? null;
+    const r = await pool.query('SELECT * FROM suppression_list WHERE phone = $1 LIMIT 1', [phone]);
+    if (r.rows[0]) return r.rows[0];
   }
-
   return null;
 }
 
 /**
  * Check if an identifier (email or phone) is suppressed.
- *
- * @param {string} identifier - An email address or phone number
- * @param {Database} db - better-sqlite3 instance
- * @returns {boolean} - true if the identifier appears in the suppression list
+ * The `db` parameter is accepted for backward compatibility but ignored.
  */
-export function isSuppressed(identifier, db) {
+export async function isSuppressed(identifier, _db) {
   if (!identifier || typeof identifier !== 'string') return false;
-
   const trimmed = identifier.trim();
   if (trimmed.length === 0) return false;
 
-  // Determine if this looks like a phone number (starts with + or is all digits)
+  const pool = getPool();
   const looksLikePhone = /^\+?\d[\d\s()-]*$/.test(trimmed);
 
   if (looksLikePhone) {
-    const normPhone = normalisePhone(trimmed);
-    const row = db.prepare(
-      'SELECT 1 FROM suppression_list WHERE phone = ? LIMIT 1'
-    ).get(normPhone);
-    return Boolean(row);
+    const norm = normalisePhone(trimmed);
+    const r = await pool.query('SELECT 1 FROM suppression_list WHERE phone = $1 LIMIT 1', [norm]);
+    return r.rows.length > 0;
   }
 
-  // Treat as email
-  const normEmail = normaliseEmail(trimmed);
-  const row = db.prepare(
-    'SELECT 1 FROM suppression_list WHERE email = ? COLLATE NOCASE LIMIT 1'
-  ).get(normEmail);
-  return Boolean(row);
+  const norm = normaliseEmail(trimmed);
+  const r = await pool.query('SELECT 1 FROM suppression_list WHERE LOWER(email) = LOWER($1) LIMIT 1', [norm]);
+  return r.rows.length > 0;
 }
 
-/**
- * Check if a specific email is suppressed.
- * @param {string} email
- * @param {Database} db
- * @returns {boolean}
- */
-export function isEmailSuppressed(email, db) {
+export async function isEmailSuppressed(email, _db) {
   const norm = normaliseEmail(email);
   if (!norm) return false;
-
-  const row = db.prepare(
-    'SELECT 1 FROM suppression_list WHERE email = ? COLLATE NOCASE LIMIT 1'
-  ).get(norm);
-  return Boolean(row);
+  const r = await getPool().query('SELECT 1 FROM suppression_list WHERE LOWER(email) = LOWER($1) LIMIT 1', [norm]);
+  return r.rows.length > 0;
 }
 
-/**
- * Check if a specific phone number is suppressed.
- * @param {string} phone
- * @param {Database} db
- * @returns {boolean}
- */
-export function isPhoneSuppressed(phone, db) {
+export async function isPhoneSuppressed(phone, _db) {
   const norm = normalisePhone(phone);
   if (!norm) return false;
-
-  const row = db.prepare(
-    'SELECT 1 FROM suppression_list WHERE phone = ? LIMIT 1'
-  ).get(norm);
-  return Boolean(row);
+  const r = await getPool().query('SELECT 1 FROM suppression_list WHERE phone = $1 LIMIT 1', [norm]);
+  return r.rows.length > 0;
 }
 
 /**
- * Get all suppressions added after a given timestamp (for sync polling).
- *
- * Child projects can poll this periodically to pull new suppressions into
- * their local opt_outs tables.
- *
- * @param {string} timestamp - ISO datetime string (e.g. '2026-03-26 10:00:00')
- * @param {Database} db - better-sqlite3 instance
- * @returns {Array<Object>} - Array of suppression rows
+ * Check suppression before sending outreach.
+ * The `db` parameter is accepted for backward compatibility but ignored.
  */
-export function getSuppressionsAfter(timestamp, db) {
-  if (!timestamp || typeof timestamp !== 'string') {
-    throw new Error('getSuppressionsAfter requires an ISO timestamp string');
-  }
-
-  return db.prepare(`
-    SELECT id, email, phone, source, opted_out_at, reason, created_at, updated_at
-    FROM suppression_list
-    WHERE opted_out_at > ?
-    ORDER BY opted_out_at ASC
-  `).all(timestamp);
-}
-
-/**
- * Get all suppressions (for full sync / debugging).
- * @param {Database} db
- * @returns {Array<Object>}
- */
-export function getAllSuppressions(db) {
-  return db.prepare(`
-    SELECT id, email, phone, source, opted_out_at, reason, created_at, updated_at
-    FROM suppression_list
-    ORDER BY opted_out_at ASC
-  `).all();
-}
-
-/**
- * Remove a suppression entry (re-subscribe / UNSTOP).
- *
- * @param {string} identifier - Email or phone to remove
- * @param {Database} db
- * @returns {boolean} - true if a row was deleted
- */
-export function removeSuppression(identifier, db) {
-  if (!identifier || typeof identifier !== 'string') return false;
-
-  const trimmed = identifier.trim();
-  if (trimmed.length === 0) return false;
-
-  const looksLikePhone = /^\+?\d[\d\s()-]*$/.test(trimmed);
-
-  if (looksLikePhone) {
-    const normPhone = normalisePhone(trimmed);
-    const result = db.prepare('DELETE FROM suppression_list WHERE phone = ?').run(normPhone);
-    return result.changes > 0;
-  }
-
-  const normEmail = normaliseEmail(trimmed);
-  const result = db.prepare(
-    'DELETE FROM suppression_list WHERE email = ? COLLATE NOCASE'
-  ).run(normEmail);
-  return result.changes > 0;
-}
-
-/**
- * Count total suppressions (for monitoring / dashboards).
- * @param {Database} db
- * @returns {number}
- */
-export function countSuppressions(db) {
-  const row = db.prepare('SELECT COUNT(*) as count FROM suppression_list').get();
-  return row.count;
-}
-
-// ── Sync helper for child projects ──────────────────────────────────────────
-
-/**
- * Check the suppression list before sending outreach.
- *
- * This is the function each project should call in its outreach pipeline.
- * It checks both email and phone, returning a clear block/allow result.
- *
- * @param {Object} opts
- * @param {string|null} opts.email
- * @param {string|null} opts.phone
- * @param {Database} db
- * @returns {{ blocked: boolean, reason?: string, matchedOn?: string }}
- */
-export function checkBeforeSend({ email, phone }, db) {
+export async function checkBeforeSend({ email, phone }, _db) {
   const normEmail = normaliseEmail(email);
   const normPhone = normalisePhone(phone);
+  if (!normEmail && !normPhone) return { blocked: false };
 
-  if (!normEmail && !normPhone) {
-    return { blocked: false };
-  }
+  const pool = getPool();
 
-  // Check email first
   if (normEmail) {
-    const row = db.prepare(
-      'SELECT source, reason FROM suppression_list WHERE email = ? COLLATE NOCASE LIMIT 1'
-    ).get(normEmail);
-
-    if (row) {
-      return {
-        blocked: true,
-        reason: `suppressed_${row.reason || 'opt_out'}`,
-        matchedOn: 'email',
-      };
+    const r = await pool.query(
+      'SELECT source, reason FROM suppression_list WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [normEmail]
+    );
+    if (r.rows[0]) {
+      return { blocked: true, reason: `suppressed_${r.rows[0].reason || 'opt_out'}`, matchedOn: 'email' };
     }
   }
 
-  // Check phone
   if (normPhone) {
-    const row = db.prepare(
-      'SELECT source, reason FROM suppression_list WHERE phone = ? LIMIT 1'
-    ).get(normPhone);
-
-    if (row) {
-      return {
-        blocked: true,
-        reason: `suppressed_${row.reason || 'opt_out'}`,
-        matchedOn: 'phone',
-      };
+    const r = await pool.query(
+      'SELECT source, reason FROM suppression_list WHERE phone = $1 LIMIT 1',
+      [normPhone]
+    );
+    if (r.rows[0]) {
+      return { blocked: true, reason: `suppressed_${r.rows[0].reason || 'opt_out'}`, matchedOn: 'phone' };
     }
   }
 
   return { blocked: false };
 }
 
-// ── Batch operations ────────────────────────────────────────────────────────
+export async function getSuppressionsAfter(timestamp, _db) {
+  if (!timestamp || typeof timestamp !== 'string') {
+    throw new Error('getSuppressionsAfter requires an ISO timestamp string');
+  }
+  const r = await getPool().query(
+    `SELECT id, email, phone, source, opted_out_at, reason, created_at, updated_at
+     FROM suppression_list WHERE opted_out_at > $1 ORDER BY opted_out_at ASC`,
+    [timestamp]
+  );
+  return r.rows;
+}
 
-/**
- * Import multiple suppressions at once (e.g. from a CSV or initial migration).
- *
- * Uses a transaction for atomicity and performance.
- *
- * @param {Array<Object>} entries - Array of { email, phone, source, reason } objects
- * @param {Database} db
- * @returns {{ imported: number, merged: number, errors: number }}
- */
-export function batchImport(entries, db) {
+export async function getAllSuppressions(_db) {
+  const r = await getPool().query(
+    'SELECT id, email, phone, source, opted_out_at, reason, created_at, updated_at FROM suppression_list ORDER BY opted_out_at ASC'
+  );
+  return r.rows;
+}
+
+export async function removeSuppression(identifier, _db) {
+  if (!identifier || typeof identifier !== 'string') return false;
+  const trimmed = identifier.trim();
+  if (trimmed.length === 0) return false;
+
+  const pool = getPool();
+  const looksLikePhone = /^\+?\d[\d\s()-]*$/.test(trimmed);
+
+  if (looksLikePhone) {
+    const norm = normalisePhone(trimmed);
+    const r = await pool.query('DELETE FROM suppression_list WHERE phone = $1', [norm]);
+    return r.rowCount > 0;
+  }
+
+  const norm = normaliseEmail(trimmed);
+  const r = await pool.query('DELETE FROM suppression_list WHERE LOWER(email) = LOWER($1)', [norm]);
+  return r.rowCount > 0;
+}
+
+export async function countSuppressions(_db) {
+  const r = await getPool().query('SELECT COUNT(*) as count FROM suppression_list');
+  return Number(r.rows[0].count);
+}
+
+export async function batchImport(entries, _db) {
   let imported = 0;
   let merged = 0;
   let errors = 0;
 
-  const runBatch = db.transaction((items) => {
-    for (const entry of items) {
-      try {
-        const result = addSuppression(entry, db);
-        if (result.merged) {
-          merged++;
-        } else {
-          imported++;
-        }
-      } catch (err) {
-        errors++;
-      }
+  for (const entry of entries) {
+    try {
+      const result = await addSuppression(entry);
+      if (result.merged) merged++;
+      else imported++;
+    } catch (_) {
+      errors++;
     }
-  });
-
-  runBatch(entries);
+  }
 
   return { imported, merged, errors };
 }
 
-// ── Default export ──────────────────────────────────────────────────────────
-
 export default {
   openDb,
+  setPool,
   normaliseEmail,
   normalisePhone,
   addSuppression,
