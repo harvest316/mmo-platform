@@ -30,10 +30,6 @@
   - [ ] overseer.js (cross-project insights)
 - [ ] Unified dashboard (services/dashboard/) — later
 
-## Dependencies
-
-- [ ] Fix/replace `@tigtech/sage` in 333Method — unpublished from npm registry (2026-03-27). Dev dependency (AI code review). Options: find replacement, vendor a fork, or remove entirely if pre-commit hook covers it.
-
 ## Infrastructure
 
 - [ ] Centralize .env.secrets in mmo-platform (all children load from here)
@@ -46,6 +42,14 @@
 - [ ] RTL background image for Arabic layout (current hero/section backgrounds assume LTR — need mirrored or neutral versions for `?lang=ar`)
 - [ ] Test full Arabic (RTL) layout — CSS may need `[dir="rtl"]` overrides for padding, margins, flex direction
 - [x] Spintax structural variation — 6 new structures added to AU/US/GB (question-lead, finding-first, ultra-short, value-give, reverse-cta, industry-observation)
+
+## SEO & EEAT (Investigate)
+
+- [ ] Ask SEO agent: is EEAT work for Marcus Webb actually worth it for our business model? We drive traffic via cold outreach, not organic search — does Google authoritativeness even matter?
+  - LinkedIn profile for Marcus Webb — does it move the needle?
+  - Google Business Profile, author schema, about page bio
+  - How much of this painful setup actually impacts conversions vs. just SEO vanity?
+  - If SEO matters at all, what's the minimum viable EEAT investment?
 
 ## Brand & IP (Low Priority)
 
