@@ -64,6 +64,18 @@ if ($siteId) {
     }
 }
 
+// Header config for personalised pages — same as /v/{hash}
+$headerSolidBg    = true;
+$hideLangSelector = true;
+// Set language from prospect's country if available
+$prospectCountry = !empty($prefill['country_code']) ? strtoupper($prefill['country_code']) : null;
+if ($prospectCountry) {
+    $countryToLang = ['AU' => 'en', 'US' => 'en', 'UK' => 'en', 'GB' => 'en', 'CA' => 'en', 'NZ' => 'en',
+        'FR' => 'fr', 'DE' => 'de', 'ES' => 'es', 'JP' => 'ja', 'KR' => 'ko', 'BR' => 'pt',
+        'RU' => 'ru', 'TR' => 'tr', 'TH' => 'th', 'SA' => 'ar', 'SE' => 'sv', 'DK' => 'da'];
+    $_GET['lang'] = $countryToLang[$prospectCountry] ?? 'en';
+}
+
 $domain  = !empty($prefill['domain'])  ? $prefill['domain']  : null;
 $score   = isset($prefill['score'])    ? (float) $prefill['score']  : null;
 $grade   = !empty($prefill['grade'])   ? $prefill['grade']   : null;

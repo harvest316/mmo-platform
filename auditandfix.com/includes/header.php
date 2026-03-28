@@ -18,8 +18,10 @@
 require_once __DIR__ . '/i18n.php';
 
 // Defaults
-$_headerTheme  = $headerTheme ?? 'dark';
-$_headerBanner = $headerBanner ?? '';
+$_headerTheme    = $headerTheme ?? 'dark';
+$_headerBanner   = $headerBanner ?? '';
+$_hideLang       = $hideLangSelector ?? false;
+$_headerSolidBg  = $headerSolidBg ?? false;  // force opaque bg from the start (no transparent-on-top)
 
 // CTA: page-level override wins, then UTM/referer detection, then default
 if (isset($headerCta)) {
@@ -57,7 +59,8 @@ if (isset($headerCta)) {
     transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
-.site-header--scrolled {
+.site-header--scrolled,
+.site-header--solid {
     background: rgba(10, 20, 40, 0.95);
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.25);
 }
@@ -400,7 +403,7 @@ if (isset($headerCta)) {
 }
 </style>
 
-<header class="site-header<?= $_headerTheme === 'light' ? ' site-header--light-hero' : '' ?>" id="site-header">
+<header class="site-header<?= $_headerTheme === 'light' ? ' site-header--light-hero' : '' ?><?= $_headerSolidBg ? ' site-header--solid' : '' ?>" id="site-header">
     <div class="site-header__inner">
         <a href="/" class="site-header__logo">
             <span class="site-header__logo-imgs">
@@ -413,11 +416,13 @@ if (isset($headerCta)) {
         <?= $_headerBanner ?>
 
         <div class="site-header__right">
+            <?php if (!$_hideLang): ?>
             <select class="site-header__lang" aria-label="Language" onchange="var p=new URLSearchParams(window.location.search);p.set('lang',this.value);window.location.href=window.location.pathname+'?'+p.toString()+(window.location.hash||'')">
                 <?php foreach (langNames() as $code => $name): ?>
                 <option value="<?= htmlspecialchars($code) ?>"<?= $code === $lang ? ' selected' : '' ?>><?= htmlspecialchars($name) ?></option>
                 <?php endforeach; ?>
             </select>
+            <?php endif; ?>
 
         <button
             class="site-header__hamburger"

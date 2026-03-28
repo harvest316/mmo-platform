@@ -78,8 +78,19 @@ $smsNumber = '+61468089949';
 // Session for navbar (if they navigate to main site)
 $_SESSION['my_video'] = ['hash' => $hash, 'biz' => $video['business_name'] ?? 'your business'];
 
-// Header config: set CTA to point to pricing section on this page
-$headerCta = ['text' => 'Get Started', 'href' => '#pricing'];
+// Header config for personalised pages:
+// - Solid background (no transparent-on-top — hero is below the fold line)
+// - Hide language selector (language set from prospect record, not user choice)
+// - CTA points to pricing section
+$headerCta       = ['text' => 'Get Started', 'href' => '#pricing'];
+$headerSolidBg   = true;
+$hideLangSelector = true;
+
+// Set language from prospect's country — they didn't choose it, we know it
+$countryToLang = ['AU' => 'en', 'US' => 'en', 'UK' => 'en', 'GB' => 'en', 'CA' => 'en', 'NZ' => 'en',
+    'FR' => 'fr', 'DE' => 'de', 'ES' => 'es', 'JP' => 'ja', 'KR' => 'ko', 'BR' => 'pt',
+    'RU' => 'ru', 'TR' => 'tr', 'TH' => 'th', 'SA' => 'ar', 'SE' => 'sv', 'DK' => 'da'];
+$_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n loads
 
 ?>
 <!DOCTYPE html>
