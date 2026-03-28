@@ -39,9 +39,14 @@
 
 ## Website — auditandfix.com
 
+### HIGH PRIORITY
+- [ ] **Generate hero images** — AI-generate replacement hero backgrounds for scan, video-reviews, compare, blog pages. Prompts stored in `auditandfix.com/assets/img/hero-prompts.md`. Current `hero-background.png` works but is generic. Target: cohesive, editorial-quality, <200KB each.
+
+### Medium Priority
 - [ ] RTL background image for Arabic layout (current hero/section backgrounds assume LTR — need mirrored or neutral versions for `?lang=ar`)
 - [ ] Test full Arabic (RTL) layout — CSS may need `[dir="rtl"]` overrides for padding, margins, flex direction
 - [x] Spintax structural variation — 6 new structures added to AU/US/GB (question-lead, finding-first, ultra-short, value-give, reverse-cta, industry-observation)
+- [x] Full i18n — scan.php, video-reviews, compare pages translated across 20 languages (361 keys x 20 langs)
 
 ## SEO & EEAT (Investigate)
 
