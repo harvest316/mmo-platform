@@ -30,12 +30,22 @@
   - [ ] overseer.js (cross-project insights)
 - [ ] Unified dashboard (services/dashboard/) — later
 
+## Dependencies
+
+- [ ] Fix/replace `@tigtech/sage` in 333Method — unpublished from npm registry (2026-03-27). Dev dependency (AI code review). Options: find replacement, vendor a fork, or remove entirely if pre-commit hook covers it.
+
 ## Infrastructure
 
 - [ ] Centralize .env.secrets in mmo-platform (all children load from here)
 - [ ] Move distributed-agent-system.md to 333Method-infra/docs/plans/
 - [ ] Update distributed-agent-system.md for Claude Max reality
 - [ ] Create mmo.code-workspace with all projects
+
+## Website — auditandfix.com
+
+- [ ] RTL background image for Arabic layout (current hero/section backgrounds assume LTR — need mirrored or neutral versions for `?lang=ar`)
+- [ ] Test full Arabic (RTL) layout — CSS may need `[dir="rtl"]` overrides for padding, margins, flex direction
+- [x] Spintax structural variation — 6 new structures added to AU/US/GB (question-lead, finding-first, ultra-short, value-give, reverse-cta, industry-observation)
 
 ## Brand & IP (Low Priority)
 
