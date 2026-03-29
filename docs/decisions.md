@@ -1403,3 +1403,37 @@ Additional decisions: peer auth (no passwords, all processes run as `jason`), SC
 
 **Status:** Implemented
 **Impl:** Pipeline running on PG since 2026-03-28 21:33 UTC. WAL re-enabled (logical). Services: 333method-pipeline.service, 333method-orchestrator.timer. DATABASE_URL: `postgresql://jason@/mmo?host=/run/postgresql`.
+
+### DR-107: auditandfix.com customer portal — auth architecture and security requirements (2026-03-28)
+
+**Context:** Building a customer login portal on auditandfix.com from scratch. Stack: PHP 8.3, Hostinger shared hosting, SQLite, PayPal integration. Security review conducted before implementation. Key pre-existing issues found: (1) `api.php` line 75 leaks exception messages (including internal paths) to callers via the top-level catch; (2) `data/` directories created with 0755 making SQLite files world-readable on shared hosting.
+
+**Decision:** Adopt passwordless magic-link authentication with the following non-negotiable constraints:
+
+1. **Token generation** — `bin2hex(random_bytes(32))` (256-bit entropy). Store `hash('sha256', $token)` in DB; send raw token in email URL only. Expiry: 15 minutes. Invalidate (set `used_at`) on first use — single-use enforced.
+2. **Session hardening** — Custom session name `AF_PORTAL` separate from anonymous nav session. Cookie flags: `httponly`, `secure`, `samesite=Strict`. `use_strict_mode=1`, `use_only_cookies=1`. `session_regenerate_id(true)` on login. Custom save path outside `/tmp` (shared on Hostinger). Prefer PDO-backed session handler to eliminate filesystem session exposure entirely.
+3. **SQLite security** — Auth DB outside webroot (`/home/account/data/af_customers.sqlite`). Permissions: `0700` on directory, `0600` on file. WAL mode + `busy_timeout=3000ms` on all SQLite DBs. Existing `data/` directories (0755) to be tightened and protected with `.htaccess Require all denied`.
+4. **CSRF** — Synchronizer token (`bin2hex(random_bytes(32))` in `$_SESSION['csrf_token']`) on all state-changing endpoints (cancel subscription, update email, delete account). AJAX endpoints accept token as `X-CSRF-Token` header.
+5. **Rate limiting** — SQLite `rate_limits` table (WAL mode). Limits on magic link requests: 5/15min per IP (hashed), 3/15min per email (hashed). HTTP 429 + `Retry-After`. No attempt count disclosed to caller.
+6. **Purchase linking** — Email verification (link click) required before linking existing purchases to a new account. Provisional account status `unverified` until click. Link by `account_id` FK (not email join at query time) after first verified login.
+7. **Error disclosure** — Top-level exception catch in `api.php` must be fixed to return generic error message; detail goes to `error_log()` only. Applies before portal launch.
+8. **PayPal subscriptions** — Cancel/modify proxied through our API (not direct PayPal link). Register PayPal webhooks for `BILLING.SUBSCRIPTION.CANCELLED` / `BILLING.SUBSCRIPTION.SUSPENDED` with signature verification via `/v1/notifications/verify-webhook-signature`.
+9. **Email enumeration** — Magic link request endpoint returns identical response regardless of whether email exists. Timing equalized with `usleep(random_int(80000, 150000))` in the not-found path.
+
+**Status:** Decided — not yet implemented
+**Impl:** Security review at `docs/decisions.md` DR-107. Implementation in `auditandfix.com/portal/` (not yet created).
+
+### DR-108: AdManager ad copy proofreading — two-pass QA with auto-approve (2026-03-29)
+
+**Context:** AdManager strategy engine (Opus) generates full ad copy (15 RSA headlines + 4 descriptions per campaign, Meta primary text), but `create-ad.php` ignored it and hardcoded 5 generic headlines. No copy validation, proofreading, or platform policy enforcement existed. The `ad_copy` DB table was missing despite the review dashboard already having UI for it. Account bans from policy violations are often permanent.
+
+**Decision:**
+1. **Two-pass proofreading**: Programmatic checks (15 deterministic rules — char limits, locale, duplicates, editorial policy) run first, then Claude Opus evaluates sales effectiveness (AIDA), competitive differentiation, RSA combination safety, and platform policy compliance
+2. **Auto-approve model**: Copy scoring >= 70 with no programmatic fails gets auto-approved. Human review is opt-out (unapprove), not opt-in (approve). Rationale: non-English copy can't be manually reviewed — if automated QA is good enough for that, it's good enough for English
+3. **Platform policy enforcement**: Curated Google Ads + Meta policy reference docs in `policies/`, consumed by both the copy proofreader (Opus) and the CV image/video reviewer (upgraded from Haiku to Sonnet). Weekly cron checks for policy page changes via content hashing
+4. **Model selection**: Opus for copy proofreading (high-stakes, low-volume, needs nuanced sales judgment); Sonnet for image/video policy QA (visual understanding + policy, not just artifact detection)
+5. **Auto-re-check on policy changes**: When `check-policy-updates.php --recheck` detects changes, all approved copy for affected platform(s) is re-run through proofreading. Items that now fail get flagged for review
+6. **Rework flow**: `bin/rework-copy.php` generates revised copy from Opus with human feedback, inserts as new row (original preserved for audit), runs through full pipeline
+
+**Status:** Accepted — implemented
+**Impl:** `~/code/AdManager/src/Copy/` (Parser, Store, ProgrammaticCheck, Proofreader), `prompts/PROOFREAD.md`, `prompts/IMAGE-POLICY-CHECK.md`, `policies/`, `bin/proofread-copy.php`, `bin/rework-copy.php`, `bin/check-policy-updates.php`
