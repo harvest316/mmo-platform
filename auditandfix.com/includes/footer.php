@@ -18,6 +18,7 @@ if (!$_showImpressum && isset($lang) && $lang === 'de') {
         <p class="footer-privacy"><?= $_t('footer.confidentiality', 'All audits are strictly confidential. We never publish, share, or resell client data.') ?></p>
         <nav class="footer-links" aria-label="Site links" style="margin-bottom:12px;">
             <a href="/scan">Conversion Audit</a>
+            <a href="/methodology">Scoring Methodology</a>
             <a href="/video-reviews/">Review Videos</a>
             <a href="/blog/">Blog</a>
         </nav>

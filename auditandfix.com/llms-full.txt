@@ -1,0 +1,139 @@
+# Audit&Fix — Full Reference
+
+> Audit&Fix is a B2B conversion rate optimisation (CRO) service for small business websites. We score 10 key conversion factors, annotate screenshots of every problem area, and deliver a prioritised fix list as a professional PDF report within 24 hours of payment.
+
+## Company
+
+Audit&Fix combines AI-powered visual analysis with human expert review. Every report is reviewed by Marcus Webb, a senior CRO analyst with 24 years of combined digital marketing experience, before delivery. The scoring methodology is calibrated across 10,000+ real business websites.
+
+Founded to help small businesses compete with larger competitors by fixing the conversion problems they can't see. Most small business websites lose visitors not because of traffic problems but because of conversion problems — weak headlines, buried calls to action, missing trust signals, unclear offers.
+
+## The 10-Factor Scoring Methodology
+
+Every website is scored on 10 conversion factors. Each factor receives a score from 0 to 10 and a letter grade from A+ to F. The overall score is the average of all 10 factors.
+
+### 1. Headline Quality
+Does the headline clearly communicate what the business does and why a visitor should care? We check for clarity, specificity, benefit-orientation, and whether it speaks to the visitor's problem rather than the business's features.
+
+### 2. Value Proposition
+Is there a clear, compelling reason to choose this business over alternatives? We evaluate whether the value proposition is visible above the fold, specific rather than generic, and differentiated from competitors.
+
+### 3. What Makes You Different (USP)
+Does the site communicate a unique selling proposition? We look for specific differentiators — not vague claims like "best quality" but concrete statements like "same-day installation" or "family-owned since 1987."
+
+### 4. Call to Action Button (CTA)
+Is the primary call to action visible, compelling, and easy to find? We evaluate button placement, colour contrast, copy (action-oriented vs. passive), and whether there is a single clear next step for the visitor.
+
+### 5. Urgency & Scarcity
+Does the site create a legitimate reason to act now rather than later? We check for time-limited offers, availability indicators, seasonal relevance, and whether urgency elements feel authentic rather than manufactured.
+
+### 6. Hook & Engagement
+Does the above-the-fold content hook the visitor within 3 seconds? We evaluate visual hierarchy, opening copy, and whether the page immediately addresses the visitor's intent or makes them scroll to find what they need.
+
+### 7. Trust & Credibility
+Does the site establish trust quickly? We look for reviews, testimonials, certifications, industry logos, team photos, physical address, phone number, and other trust signals. We also check whether trust elements are positioned near the CTA where they matter most.
+
+### 8. Imagery & Design
+Do the images support the message or distract from it? We evaluate image quality, relevance, alt text, loading performance, and whether stock photography undermines authenticity. We also assess overall design coherence and mobile responsiveness.
+
+### 9. Offer Clarity
+Is the offer (product, service, or next step) immediately clear? We check whether pricing is transparent, deliverables are specific, and the visitor understands exactly what they will get. Ambiguity kills conversions.
+
+### 10. Industry Context
+Does the site meet the conventions and expectations of its specific industry? A plumber's website needs different conversion elements than a SaaS product. We benchmark against industry norms and evaluate whether the site meets the minimum expectations of its target audience.
+
+## How Analysis Works
+
+1. **Visual capture** — We load the live website and capture full-page screenshots at desktop and mobile resolutions, exactly as a real visitor would see it.
+2. **AI-powered analysis** — Our AI system analyses the visual page (not the HTML source) across all 10 factors, identifying specific problems and opportunities.
+3. **Expert review** — Marcus Webb reviews every report before delivery, adding context, correcting edge cases, and ensuring recommendations are practical for the specific business.
+4. **Report generation** — Findings are compiled into a professional 9-page PDF with annotated screenshots zoomed into every problem area, plus a prioritised fix list ordered by expected impact.
+
+We analyse the visual page because that is what visitors see. DOM inspection and code analysis miss the real experience — a technically perfect page can still have a buried CTA or a confusing layout. Our approach mirrors the actual visitor experience.
+
+## What the Report Contains
+
+- **Overall score and grade** — A single number (0-100) and letter grade (A+ to F) summarising conversion readiness.
+- **Per-factor breakdown** — Each of the 10 factors scored individually with a grade, plain-English explanation, and specific recommendation.
+- **Annotated screenshots** — Zoomed-in screenshots of every problem area on the actual page, with annotations showing exactly what to fix and where.
+- **Prioritised fix list** — All recommendations ranked by expected conversion impact, so you know what to tackle first.
+- **Industry benchmarking** — How your scores compare to the average in your industry.
+
+## Products and Pricing
+
+### CRO Audit Report (Full Audit)
+The core product. 10-factor scored analysis, annotated screenshots, prioritised fix list. Delivered as a 9-page PDF within 24 hours.
+
+- Australia: A$337
+- United States: US$297
+- United Kingdom: GBP 159
+- Other markets: priced in local currency, geo-detected at checkout
+
+### Quick Fixes Report
+AI analysis of your 5 worst-scoring factors with specific fix instructions. Faster turnaround, lower price point.
+
+### Audit + Implementation
+Full audit report plus we implement your top 3 fixes. 48-hour turnaround with before/after screenshots.
+
+### Follow-up Benchmarking
+After you have implemented fixes, order a follow-up audit at 50% of the original price to measure improvement.
+
+All products include a 30-day money-back guarantee.
+
+## Review Video Service
+
+Separate from the CRO audit: we turn 5-star Google reviews into 30-second social media videos for local service businesses (pest control, plumbers, dentists, electricians, and more). Details at /video-reviews/.
+
+## Target Customers
+
+- Small business owners with a website that gets traffic but not enough leads or sales
+- Marketing managers at SMEs who suspect their website is underperforming
+- Web developers and agencies who want an independent conversion audit for their clients
+- Service businesses (tradespeople, consultants, clinics, restaurants) in English-speaking markets
+
+## Markets Served
+
+Australia, United States, United Kingdom, Canada, New Zealand, Ireland, South Africa, India. Pricing in local currency. Reports in English.
+
+## Frequently Asked Questions
+
+**How long until I get my report?**
+Reports are delivered to the email you provide within 24 hours of payment. Most are delivered within a few hours during business hours.
+
+**What format is the report?**
+Professional PDF, typically 9 pages, with scored analysis, zoomed screenshots of every problem area, and a prioritised fix list.
+
+**What does the report actually show?**
+For each of the 10 conversion factors, you get: a score (0-10), a grade (A+ to F), a plain-English explanation of what is wrong, and a specific recommendation. Plus actual zoomed screenshots showing the exact problem area on your page.
+
+**What if my site is already performing well?**
+Even high-scoring sites have room for improvement. Our report identifies specific optimisations regardless of your starting point. If you are genuinely satisfied there is nothing to act on, we offer a money-back guarantee.
+
+**Do you implement the fixes?**
+The standard report identifies and prioritises the issues — implementation is up to you or your developer. Most quick wins take under an hour. The Audit + Implementation product includes fixes.
+
+**How is this different from Google Lighthouse?**
+Lighthouse scores page speed and accessibility — useful, but it has nothing to do with conversions. It cannot tell you if your headline is weak, your CTA is buried, or your trust signals are in the wrong place. Those are exactly what we analyse.
+
+**Is there a follow-up option after I have made changes?**
+Yes — once you have implemented fixes, order a follow-up benchmarking audit at 50% of the original price to measure how much your score improved.
+
+**What is a CTA?**
+CTA stands for Call-to-Action — the button, link, or prompt that tells your visitor what to do next. A weak CTA is one of the most common and most fixable conversion killers.
+
+## Pages
+
+- [Homepage](https://www.auditandfix.com/): Service overview, pricing, order form, FAQ, testimonials
+- [Free Scan](https://www.auditandfix.com/scan): Free website conversion scan tool
+- [Compare](https://www.auditandfix.com/compare): Feature comparison vs Hotjar, CrazyEgg, Google Lighthouse, DIY audits, freelancers
+- [Methodology](https://www.auditandfix.com/methodology): Scoring methodology explained in detail
+- [Review Videos](https://www.auditandfix.com/video-reviews/): Video review service landing page
+- [Blog](https://www.auditandfix.com/blog/): CRO and conversion optimisation articles
+- [Sample Report](https://www.auditandfix.com/assets/sample-reports/sample-cro-audit.pdf): Downloadable sample CRO audit
+
+## Legal
+
+- [Privacy Policy](https://www.auditandfix.com/privacy)
+- [Terms of Service](https://www.auditandfix.com/terms)
+- [Cookie Policy](https://www.auditandfix.com/cookies)
+- [Impressum](https://www.auditandfix.com/impressum)

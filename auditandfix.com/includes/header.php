@@ -460,9 +460,15 @@ if (isset($headerCta)) {
         <a href="/" class="site-menu-nav__link">Home</a>
         <a href="/scan" class="site-menu-nav__link">Conversion Audit</a>
         <a href="/compare" class="site-menu-nav__link site-menu-nav__link--child">CRO Audit Comparison</a>
+        <a href="/methodology" class="site-menu-nav__link site-menu-nav__link--child">Scoring Methodology</a>
         <a href="/video-reviews/" class="site-menu-nav__link">Review Videos</a>
         <a href="/video-reviews/compare" class="site-menu-nav__link site-menu-nav__link--child">Video Comparison</a>
         <a href="/blog/" class="site-menu-nav__link">Blog</a>
+        <?php if (!empty($_SESSION['customer_id'])): ?>
+        <a href="/account/dashboard" class="site-menu-nav__link site-menu-nav__link--personal">My Account</a>
+        <?php else: ?>
+        <a href="/account/login" class="site-menu-nav__link">Login</a>
+        <?php endif; ?>
         <?php if (!empty($_SESSION['my_video']['hash'])): ?>
         <a href="/v/<?= htmlspecialchars($_SESSION['my_video']['hash']) ?>" class="site-menu-nav__link site-menu-nav__link--personal">Your Free Video</a>
         <?php endif; ?>

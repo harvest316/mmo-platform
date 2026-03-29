@@ -405,6 +405,33 @@ Audit+Fix ($497) uses the full audit pipeline unchanged, then queues a `human_re
 **Status:** Accepted
 **Impl:** `333Method/src/reports/report-orchestrator.js` (variant filtering), `html-report-template.js` (conditional rendering), `report-delivery.js` + `purchase-confirmation.js` (product-aware emails), `process-purchases.js` (routing + audit_fix queue)
 
+### DR-116: Extend follow-up sequence from 5 to 8 touches over 42 days (2026-03-29)
+
+**Context:** Only 46 follow-ups sent from 44,900 initial outreach messages. Industry data shows most cold replies come on touches 3-7. Old sequence was 5 touches over 21 days with breakup at touch 5.
+
+**Decision:** Extend to 8 touches over 42 days. New angles: Touch 5 = quick win (give one specific free fix), Touch 6 = ad waste / competitor gap, Touch 7 = authority ("scored 43,000+ sites"), Touch 8 = breakup. Old breakup moved from touch 5 to touch 8. Updated in followup-generator.js, claude-store.js, claude-orchestrator.sh, claude-batch.js, and AU templates.
+
+**Status:** Accepted
+**Impl:** `333Method/src/stages/followup-generator.js`, `data/templates/AU/followup-{email,sms}.json`
+
+### DR-117: Add follow-up generation to main pipeline (2026-03-29)
+
+**Context:** Follow-up generation only ran via the orchestrator's LLM batch path (claude-orchestrator.sh), which skips during conservation mode. The local template-based generator in followup-generator.js was never called by the main pipeline (all.js), explaining the near-zero follow-up rate.
+
+**Decision:** Add `runFollowupGenerationStage` to `all.js` between outreach and replies stages. Uses template-based generation (no LLM needed). Orchestrator LLM path remains as supplementary.
+
+**Status:** Accepted
+**Impl:** `333Method/src/all.js` (added followup stage)
+
+### DR-118: Ad pixel detection as outreach prioritisation signal (2026-03-29)
+
+**Context:** Cold outreach to 44,900 businesses with $0 revenue. Marketing strategist analysis identified that businesses running paid ads are a higher-value cohort — they're already investing in traffic and would benefit most from conversion audit (ad spend wasted on low-scoring site).
+
+**Decision:** Detect ad platform pixels from HTML source during assets stage (Google Ads AW- tags, Meta Pixel, Bing UET, call tracking services, LinkedIn/TikTok/Pinterest pixels, retargeting). Store as `is_running_ads` boolean + `ad_signals` JSONB on sites table. Outreach ORDER BY changed to `is_running_ads DESC, score ASC` (ad-running sites first). Backfilled 307 sites with stored HTML: 122 had ad signals (39.7%), 63 met the threshold for `is_running_ads=true`. Also built Meta Ad Library API module for definitive active-ad confirmation via Facebook Page slug extraction.
+
+**Status:** Accepted
+**Impl:** `333Method/src/utils/ad-detector.js`, `src/utils/meta-ad-library.js`, `src/stages/assets.js` (live detection), `src/stages/outreach.js` (prioritisation), `db/migrations/127-ad-signals.sql`, `scripts/backfill-ad-signals.js`, `scripts/enrich-meta-ads.js`
+
 ---
 
 ## Infrastructure (continued)
@@ -1538,3 +1565,36 @@ Additional decisions: peer auth (no passwords, all processes run as `jason`), SC
 **Implementation:** `AdManager/src/Google/GA4.php`, `AdManager/src/Reports/CrossPlatform.php`, `AdManager/db/schema.sql` (ga4_performance table), `AdManager/bin/sync-ga4.php`, `AdManager/tests/Google/GA4Test.php` (18 tests), `AdManager/tests/Reports/CrossPlatformTest.php` (16 tests), updated `BudgetAllocatorTest.php` (+8 tests), updated `AnalyserTest.php` (+10 tests). Full suite: 820 tests, 2181 assertions, all green.
 
 **Status:** IMPLEMENTED
+
+### DR-114: auditandfix.com llms.txt and structured data improvements (2026-03-29)
+
+**Context:** SEO audit of auditandfix.com identified two gaps: (1) no llms.txt file for AI search engine discoverability, and (2) structured data on index.php was incomplete -- missing WebSite, Person (E-E-A-T), Product, and BreadcrumbList schemas; FAQPage had only 6 of 8 on-page questions; Organization logo used a bare string instead of ImageObject; Service offers hardcoded AUD-only pricing despite multi-currency support.
+
+**Decision:**
+
+1. **llms.txt added** at `/llms.txt`. Markdown format per the llmstxt.org spec. Contains site summary, main pages, services, legal pages, and optional section. Honest assessment: no major LLM company has confirmed they read llms.txt, but implementation cost is near-zero and it positions for future AI search indexing.
+
+2. **Structured data expanded** from 3 to 7 schema types in the `@graph`:
+   - **WebSite** (new) -- establishes site entity, publisher link, language list
+   - **Organization** (fixed) -- logo upgraded to ImageObject, empty `sameAs` array ready for social profiles
+   - **Person** (new) -- Marcus Webb with jobTitle, worksFor, image for E-E-A-T
+   - **Service** (fixed) -- AggregateOffer with lowPrice/highPrice replacing single AUD price; areaServed added
+   - **Product** (new) -- CRO Audit Report with AggregateOffer, shippingDetails (24hr handling time), return policy
+   - **BreadcrumbList** (new) -- single-item for homepage, pattern for subpages to extend
+   - **FAQPage** (fixed) -- all 8 on-page questions now included (was missing Q4 "performing well" and Q8 "What's a CTA?"); `@id` added
+
+3. **Not added (deferred):** AggregateRating/Review (need genuine third-party reviews first -- self-published testimonials risk manual action), VideoObject (for video-reviews pages when ready), HowTo (low priority).
+
+**Status:** Implemented
+**Impl:** `auditandfix.com/llms.txt` (new), `auditandfix.com/index.php` (structured data block replaced)
+
+### DR-115: auditandfix.com scoring methodology page (2026-03-29)
+
+**Context:** auditandfix.com lacked a dedicated page explaining the 10-factor CRO scoring methodology. The scoring system is central to the product's credibility and differentiation, but the only explanation was in the homepage checklist section (10 one-line items). A methodology page serves three purposes: (1) E-E-A-T signal for Google -- demonstrates genuine expertise and transparent process, (2) conversion support -- prospects who understand the methodology trust the report more, (3) content depth for SEO -- targets "CRO scoring methodology" and related long-tail queries.
+
+**Decision:** Created `/methodology` as a standalone PHP page following the compare.php pattern (light-hero theme, inline `<style>` block, shared header/footer includes). Content structure: hero, scoring system overview (10 factors / letter grades / overall score), grading scale table (A+ through F with score ranges), all 10 factors explained in detail (what we look for + why it matters), how we analyse (visual screenshot analysis, AI scoring, below-the-fold deep dive, human expert review), calibration section (sites-scored count pulled from pricing API), deliverable section (9-page PDF, annotated screenshots, prioritised fix list, overall score, technical assessment, plain-English explanations), and CTA back to homepage order form. Marcus Webb expert callout included.
+
+Structured data: TechArticle schema (datePublished, author linked to Marcus Webb Person entity) + BreadcrumbList (Home > Scoring Methodology). Navigation updated: methodology added as a child link under "Conversion Audit" in header.php hamburger menu, and added to footer.php site links.
+
+**Status:** Implemented
+**Impl:** `auditandfix.com/methodology.php` (new), `auditandfix.com/includes/header.php` (nav link), `auditandfix.com/includes/footer.php` (footer link)

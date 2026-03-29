@@ -63,16 +63,38 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
       "@context": "https://schema.org",
       "@graph": [
         {
+          "@type": "WebSite",
+          "@id": "https://www.auditandfix.com/#website",
+          "url": "https://www.auditandfix.com/",
+          "name": "Audit&Fix",
+          "description": "Professional CRO audit reports for small business websites. 10 conversion factors scored, annotated screenshots, prioritised fix list.",
+          "publisher": {"@id": "https://www.auditandfix.com/#organization"},
+          "inLanguage": ["en","de","fr","es","ja","pt","nl","da","sv","ko","it","pl","zh","id"]
+        },
+        {
           "@type": "Organization",
           "@id": "https://www.auditandfix.com/#organization",
           "name": "Audit&Fix",
           "url": "https://www.auditandfix.com/",
-          "logo": "https://www.auditandfix.com/assets/img/logo.svg",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.auditandfix.com/assets/img/logo.svg"
+          },
           "contactPoint": {
             "@type": "ContactPoint",
             "contactType": "customer support",
             "availableLanguage": ["en","de","fr","es","ja","pt","nl","da","sv","ko","it","pl","zh","id"]
-          }
+          },
+          "sameAs": []
+        },
+        {
+          "@type": "Person",
+          "@id": "https://www.auditandfix.com/#marcus-webb",
+          "name": "Marcus Webb",
+          "jobTitle": "CRO Specialist & Marketing Strategist",
+          "worksFor": {"@id": "https://www.auditandfix.com/#organization"},
+          "description": "Senior CRO analyst with 24 years of combined digital marketing experience. Reviews every audit report before delivery.",
+          "image": "https://www.auditandfix.com/assets/img/marcus-webb.jpg"
         },
         {
           "@type": "Service",
@@ -81,12 +103,16 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           "name": "CRO Audit Report",
           "provider": {"@id": "https://www.auditandfix.com/#organization"},
           "description": "AI-powered conversion rate optimisation audit. 10 factors scored A+ to F, annotated screenshots, and a prioritised fix list. Delivered as a PDF within 24 hours.",
+          "areaServed": ["AU","US","GB","CA","NZ","IE","ZA","IN"],
           "offers": {
-            "@type": "Offer",
+            "@type": "AggregateOffer",
             "url": "https://www.auditandfix.com/#order",
-            "priceCurrency": "AUD",
-            "price": "337",
+            "lowPrice": "159",
+            "highPrice": "337",
+            "priceCurrency": "USD",
+            "offerCount": "1",
             "availability": "https://schema.org/InStock",
+            "seller": {"@id": "https://www.auditandfix.com/#organization"},
             "hasMerchantReturnPolicy": {
               "@type": "MerchantReturnPolicy",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
@@ -95,14 +121,63 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           }
         },
         {
+          "@type": "Product",
+          "@id": "https://www.auditandfix.com/#product-cro-audit",
+          "name": "CRO Audit Report",
+          "description": "Professional 9-page PDF with 10 conversion factors scored A+ to F, annotated screenshots of every problem area, and a prioritised fix list. Delivered within 24 hours.",
+          "brand": {"@id": "https://www.auditandfix.com/#organization"},
+          "image": "https://www.auditandfix.com/assets/img/report-cover.png",
+          "offers": {
+            "@type": "AggregateOffer",
+            "url": "https://www.auditandfix.com/#order",
+            "lowPrice": "159",
+            "highPrice": "337",
+            "priceCurrency": "USD",
+            "offerCount": "1",
+            "availability": "https://schema.org/InStock",
+            "seller": {"@id": "https://www.auditandfix.com/#organization"},
+            "hasMerchantReturnPolicy": {
+              "@type": "MerchantReturnPolicy",
+              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+              "merchantReturnDays": 30
+            },
+            "shippingDetails": {
+              "@type": "OfferShippingDetails",
+              "deliveryTime": {
+                "@type": "ShippingDeliveryTime",
+                "handlingTime": {
+                  "@type": "QuantitativeValue",
+                  "minValue": 0,
+                  "maxValue": 24,
+                  "unitCode": "HUR"
+                }
+              }
+            }
+          }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://www.auditandfix.com/"
+            }
+          ]
+        },
+        {
           "@type": "FAQPage",
+          "@id": "https://www.auditandfix.com/#faq",
           "mainEntity": [
             {"@type":"Question","name":"How long until I get my report?","acceptedAnswer":{"@type":"Answer","text":"Reports are delivered to the email you provide within 24 hours of payment. Most are delivered within a few hours during business hours."}},
             {"@type":"Question","name":"What format is the report?","acceptedAnswer":{"@type":"Answer","text":"You\u2019ll receive a professional PDF (typically 9 pages) with scored analysis, zoomed screenshots of every problem area, and a prioritised fix list."}},
             {"@type":"Question","name":"What does the report actually show?","acceptedAnswer":{"@type":"Answer","text":"For each of the 10 conversion factors, you get: a score (0\u201310), a grade (A+ to F), a plain-English explanation of what\u2019s wrong, and a specific recommendation. You also get actual zoomed screenshots showing the exact problem area on your page."}},
+            {"@type":"Question","name":"What if my site is already performing well?","acceptedAnswer":{"@type":"Answer","text":"Even high-scoring sites have room for improvement. Our report identifies specific optimisations regardless of your starting point. If you\u2019re genuinely satisfied there\u2019s nothing to act on, we offer a money-back guarantee."}},
             {"@type":"Question","name":"Do you implement the fixes?","acceptedAnswer":{"@type":"Answer","text":"The report identifies and prioritises the issues \u2014 implementation is up to you or your developer. Most quick wins take under an hour to fix."}},
             {"@type":"Question","name":"How is this different from free tools like Google Lighthouse?","acceptedAnswer":{"@type":"Answer","text":"Lighthouse scores your page speed and accessibility \u2014 useful, but it has nothing to do with conversions. It can\u2019t tell you if your headline is weak, your CTA is buried, or your trust signals are in the wrong place. Those are exactly what we analyse, on the real visual page, the way a visitor actually sees it."}},
-            {"@type":"Question","name":"Is there a follow-up option after I\u2019ve made changes?","acceptedAnswer":{"@type":"Answer","text":"Yes \u2014 once you\u2019ve implemented fixes, you can order a follow-up benchmarking audit at 50% of the original price to measure how much your score improved."}}
+            {"@type":"Question","name":"Is there a follow-up option after I\u2019ve made changes?","acceptedAnswer":{"@type":"Answer","text":"Yes \u2014 once you\u2019ve implemented fixes, you can order a follow-up benchmarking audit at 50% of the original price to measure how much your score improved."}},
+            {"@type":"Question","name":"What\u2019s a CTA?","acceptedAnswer":{"@type":"Answer","text":"CTA stands for Call-to-Action \u2014 the button, link, or prompt that tells your visitor what to do next. Examples: \"Get a Free Quote\", \"Book a Consultation\", \"Buy Now\". A weak CTA (wrong wording, wrong colour, buried too low) is one of the most common and most fixable conversion killers. Our report scores your CTA and tells you exactly what to change."}}
           ]
         }
       ]
