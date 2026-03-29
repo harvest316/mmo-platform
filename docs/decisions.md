@@ -1437,3 +1437,104 @@ Additional decisions: peer auth (no passwords, all processes run as `jason`), SC
 
 **Status:** Accepted — implemented
 **Impl:** `~/code/AdManager/src/Copy/` (Parser, Store, ProgrammaticCheck, Proofreader), `prompts/PROOFREAD.md`, `prompts/IMAGE-POLICY-CHECK.md`, `policies/`, `bin/proofread-copy.php`, `bin/rework-copy.php`, `bin/check-policy-updates.php`
+
+### DR-109: AdManager dashboard architecture — API layer, view decomposition, changelog (2026-03-29)
+
+**Context:** AdManager review page (review/index.php, 427 lines, 3 tabs) needs to evolve into a full management dashboard with performance overview, change log, strategy annotations, project CRUD, and sync controls. The eventual target is deploying the dashboard to auditandfix.com on Hostinger shared hosting, but it currently runs locally via PHP's built-in server. Key constraint: the dashboard API must return decision-ready abstractions (e.g. `{cost: 4.50, ctr: 2.3}`) not raw DB rows (e.g. `{cost_micros: 4500000}`).
+
+**Decision:**
+1. **Option C: Build in AdManager with clean API layer, deploy subset to Hostinger later.** Single codebase, works locally today, FTP-deployable later. Rejected separate dashboard app (duplication) and extending monolith without structure (no deployment path)
+2. **Monolith breakup via PHP includes:** `index.php` becomes a router + layout shell, each view is a separate file in `review/views/` (overview, creative, copy, campaigns, performance, changelog, strategies, settings). No build step, no frontend framework
+3. **New `src/Dashboard/` namespace:** `Metrics.php` (shared metric computation -- the single place where cost_micros becomes cost), `Auth.php` (session + bcrypt), `SyncRunner.php` (background process via shell_exec + file-based polling), `Changelog.php`, `PerformanceQuery.php`
+4. **Three new DB tables:** `changelog` (all optimisation decisions with human-readable summary + JSON detail), `strategy_annotations` (section-level comments keyed by header text anchor, not line numbers), `sync_jobs` (async sync tracking). Plus `projects.products` column for multi-product domains
+5. **Auth:** Session-based with bcrypt password hash in `.env`. Single admin user. 7-day session lifetime
+6. **Sync from web:** Background `shell_exec()` of `bin/sync-performance.php` with DB-tracked job status and 2-second frontend polling. Gracefully degrades on Hostinger (sync trigger disabled, last-synced timestamp still works)
+7. **Changelog captures everything:** Split test conclusions, budget changes, creative fatigue, keyword changes, campaign state changes, strategy approvals, sync completions, manual notes. Each entry has both human-readable `summary` and machine-readable `detail_json`
+
+**Status:** Accepted -- architecture designed, migration SQL created, implementation pending
+**Impl:** `~/code/AdManager/docs/dashboard-architecture.md`, `~/code/AdManager/db/migrations/001-004`
+
+### DR-110: AdManager scope audit — platform feature gaps and build priority (2026-03-29)
+
+**Context:** Audited AdManager's current API coverage against Google Ads, Meta Ads, and GA4 platform capabilities to identify what's missing and what to build next.
+
+**Decision:** Prioritise closing broken loops (features where analysis produces recommendations but cannot execute them) over adding new capabilities.
+
+**Build order:**
+
+**Week 1 — Close broken loops:**
+- Search term text sync to DB (KeywordMiner currently blind — no search_terms table)
+- Impression share + Quality Score in Google Reports (GAQL changes)
+- Ad status management: SplitTest.conclude() must pause losing ads
+- Campaign/budget update methods so BudgetAllocator can execute recommendations
+- `include_in_conversions_metric` on ConversionTracking (macro vs micro goals)
+
+**Week 2 — Conversion quality:**
+- Goal hierarchy: macro/micro/proxy distinction in goals table
+- RLSA audience attachment (observation mode on all campaigns from day 1)
+- Bid strategy update method (manual_cpc → maximize_conversions transition)
+
+**Week 3 — Meta gaps:**
+- Custom Audience class (website visitors, customer match, lookalikes)
+- frequency/reach/unique_clicks in Meta reports
+- Placement control in AdSet (force FB Feed + IG Feed + Reels, exclude Audience Network)
+- Ad/AdSet update methods
+
+**Week 4 — Cross-platform:**
+- GA4 integration: landing page bounce rate + conversion validation
+- CrossPlatform reports class (side-by-side spend/conversions/CPA per platform)
+- Cross-platform budget reallocation in BudgetAllocator
+- unified_conversions table for attribution reconciliation
+
+**Deferred:** GA4 micro-conversion import, PMax asset groups, lead forms, negative keyword shared lists, keyword planner API.
+
+**GA4 integration rationale:** GA4 provides post-click behaviour (bounce rate, time on site, pages/session) that ad platforms don't report. Key use: when CPA is high, GA4 tells you if it's a targeting problem (irrelevant traffic) or a landing page problem (relevant traffic that bounces). Also validates conversion tracking accuracy (GA4 vs platform-reported conversions should match within 15%).
+
+**Status:** APPROVED
+
+### DR-111: Orchestrator backlog query — migrate from SQLite to PostgreSQL (2026-03-29)
+
+**Context:** After DR-104/DR-106 migrated 333Method from SQLite to PostgreSQL, the orchestrator's `refresh_backlog()` function was still using `better-sqlite3` with `./db/sites.db`. This caused all backlog values to be empty (eligible_outreach, actionable_proposals, approved_unsent, etc.), which meant throttle gates couldn't fire and the send pipeline couldn't determine work availability. The bug was silent because errors were piped to `/dev/null`.
+
+**Decision:** Extract the inline SQLite Node.js script into a standalone `scripts/refresh-backlog.js` that uses the project's existing `src/utils/db.js` PostgreSQL module. Key changes: `better-sqlite3` → `pg` via shared pool, `?` placeholders → `$N` parameterised queries, `datetime('now', '-3 days')` → `NOW() - INTERVAL '3 days'`, `gdpr_verified = 0` → `gdpr_verified = false`.
+
+**Impact:** Restored orchestrator visibility into all pipeline queues. Before fix: all gates blind, zero send awareness. After fix: 210K sites visible, 1,335 actionable proposals, 12,520 approved-unsent, daily_send_avg=488.
+
+**Implementation:** `333Method/scripts/refresh-backlog.js` (new), `333Method/scripts/claude-orchestrator.sh` (updated `refresh_backlog()` function).
+
+**Status:** IMPLEMENTED
+
+### DR-112: AdManager Week 2 — RLSA audiences + bid strategy transition logic (2026-03-29)
+
+**Context:** Week 2 build for AdManager. Two new features needed: (1) RLSA audience management for attaching remarketing lists to campaigns, and (2) data-driven bid strategy transitions based on 30-day conversion volume.
+
+**Decision:**
+
+*RLSA (Audiences.php):* Use OBSERVATION mode (not TARGETING) for all audience attachments. OBSERVATION allows bid modifiers without restricting reach — the right default for RLSA since restricting to audience-only would kill impression volume. Uses `CampaignCriterionServiceClient` with `UserListInfo` criterion, same pattern as Keywords.php's `CampaignCriterion`. Bid modifier validated at 0.0 (exclude) or 0.1–10.0 (Google Ads valid range).
+
+*BidStrategyManager.php:* Four conversion tiers: <15 stay on manual_cpc/maximize_clicks (insufficient signal); 15–30 switch to maximize_conversions with no target (learning phase); 30–50 maximize_conversions with loose tCPA at 2x actual CPA (gives algorithm headroom); 50+ tighten tCPA to 1.2x actual CPA (squeeze efficiency). Maps to three internal strategy names (`maximize_conversions`, `maximize_conversions_with_tcpa`, `maximize_conversions_tcpa_tightened`) which translate to the Google Ads API's `target_cpa` strategy with appropriate micros value.
+
+*Schema:* Added `bid_strategy TEXT DEFAULT 'manual_cpc'` column to `campaigns` table in schema.sql. Tests include `ALTER TABLE ... ADD COLUMN` guard for existing DBs.
+
+**Implementation:** `AdManager/src/Google/Audiences.php`, `AdManager/src/Optimise/BidStrategyManager.php`, `AdManager/db/schema.sql` (bid_strategy column), `AdManager/tests/Google/AudiencesTest.php` (22 tests), `AdManager/tests/Optimise/BidStrategyManagerTest.php` (20 tests). All 42 new tests pass; full suite 770 tests (11 pre-existing GA4Test failures unrelated).
+
+### DR-113: AdManager Week 4 — GA4 integration, cross-platform reporting, budget reallocation across platforms (2026-03-29)
+
+**Context:** Week 4 build. Adds GA4 Data API integration, cross-platform performance reporting, cross-platform budget reallocation, and GA4-enriched campaign analysis.
+
+**Decision:**
+
+*GA4 (GA4.php):* Direct REST calls to `analyticsdata.googleapis.com/v1beta` rather than the `google/analytics-data` PHP SDK, consistent with Meta/Client.php pattern. Reuses the existing `GOOGLE_ADS_REFRESH_TOKEN` + OAuth client credentials for token exchange. All internal methods (`runReport`, `parseRows`, `getAccessToken`) are `protected` to enable clean subclass-based test doubles without mocking frameworks. Properties also `protected` for the same reason.
+
+*GA4 table:* New `ga4_performance` table in schema.sql — stores landing page + source/medium/campaign rows. Upsert pattern matches sync-performance.php (delete-then-insert on composite key, since SQLite ON CONFLICT can't reference COALESCE columns directly).
+
+*CrossPlatform.php:* Three methods — `summary()` (per-platform + totals row), `conversionReconciliation()` (GA4 vs platform comparison, flags >15% discrepancy), `platformComparison()` (side-by-side with best_cpa/best_roas/best_ctr winner flags and % gap vs best).
+
+*BudgetAllocator::recommendCrossPlatform():* Allocates across ALL platforms (not within one). Same ROAS×0.7 + CTR×0.3 score. 30% floor prevents cutting any platform to zero. Platforms live <14 days or <50 conversions excluded from rebalancing (returned with excluded=true notice). Per-step ±50% guard still applies on top of floor.
+
+*Analyser::enrichWithGA4():* Joins per-campaign performance to ga4_performance on campaign_name + date (last 14 days). When CPA > 2× target AND bounce rate > 70%, overrides recommendation to "fix landing page" instead of "add negatives". No bounce data → falls back to "add negatives". No CPA goal defined → null recommendation (no override).
+
+**Status:** Accepted
+**Implementation:** `AdManager/src/Google/GA4.php`, `AdManager/src/Reports/CrossPlatform.php`, `AdManager/db/schema.sql` (ga4_performance table), `AdManager/bin/sync-ga4.php`, `AdManager/tests/Google/GA4Test.php` (18 tests), `AdManager/tests/Reports/CrossPlatformTest.php` (16 tests), updated `BudgetAllocatorTest.php` (+8 tests), updated `AnalyserTest.php` (+10 tests). Full suite: 820 tests, 2181 assertions, all green.
+
+**Status:** IMPLEMENTED
