@@ -17,6 +17,7 @@ npm-debug.log*
 *.db-journal
 *.sqlite
 db/backups/
+db/pg-dumps
 
 # Logs
 logs/
