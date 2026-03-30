@@ -69,7 +69,7 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           "name": "Audit&Fix",
           "description": "Professional CRO audit reports for small business websites. 10 conversion factors scored, annotated screenshots, prioritised fix list.",
           "publisher": {"@id": "https://www.auditandfix.com/#organization"},
-          "inLanguage": ["en","de","fr","es","ja","pt","nl","da","sv","ko","it","pl","zh","id"]
+          "inLanguage": ["en","de","fr","es","ja","pt","nl","da","sv","ko","it","pl","zh","id","ru","hi","ar","tr","th","nb"]
         },
         {
           "@type": "Organization",
@@ -83,9 +83,9 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           "contactPoint": {
             "@type": "ContactPoint",
             "contactType": "customer support",
-            "availableLanguage": ["en","de","fr","es","ja","pt","nl","da","sv","ko","it","pl","zh","id"]
+            "availableLanguage": ["en","de","fr","es","ja","pt","nl","da","sv","ko","it","pl","zh","id","ru","hi","ar","tr","th","nb"]
           },
-          "sameAs": []
+          "sameAs": ["https://au.trustpilot.com/review/auditandfix.com"]
         },
         {
           "@type": "Person",
@@ -105,12 +105,10 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           "description": "AI-powered conversion rate optimisation audit. 10 factors scored A+ to F, annotated screenshots, and a prioritised fix list. Delivered as a PDF within 24 hours.",
           "areaServed": ["AU","US","GB","CA","NZ","IE","ZA","IN"],
           "offers": {
-            "@type": "AggregateOffer",
+            "@type": "Offer",
             "url": "https://www.auditandfix.com/#order",
-            "lowPrice": "159",
-            "highPrice": "337",
-            "priceCurrency": "USD",
-            "offerCount": "1",
+            "price": "<?= $productPriceData['price'] ?>",
+            "priceCurrency": "<?= $productPriceData['currency'] ?>",
             "availability": "https://schema.org/InStock",
             "seller": {"@id": "https://www.auditandfix.com/#organization"},
             "hasMerchantReturnPolicy": {
@@ -128,12 +126,10 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           "brand": {"@id": "https://www.auditandfix.com/#organization"},
           "image": "https://www.auditandfix.com/assets/img/report-cover.png",
           "offers": {
-            "@type": "AggregateOffer",
+            "@type": "Offer",
             "url": "https://www.auditandfix.com/#order",
-            "lowPrice": "159",
-            "highPrice": "337",
-            "priceCurrency": "USD",
-            "offerCount": "1",
+            "price": "<?= $productPriceData['price'] ?>",
+            "priceCurrency": "<?= $productPriceData['currency'] ?>",
             "availability": "https://schema.org/InStock",
             "seller": {"@id": "https://www.auditandfix.com/#organization"},
             "hasMerchantReturnPolicy": {
@@ -465,6 +461,8 @@ require_once __DIR__ . '/includes/header.php';
         window.PREFILL_DOMAIN     = <?= json_encode($prefillDomain) ?>;
         window.PREFILL_EMAIL      = <?= json_encode($prefillEmail) ?>;
         window.PREFILL_COUNTRY    = <?= json_encode($prefillCountry) ?>;
+        // Meta Pixel ID (server env → client; empty = pixel disabled)
+        window.META_PIXEL_ID      = <?= json_encode(getenv('META_PIXEL_ID') ?: '') ?>;
     </script>
     <script src="assets/js/obfuscate-email.js?v=1" defer></script>
     <script src="<?= asset_url('assets/js/main.js') ?>" defer></script>

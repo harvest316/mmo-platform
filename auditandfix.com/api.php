@@ -286,6 +286,10 @@ function capturePayment(array $input): void {
     ], $clientId);
 
     // Meta CAPI — Purchase
+    // Use client-provided event_id for dedup (browser pixel fires same ID via fbq)
+    $capiEventId = !empty($input['event_id'])
+        ? preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$input['event_id'])
+        : 'purchase_' . $captureId;
     $ip = trim(explode(',', $_SERVER['HTTP_CF_CONNECTING_IP']
         ?? $_SERVER['HTTP_X_FORWARDED_FOR']
         ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
@@ -301,7 +305,7 @@ function capturePayment(array $input): void {
         'content_name' => $product,
         'content_ids'  => [$product],
         'content_type' => 'product',
-    ], 'purchase_' . $captureId);
+    ], $capiEventId);
 
     echo json_encode([
         'success' => true,
@@ -539,6 +543,10 @@ function saveEmail(array $input): void {
 
     // Meta CAPI — Lead (server-side, no consent gate needed for CAPI)
     if ($email && !isSandboxEnv()) {
+        // Use client-provided event_id for dedup (browser pixel fires same ID via fbq)
+        $leadEventId = !empty($input['event_id'])
+            ? preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$input['event_id'])
+            : 'lead_' . hash('sha256', $email . date('Y-m-d'));
         $ip = trim(explode(',', $_SERVER['HTTP_CF_CONNECTING_IP']
             ?? $_SERVER['HTTP_X_FORWARDED_FOR']
             ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
@@ -550,7 +558,7 @@ function saveEmail(array $input): void {
             'fbp'               => $_COOKIE['_fbp'] ?? null,
         ], [
             'content_name' => 'SEO Audit',
-        ], 'lead_' . hash('sha256', $email . date('Y-m-d')));
+        ], $leadEventId);
     }
 
     // Always return success — never block the factor breakdown on email persistence

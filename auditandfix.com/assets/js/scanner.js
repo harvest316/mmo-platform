@@ -487,9 +487,13 @@
       const factorSummary = r.factors
         ? JSON.stringify(Object.fromEntries(r.factors.map(f => [f.factor, f.score])))
         : undefined;
+      // Stable dedup ID shared between browser pixel and server CAPI
+      const leadEventId = 'lead_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
       await callApi('save-email', {
         scan_id: currentScanId,
         email,
+        event_id: leadEventId,
         marketing_optin: marketingOptin,
         optin_timestamp: marketingOptin ? new Date().toISOString() : undefined,
         score: r.score,
@@ -500,6 +504,12 @@
         analytics_consent: window.__af_analytics_consent === 'accepted',
         gclid: getGclid(),
       });
+
+      // Browser-side Meta Pixel Lead (dedup via leadEventId with CAPI)
+      if (window.__af_pixel_loaded && typeof fbq === 'function') {
+        fbq('track', 'Lead', { content_name: 'SEO Audit' }, { eventID: leadEventId });
+      }
+
       showFactorBreakdown(currentResult);
     } catch {
       // If save-email fails, still show breakdown (don't block the user)

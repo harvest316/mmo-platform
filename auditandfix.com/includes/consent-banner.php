@@ -1,9 +1,10 @@
 <?php
 // Cookie consent banner — include after <body> on all pages.
 // Reads/writes af_consent cookie (365 days).
-// On accept: loads GA4 directly via gtag.js (no GTM).
-// On decline: no analytics loaded.
+// On accept: loads GA4 directly via gtag.js (no GTM) + Meta Pixel.
+// On decline: no analytics loaded. CAPI still fires server-side (no consent gate).
 // GA4 Measurement ID: G-QMPMDVQJGP
+// Meta Pixel ID: set via window.META_PIXEL_ID (injected from PHP env)
 ?>
 <div id="af-consent-banner" role="dialog" aria-label="Cookie consent" aria-live="polite" style="display:none">
     <div class="consent-inner">
@@ -64,7 +65,8 @@
 
 <script>
 (function() {
-    var GA4_ID = 'G-QMPMDVQJGP';
+    var GA4_ID  = 'G-QMPMDVQJGP';
+    var META_ID = window.META_PIXEL_ID || '';  // set by index.php from server env
 
     function getCookie(name) {
         var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -87,17 +89,35 @@
         gtag('config', GA4_ID, { 'anonymize_ip': true });
     }
 
+    // Meta Pixel base code — loads pixel and fires PageView
+    // One cookie: _fbp (30d). No additional cookies unless fbq('track') is called.
+    function loadMetaPixel() {
+        if (!META_ID) return;
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', META_ID);
+        fbq('track', 'PageView');
+        window.__af_pixel_loaded = true;
+    }
+
     function hideBanner() {
         var banner = document.getElementById('af-consent-banner');
         if (banner) banner.style.display = 'none';
     }
 
-    // Expose consent state globally so scanner.js can read it
+    // Expose consent state globally so scanner.js / main.js can read it
     var consent = getCookie('af_consent');
     window.__af_analytics_consent = consent;
 
     if (consent === 'accepted') {
         loadGA4();
+        loadMetaPixel();
     } else if (consent !== 'declined') {
         // No choice yet — show banner
         document.getElementById('af-consent-banner').style.display = 'flex';
@@ -106,6 +126,7 @@
             setCookie('af_consent', 'accepted', 365);
             window.__af_analytics_consent = 'accepted';
             loadGA4();
+            loadMetaPixel();
             hideBanner();
         });
 

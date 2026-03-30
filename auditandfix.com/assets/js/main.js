@@ -255,12 +255,15 @@
 
         onApprove(data) {
           const formData = getFormData();
+          // Stable dedup ID shared between browser pixel and server CAPI
+          const eventId = 'purchase_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 
           return fetch('api.php?action=capture-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               order_id: data.orderID,
+              event_id: eventId,
               ...formData,
             }),
           })
@@ -269,6 +272,15 @@
             })
             .then(result => {
               if (result.success) {
+                // Browser-side Meta Pixel Purchase (dedup via eventId with CAPI)
+                if (window.__af_pixel_loaded && typeof fbq === 'function') {
+                  fbq('track', 'Purchase', {
+                    value: window.INITIAL_PRICE ? window.INITIAL_PRICE.amount / 100 : 0,
+                    currency: window.PAYPAL_CURRENCY || 'USD',
+                    content_ids: [window.PRODUCT || 'full_audit'],
+                    content_type: 'product',
+                  }, { eventID: eventId });
+                }
                 const productParam = window.PRODUCT && window.PRODUCT !== 'full_audit' ? `&product=${window.PRODUCT}` : '';
                 window.location.href = `thank-you.php?email=${encodeURIComponent(formData.email)}${productParam}`;
               } else {
