@@ -13,6 +13,7 @@ pkgs.mkShell {
     claude-code
     git
     gh
+    chromium  # For Playwright (directory-submit.js, e2e tests)
   ];
 
   shellHook = ''
@@ -22,6 +23,7 @@ pkgs.mkShell {
     echo ""
 
     export PATH="$PWD/node_modules/.bin:$PATH"
+    export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
     if [ ! -d "node_modules" ]; then
       echo "Installing npm dependencies..."
