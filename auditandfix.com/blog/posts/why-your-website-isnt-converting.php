@@ -10,11 +10,11 @@ $post_tags      = ['conversion', 'small-business', 'website-audit'];
 
 <!-- ── Post content in HTML below ─────────────────────────────────────────── -->
 
-<p>You're getting visitors. Google Analytics confirms it. But your phone isn't ringing and your inbox is empty. The traffic is there — the conversions aren't.</p>
+<p>You're getting visitors. Google Analytics confirms it. But your phone isn't ringing and your inbox is empty. The traffic is there — but you're not converting visitors into customers.</p>
 
 <p>If that sounds familiar, you're not alone. We've scored over 35,000 small business websites on their conversion performance, and the average score is a D+. Most sites aren't broken. They're just quietly losing customers in ways the owner never notices.</p>
 
-<p>Here are the seven most common reasons we see — and what to do about each one.</p>
+<p>So what to do about it? Here are the seven most common reasons we see — and the fix for each one.</p>
 
 <h2>1. Your headline doesn't say what you actually do</h2>
 
@@ -48,7 +48,7 @@ $post_tags      = ['conversion', 'small-business', 'website-audit'];
 
 <h2>4. Your page takes too long to load</h2>
 
-<p>If your site takes more than three seconds to load on a mobile phone, you're losing roughly half your visitors before they even see your content. Google's own data shows that 53% of mobile users abandon a page that takes longer than three seconds.</p>
+<p>If your site takes more than three seconds to load on a mobile phone, you're losing roughly half your visitors before they even see your content. Research consistently shows that roughly half of mobile users abandon a page that takes longer than three seconds to load.</p>
 
 <p>The usual culprits: oversized images that haven't been compressed, too many plugins, cheap hosting, and videos that autoplay on the homepage.</p>
 
@@ -82,4 +82,4 @@ $post_tags      = ['conversion', 'small-business', 'website-audit'];
 
 <p>If you'd like to know exactly where your site stands, our free scanner grades your website on 10 conversion factors in about 30 seconds. It's not an SEO audit — it's a conversion audit. It tells you what's stopping visitors from becoming customers.</p>
 
-<p>And if you want a detailed report with specific, prioritised fixes for your site — screenshots, explanations, and a clear action plan — that's what our <a href="/scan">CRO Audit Report</a> is built for. One-time fee. No subscription. No retainer. Just a report that tells you exactly what to fix and why.</p>
+<p>For a hands-on self-assessment, try our <a href="/blog/small-business-website-audit-checklist">10-point website audit checklist</a>. And if you want a detailed report with specific, prioritised fixes for your site — screenshots, explanations, and a clear action plan — that's what our <a href="/scan">CRO Audit Report</a> is built for. One-time fee. No subscription. No retainer. Just a report that tells you exactly what to fix and why.</p>

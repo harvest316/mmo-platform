@@ -16,7 +16,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
 
 <h2>The 10-Point Conversion Audit Checklist</h2>
 
-<h3>1. Headline: Does It Say Something Useful?</h3>
+<h3>1. Headline: does it say something useful?</h3>
 
 <p>Open your homepage. Read the first headline a visitor sees. Does it tell a stranger what you do, who you do it for, and why they should care?</p>
 
@@ -27,7 +27,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
 
 <p>Your headline is the most-read piece of text on your entire site. If it says nothing specific, you're losing visitors before they read another word.</p>
 
-<h3>2. Value Proposition: Can They Tell Why You're Different?</h3>
+<h3>2. Value proposition: can they tell why you're different?</h3>
 
 <p>Within five seconds of landing on your page, can a visitor tell what you offer that your competitors don't?</p>
 
@@ -38,7 +38,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
 
 <p>If three competitors could put the same text on their site without changing a word, it's not a value proposition.</p>
 
-<h3>3. Call to Action: Is There a Clear Next Step?</h3>
+<h3>3. Call to action: is there a clear next step?</h3>
 
 <p>Is there a prominent, specific button above the fold telling the visitor what to do next?</p>
 
@@ -49,7 +49,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
 
 <p>Every page on your site should have a CTA. Not just your homepage — your service pages, your about page, even your blog posts.</p>
 
-<h3>4. Trust Signals: Are Reviews Visible Where Decisions Happen?</h3>
+<h3>4. Trust signals: are reviews visible where decisions happen?</h3>
 
 <p>Can a visitor see your Google rating, review count, or customer testimonials without scrolling or navigating to another page?</p>
 
@@ -67,7 +67,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
     <a href="/scan" class="cta-button">Scan Your Website Free</a>
 </div>
 
-<h3>5. Urgency: Is There a Reason to Act Now?</h3>
+<h3>5. Urgency: is there a reason to act now?</h3>
 
 <p>Does your site give visitors any reason to contact you today rather than bookmarking and forgetting?</p>
 
@@ -76,7 +76,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
     <li><strong>Fail:</strong> No time-sensitive element whatsoever (this is the most commonly failed factor in our data)</li>
 </ul>
 
-<h3>6. Visual Hook: Does the Page Grab Attention Above the Fold?</h3>
+<h3>6. Visual hook: does the page grab attention above the fold?</h3>
 
 <p>Before reading a single word, does the page look professional and engaging? Or does it look like every other template site in your industry?</p>
 
@@ -85,7 +85,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
     <li><strong>Fail:</strong> Cluttered layout, stock images that could be any business, no clear focal point</li>
 </ul>
 
-<h3>7. Imagery: Real Photos or Stock?</h3>
+<h3>7. Imagery: real photos or stock?</h3>
 
 <p>Are you showing real photos of your team, your work, and your premises? Or generic stock photos of smiling people in hard hats?</p>
 
@@ -96,7 +96,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
 
 <p>Visitors can spot stock photos instantly, and they erode trust. A slightly imperfect real photo beats a polished stock image every time.</p>
 
-<h3>8. Offer Clarity: Do They Know What They'll Get?</h3>
+<h3>8. Offer clarity: do they know what they'll get?</h3>
 
 <p>If a visitor clicks your CTA, do they know exactly what happens next? What will they receive? How long will it take? What will it cost?</p>
 
@@ -105,7 +105,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
     <li><strong>Fail:</strong> A generic contact form with no explanation of what happens after they submit it</li>
 </ul>
 
-<h3>9. Mobile Experience: Does It Work on a Phone?</h3>
+<h3>9. Mobile experience: does it work on a phone?</h3>
 
 <p>Visit your site on your phone. Can you tap to call? Is the CTA button easy to tap? Can you fill out the contact form with your thumb?</p>
 
@@ -116,7 +116,7 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
 
 <p>Over half your visitors are on mobile. If the mobile experience is poor, you're losing the majority of your potential enquiries.</p>
 
-<h3>10. Industry Fit: Does Your Site Match What Visitors Expect?</h3>
+<h3>10. Industry fit: does your site match what visitors expect?</h3>
 
 <p>Different industries have different visitor expectations. A pest control customer wants to see emergency availability and pricing. An accountant's client wants to see qualifications and a professional office. Does your site match what your specific industry's visitors are looking for?</p>
 
@@ -135,8 +135,14 @@ $post_tags      = ['website-audit', 'checklist', 'small-business', 'conversion']
     <li><strong>Under 5 passes:</strong> Your website is actively costing you business. The good news is that fixing even two or three of these will make a noticeable difference.</li>
 </ul>
 
-<h2>Want a Professional Eye on It?</h2>
+<h2>Want a professional eye on it?</h2>
 
-<p>Self-audits are useful, but they have a blind spot: you already know what your site is supposed to communicate. A first-time visitor doesn't. Our professional <a href="/">CRO audit report</a> runs all 10 factors through expert analysis — with zoomed-in screenshots of every problem area and a prioritised fix list in plain English.</p>
+<p>Self-audits are useful, but they have a blind spot (we explain this further in our guide to <a href="/blog/website-not-getting-enough-enquiries">why websites don't get enough enquiries</a>): you already know what your site is supposed to communicate. A first-time visitor doesn't. Our professional <a href="/scan">website audit service</a> runs all 10 factors through expert analysis — with zoomed-in screenshots of every problem area and a prioritised list of actionable recommendations in plain English.</p>
 
 <p>But if you want a quick starting point, our free scanner checks the same 10 factors in 30 seconds. No email required. Just enter your URL and see where you stand.</p>
+
+<div class="post-cta">
+    <h3>Get your site scored by an expert</h3>
+    <p>10-factor CRO audit, prioritised fix list, delivered as a PDF within 24 hours. One-off payment, no subscription.</p>
+    <a href="/scan" class="cta-button">Get My Website Audit</a>
+</div>

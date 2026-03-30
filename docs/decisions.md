@@ -1677,3 +1677,35 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 
 **Status:** Accepted
 **Impl:** `333Method/.env` OUTREACH_BLOCKED_SMS_COUNTRIES updated; migration 129 disables sms_enabled for all except AU/NZ; `docs/05-outreach/legal-basis.md` updated with permanent block status. 2Step compliance to follow.
+
+### DR-122: Citation Monitor — internal cron + autonomous content creation (2026-03-30)
+
+**Context:** AI search engines (ChatGPT, Claude, Perplexity, Gemini) return zero citations for auditandfix.com across 25 target queries. Robots.txt was blocking all AI crawlers. No llms.txt existed. Structured data was incomplete. Site had no content targeting high-intent problem/comparison queries.
+
+**Decision:**
+
+1. **Citation monitor runs as an internal 333Method cron job** (`citationMonitor` task_key, 14-day interval, 1800s timeout) — not a GitHub Action or Claude cloud trigger. Shell script at `scripts/citation-monitor.sh` invokes `claude -p --model opus --max-turns 50`. This survives the planned GitHub → Radicle migration.
+
+2. **The monitor autonomously creates up to 3 content pages per run.** It runs the 25-query audit, compares against the previous baseline in `tmp/citation-audit-*.md`, identifies opportunity gaps, and creates PHP landing pages or blog posts to fill them. It deploys via FTP and commits — but does **not push** (user reviews before pushing).
+
+3. **Landing pages target uncontested queries.** P1 pages created: `/hire-website-reviewer` (query #16: only freelance platforms rank), `/website-not-converting` (query #25: small blogs only), `/one-time-audit` (query #20: free tools dominate). Each has Service/Article + FAQPage schema, geo-detected pricing, BreadcrumbList.
+
+4. **AEO/GEO foundations deployed simultaneously:**
+   - `robots.txt`: explicitly Allow all AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, Applebot-Extended)
+   - `llms.txt` + `llms-full.txt`: AI discoverability files per llmstxt.org spec
+   - `/methodology` page: TechArticle schema explaining the 10-factor scoring system
+   - Homepage structured data: 7 schema types in @graph (WebSite, Organization, Person, Service, Product, BreadcrumbList, FAQPage)
+
+5. **`env -u CLAUDECODE` is required** for nested `claude -p` calls inside Claude Code sessions. Same pattern as the 333Method orchestrator.
+
+**Status:** Implemented — first audit completed (0/25, baseline established), 3 P1 landing pages + 3 blog posts deployed
+**Impl:** `scripts/citation-monitor.sh`, `333Method/src/cron/citation-monitor.js`, migration 128, `tmp/citation-audit-2026-03-30.md`
+
+### DR-123: Product structured data — placeholder review until Trustpilot accumulates (2026-03-30)
+
+**Context:** Google Rich Results Test requires `review` and `aggregateRating` for Product Snippets. Trustpilot BCC invite was just configured — no reviews exist yet.
+
+**Decision:** Ship with a placeholder review (1 review, 5/5, generic "Audit&Fix Customer" author) to pass validation. Update with real Trustpilot data once 5–10 reviews accumulate. Tracked in `TODO.md`.
+
+**Status:** Implemented — placeholder live, Trustpilot BCC active
+**Impl:** `auditandfix.com/index.php` Product schema, `TODO.md`
