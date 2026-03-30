@@ -107,7 +107,27 @@ Pricing: Free tier (limited generations) + credit packs ($10–$100) + subscript
 
 // ─── Browser factory ──────────────────────────────────────────────────────────
 
+
 async function launchBrowser(nopechaDir) {
+  // Resolve system chromium — required on NixOS where bundled Chromium lacks shared libs
+  let executablePath;
+  if (process.env.CHROMIUM_PATH) {
+    executablePath = process.env.CHROMIUM_PATH;
+  } else {
+    try {
+      const { execSync } = await import('child_process');
+      const p = execSync('which chromium 2>/dev/null || which google-chrome-stable 2>/dev/null', { encoding: 'utf8' }).trim();
+      if (p) executablePath = p;
+    } catch {}
+  }
+
+  if (!executablePath) {
+    console.error('⚠  No system Chromium found. Run this script inside nix-shell (cd ~/code/mmo-platform && nix-shell) or set CHROMIUM_PATH.');
+    console.error('   Attempting with Playwright bundled Chromium — may fail on NixOS.');
+  } else {
+    console.log(`Using Chromium: ${executablePath}`);
+  }
+
   const args = ['--no-sandbox', '--disable-blink-features=AutomationControlled'];
   if (nopechaDir) {
     args.push(`--disable-extensions-except=${nopechaDir}`);
@@ -115,6 +135,7 @@ async function launchBrowser(nopechaDir) {
   }
   const browser = await chromium.launch({
     headless: false, // Always headed — needed for Cloudflare + CAPTCHA
+    executablePath,
     args,
   });
   const context = await browser.newContext({
