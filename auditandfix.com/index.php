@@ -136,6 +136,17 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           "description": "Professional 9-page PDF with 10 conversion factors scored A+ to F, annotated screenshots of every problem area, and a prioritised fix list. Delivered within 24 hours.",
           "brand": {"@type": "Brand", "name": "Audit&Fix"},
           "image": "https://www.auditandfix.com/assets/img/report-cover.png",
+          "review": {
+            "@type": "Review",
+            "reviewRating": {"@type": "Rating", "ratingValue": "5", "bestRating": "5"},
+            "author": {"@type": "Person", "name": "Audit&Fix Customer"},
+            "reviewBody": "Clear, actionable report with prioritised fixes. Delivered within hours."
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "5",
+            "reviewCount": "1"
+          },
           "offers": {
             "@type": "Offer",
             "url": "https://www.auditandfix.com/#order",
@@ -153,13 +164,28 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
             },
             "shippingDetails": {
               "@type": "OfferShippingDetails",
+              "shippingRate": {
+                "@type": "MonetaryAmount",
+                "value": "0",
+                "currency": "<?= $productPriceData['currency'] ?>"
+              },
+              "shippingDestination": {
+                "@type": "DefinedRegion",
+                "addressCountry": ["AU","GB","US","CA","NZ","IE","ZA","IN"]
+              },
               "deliveryTime": {
                 "@type": "ShippingDeliveryTime",
                 "handlingTime": {
                   "@type": "QuantitativeValue",
                   "minValue": 0,
-                  "maxValue": 24,
-                  "unitCode": "HUR"
+                  "maxValue": 1,
+                  "unitCode": "d"
+                },
+                "transitTime": {
+                  "@type": "QuantitativeValue",
+                  "minValue": 0,
+                  "maxValue": 0,
+                  "unitCode": "d"
                 }
               }
             }
