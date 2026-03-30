@@ -49,6 +49,10 @@
 - [x] Spintax structural variation — 6 new structures added to AU/US/GB (question-lead, finding-first, ultra-short, value-give, reverse-cta, industry-observation)
 - [x] Full i18n — scan.php, video-reviews, compare pages translated across 20 languages (361 keys x 20 langs)
 
+## 333Method — Ad Signal Quality
+
+- [ ] **DataForSEO large-scale backfill** (210K sites, ~$525 at $0.0025/req) — `node scripts/backfill-dataforseo-ads.js --limit 10000`. Results go into `ad_signals->'dataforseo_keywords'` only (not is_running_ads — see DR-118). Run when budget allows and after confirming the keywords data is actually useful for outreach prioritisation.
+
 ## SEO & EEAT (Investigate)
 
 - [ ] Ask SEO agent: is EEAT work for Marcus Webb actually worth it for our business model? We drive traffic via cold outreach, not organic search — does Google authoritativeness even matter?
