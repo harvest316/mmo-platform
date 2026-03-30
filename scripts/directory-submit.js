@@ -174,92 +174,33 @@ const DIRECTORIES = {
     },
   },
 
-  toolify: {
-    name: 'Toolify.ai',
-    async submit(page, tool) {
-      await page.goto('https://www.toolify.ai/submit', { waitUntil: 'domcontentloaded', timeout: 60000 });
-      console.log('Waiting for Cloudflare challenge to clear (NopeCHA active)...');
-      await page.waitForTimeout(8000);
-      await fillIfExists(page, 'input[placeholder*="tool name" i], input[name*="name" i]', tool.name);
-      await fillIfExists(page, 'input[placeholder*="url" i], input[name*="url" i]', tool.url);
-      await fillIfExists(page, 'input[type="email"]', tool.contactEmail);
-      await fillIfExists(page, 'textarea', tool.shortDescription);
-      console.log('Form filled. Press Enter to review then submit...');
-      await waitForKeypress();
-      await clickSubmit(page);
-      await page.waitForTimeout(4000);
-      console.log(`✓ Toolify submitted.`);
-    },
-  },
-
-  topai: {
-    name: 'TopAI.tools',
-    async submit(page, tool) {
-      await page.goto('https://topai.tools/submit', { waitUntil: 'domcontentloaded', timeout: 60000 });
-      console.log('Waiting for Cloudflare challenge...');
-      await page.waitForTimeout(8000);
-      await fillIfExists(page, 'input[placeholder*="name" i]', tool.name);
-      await fillIfExists(page, 'input[placeholder*="url" i]', tool.url);
-      await fillIfExists(page, 'input[type="email"]', tool.contactEmail);
-      await fillIfExists(page, 'textarea', tool.shortDescription);
-      console.log('Form filled. Press Enter to submit...');
-      await waitForKeypress();
-      await clickSubmit(page);
-      await page.waitForTimeout(4000);
-      console.log(`✓ TopAI submitted.`);
-    },
-  },
-
-  easywithai: {
-    name: 'EasyWithAI',
-    async submit(page, tool) {
-      // Try /submit-tool first, fall back to /submit
-      await page.goto('https://easywithai.com/submit-tool', { waitUntil: 'domcontentloaded', timeout: 60000 });
-      console.log('Waiting for Cloudflare challenge...');
-      await page.waitForTimeout(8000);
-      await fillIfExists(page, 'input[placeholder*="name" i]', tool.name);
-      await fillIfExists(page, 'input[placeholder*="url" i]', tool.url);
-      await fillIfExists(page, 'input[type="email"]', tool.contactEmail);
-      await fillIfExists(page, 'textarea', tool.shortDescription);
-      console.log('Form filled. Press Enter to submit...');
-      await waitForKeypress();
-      await clickSubmit(page);
-      await page.waitForTimeout(4000);
-      console.log(`✓ EasyWithAI submitted.`);
-    },
-  },
+  // Toolify ($99), TopAI ($47), EasyWithAI ($125) — all paid listings, skipped.
 
   saashub: {
     name: 'SaaSHub',
     async submit(page, tool) {
-      const email = process.env.SAASHUB_EMAIL;
-      const password = process.env.SAASHUB_PASSWORD;
-      if (!email || !password) {
-        console.log('⚠  Set SAASHUB_EMAIL and SAASHUB_PASSWORD in mmo-platform/.env');
-        return;
-      }
-      // Login
-      await page.goto('https://www.saashub.com/users/sign_in', { waitUntil: 'networkidle', timeout: 60000 });
-      await fillIfExists(page, 'input[name="user[email]"], input[type="email"]', email);
-      await fillIfExists(page, 'input[name="user[password]"], input[type="password"]', password);
-      await clickSubmit(page);
-      await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
-      console.log('✓ SaaSHub: logged in');
+      // The suggest-changes form is publicly accessible (no login needed).
+      // Submissions go through moderator approval. To bypass approval, claim
+      // the listing first: go to saashub.com/colormora and click "verify it".
+      await page.goto('https://www.saashub.com/product-changes/colormora/new', { waitUntil: 'networkidle', timeout: 60000 });
+      await page.waitForSelector('textarea#service_description', { timeout: 15000 });
 
-      // Navigate to the pending colormora listing
-      await page.goto('https://www.saashub.com/colormora', { waitUntil: 'networkidle', timeout: 30000 });
-      const editBtn = page.locator('a:has-text("Edit"), a:has-text("Claim"), button:has-text("Edit")').first();
-      if (await editBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await editBtn.click();
-        await page.waitForTimeout(2000);
-      }
-      await fillIfExists(page, 'textarea[name*="description"]', tool.longDescription);
-      await fillIfExists(page, 'input[name*="tagline"], input[placeholder*="tagline" i]', tool.tagline);
-      console.log('SaaSHub listing open. Review in browser, then press Enter to save...');
+      // Update tagline (currently: "AI coloring book and color palette generator")
+      await page.fill('textarea#service_tagline', tool.tagline);
+      // Fill long description (currently empty)
+      await page.fill('textarea#service_description', tool.longDescription);
+      // Update categories
+      await page.fill('input#category_names_list', 'Design Tools, AI, Image Generation');
+      // Submitter email (required for anonymous suggest-changes)
+      await page.fill('input#user_email', tool.contactEmail);
+      // Brief note for moderator
+      await page.fill('input#note', 'Adding description and updating tagline/categories for Colormora listing.');
+
+      console.log('SaaSHub form filled. Review in browser, then press Enter to submit...');
       await waitForKeypress();
-      await clickSubmit(page);
+      await page.locator('input[name="commit"]').click();
       await page.waitForTimeout(3000);
-      console.log('✓ SaaSHub listing updated.');
+      console.log(`✓ SaaSHub suggest-changes submitted. URL: ${page.url()}`);
     },
   },
 

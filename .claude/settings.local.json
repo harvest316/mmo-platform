@@ -13,7 +13,17 @@
       "Bash(curl -sL https://colorcraft-ai.com/ -H \"Accept: text/html\" -o /tmp/cc-root.html)",
       "Bash(curl -sL https://colorcraft-ai.com/gallery -H \"Accept: text/html\")",
       "Bash(curl -sL https://colorcraft-ai.com/for-etsy-sellers -H \"Accept: text/html\")",
-      "Bash(composer install:*)"
+      "Bash(composer install:*)",
+      "Read(//home/jason/code/**)",
+      "Bash(php -m)",
+      "Bash(systemctl --user stop 333method-pipeline.service)",
+      "Bash(systemctl --user stop 333method-orchestrator.timer 333method-orchestrator.service)",
+      "Bash(NODE_ENV=test DATABASE_PATH=/tmp/test-sites.db OPS_DB_PATH=/tmp/test-ops.db TEL_DB_PATH=/tmp/test-telemetry.db LOGS_DIR=/tmp/test-logs node --import ./tests/helpers/setup-split-dbs.js --experimental-test-module-mocks --test --test-concurrency=4 --test-timeout=60000 'tests/**/*.test.js')",
+      "Bash(python3 -c \":*)",
+      "Read(//run/postgresql/**)",
+      "Bash(curl -s https://auditandfix.com/v/O)",
+      "Bash(bash scripts/deploy-website.sh v.php a.php includes/header.php)",
+      "Bash(systemctl --user status 333method-pipeline.service)"
     ],
     "additionalDirectories": [
       "/home/jason/.claude"
