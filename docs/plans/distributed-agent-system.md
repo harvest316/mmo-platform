@@ -1,7 +1,7 @@
 # Distributed Agent System Design
 
 **Generated:** 2026-02-15
-**Updated:** 2026-03-17 — Part L updated: AgentFlow extraction cancelled; old 6-agent system replaced by Agency Agents (orchestrator batches + Tier C interactive sessions). Part L migration table revised. | 2026-03-14 — Added Part 23 (Tool Integrations: Agency Agents, PromptFoo, MiroFish, Impeccable, OpenViking, Heretic). Added Part 24 (Software Inventory: FOSS status, licensing, audits). CAI commercial license flagged. Redis → Valkey. Better Stack → Grafana Loki. OpenViking deferred. | 2026-03-13 — Moved from 333Method to mmo-platform (cross-project concern). Merged Claude Max update. Phase 0 + Part 20 marked obsolete. Added Part 22 (Multi-Project Architecture).
+**Updated:** 2026-03-30 — Part 26 added: AdManager VPS migration plan (NixOS systemd service, vendor size, deploy steps). | Part 25 added: Radicle source control migration + Woodpecker CI + Renovate Bot plan. | 2026-03-17 — Part L updated: AgentFlow extraction cancelled; old 6-agent system replaced by Agency Agents (orchestrator batches + Tier C interactive sessions). Part L migration table revised. | 2026-03-14 — Added Part 23 (Tool Integrations: Agency Agents, PromptFoo, MiroFish, Impeccable, OpenViking, Heretic). Added Part 24 (Software Inventory: FOSS status, licensing, audits). CAI commercial license flagged. Redis → Valkey. Better Stack → Grafana Loki. OpenViking deferred. | 2026-03-13 — Moved from 333Method to mmo-platform (cross-project concern). Merged Claude Max update. Phase 0 + Part 20 marked obsolete. Added Part 22 (Multi-Project Architecture).
 **Status:** Planning Document
 **Source:** Agent Task Output
 
@@ -6012,3 +6012,65 @@ Most tools have no formal third-party security audits. Notable exceptions:
 - **sops** — Cure53 audit (2023) ✅
 
 **Recommendation:** For the three highest-risk components (IronClaw agent runtime, CAI pen tester, NetBird VPN), commission a third-party audit before using in production with real customer data. In the interim, rely on the architectural controls described in Parts 6–13 and Part O.
+
+## Part 26: AdManager VPS Migration Plan (Added 2026-03-30)
+
+### 26.1 Current State
+
+AdManager runs entirely locally (dev machine + Docker container). The review dashboard is accessible only via `php bin/review-server.php` (localhost:8234). A NixOS systemd service (`admanager.nix`) has been added to serve it at `admanager.molecool.org` (VPN-only) on the production VPS.
+
+**Local → VPS migration is the near-term goal.** The design doc at `distributed-infra/modules/admanager.nix` has the deploy checklist.
+
+### 26.2 Why Not Hostinger
+
+Hostinger shared hosting was ruled out (DR-119):
+- `vendor/` is 2.5 GB (Google Ads PHP SDK + gRPC protobuf stubs)
+- `shell_exec` / `proc_open` likely disabled (breaks background sync + LLM proofread)
+- API keys (Google Ads, Meta, Anthropic) on shared hosting = unacceptable risk
+
+### 26.3 Vendor Size Reduction
+
+Running `composer install --no-dev --prefer-dist` on the VPS avoids shipping 300+ MB of PHPUnit/Mockery dev deps. The Google Ads SDK itself is the bulk (~2 GB of generated protobuf PHP stubs). Options to address it:
+
+| Approach | Savings | Effort | Trade-off |
+|----------|---------|--------|-----------|
+| `--no-dev` only | ~300 MB | 0 | Loses dev deps (fine for prod) |
+| Remove Google Ads SDK, use REST API directly | ~2 GB | High | Full refactor of `src/Google/` |
+| Use `google/cloud-asset` slim client | Moderate | Medium | Different API surface |
+
+**Decision (2026-03-30):** Use `--no-dev` for now. Revisit REST migration if CPU/memory on VPS is constrained by gRPC compilation.
+
+### 26.4 VPS Migration Steps
+
+```
+# On dev machine — pack source (exclude vendor, db, secrets)
+rsync -av --exclude=vendor --exclude=db/admanager.db --exclude=.env \
+  ~/code/AdManager/ root@<vps>:/opt/admanager/
+
+# On VPS
+cd /opt/admanager
+composer install --no-dev --prefer-dist
+cp .env.example .env && vim .env           # fill in API keys + ADMIN_PASSWORD_HASH
+php bin/db-init.php
+nixos-rebuild switch --flake /etc/nixos#k7
+
+# Verify
+systemctl status admanager
+curl http://127.0.0.1:8234/
+```
+
+### 26.5 Background Jobs on VPS
+
+The dashboard's background sync (`SyncRunner`) and LLM proofread use `proc_open()` / `shell_exec()`. Both are available on the VPS (no shared hosting restrictions). The Claude CLI binary must be present; set `CLAUDE_BIN` in `/opt/admanager/.env`:
+
+```
+CLAUDE_BIN=/home/jason/.local/bin/claude   # or wherever installed on VPS
+```
+
+### 26.6 DNS
+
+Add CNAME or A record: `admanager.molecool.org → <vps-ip>`. Caddy provisions TLS automatically via ACME. Access is VPN-gated via NetBird ACLs (same pattern as `dashboard.molecool.org`).
+
+### 26.7 Future: Multi-Project Data on VPS
+
+Once on VPS, AdManager can sync + serve data for all projects continuously (scheduled via systemd timer). Current sync is manual ("Sync Now" button). Proposed: add `admanager-sync.timer` running every 6 hours per project. See `distributed-infra/modules/admanager.nix`.
