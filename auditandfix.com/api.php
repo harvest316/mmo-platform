@@ -65,14 +65,21 @@ try {
         case 'activate-subscription':
             activateSubscription($input);
             break;
+        case 'send-magic-link':
+            sendMagicLink($input);
+            break;
+        case 'verify-magic-link':
+            verifyMagicLink($input);
+            break;
 
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Invalid action']);
     }
 } catch (Throwable $e) {
+    error_log('api.php uncaught: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['error' => 'Internal server error']);
 }
 
 function isSandbox(array $input): bool {
@@ -262,18 +269,39 @@ function capturePayment(array $input): void {
     // GA4 Measurement Protocol — purchase
     $gclid = isset($input['gclid']) ? preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$input['gclid']) : null;
     $clientId = ga4ClientId();
+    $purchaseValue = floatval($captureData['amount']['value'] ?? 0);
+    $purchaseCurrency = $captureData['amount']['currency_code'] ?? 'USD';
+    $captureId = $captureData['id'] ?? $orderId;
     ga4Event('purchase', [
-        'transaction_id' => $captureData['id'] ?? $orderId,
-        'value'          => floatval($captureData['amount']['value'] ?? 0),
-        'currency'       => $captureData['amount']['currency_code'] ?? 'USD',
+        'transaction_id' => $captureId,
+        'value'          => $purchaseValue,
+        'currency'       => $purchaseCurrency,
         'gclid'          => $gclid,
         'items'          => [[
             'item_id'   => $product,
             'item_name' => $product,
             'quantity'  => 1,
-            'price'     => floatval($captureData['amount']['value'] ?? 0),
+            'price'     => $purchaseValue,
         ]],
     ], $clientId);
+
+    // Meta CAPI — Purchase
+    $ip = trim(explode(',', $_SERVER['HTTP_CF_CONNECTING_IP']
+        ?? $_SERVER['HTTP_X_FORWARDED_FOR']
+        ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
+    metaCapiEvent('Purchase', [
+        'email'             => $input['email'] ?? '',
+        'client_ip'         => $ip,
+        'client_user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+        'fbc'               => $_COOKIE['_fbc'] ?? null,
+        'fbp'               => $_COOKIE['_fbp'] ?? null,
+    ], [
+        'value'        => $purchaseValue,
+        'currency'     => $purchaseCurrency,
+        'content_name' => $product,
+        'content_ids'  => [$product],
+        'content_type' => 'product',
+    ], 'purchase_' . $captureId);
 
     echo json_encode([
         'success' => true,
@@ -507,6 +535,22 @@ function saveEmail(array $input): void {
             'domain'     => $domain,
             'gclid'      => $gclid,
         ], $clientId);
+    }
+
+    // Meta CAPI — Lead (server-side, no consent gate needed for CAPI)
+    if ($email && !isSandboxEnv()) {
+        $ip = trim(explode(',', $_SERVER['HTTP_CF_CONNECTING_IP']
+            ?? $_SERVER['HTTP_X_FORWARDED_FOR']
+            ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
+        metaCapiEvent('Lead', [
+            'email'             => $email,
+            'client_ip'         => $ip,
+            'client_user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'fbc'               => $_COOKIE['_fbc'] ?? null,
+            'fbp'               => $_COOKIE['_fbp'] ?? null,
+        ], [
+            'content_name' => 'SEO Audit',
+        ], 'lead_' . hash('sha256', $email . date('Y-m-d')));
     }
 
     // Always return success — never block the factor breakdown on email persistence
@@ -988,6 +1032,62 @@ function isSandboxEnv(): bool {
 }
 
 /**
+ * Send a server-side event to Meta Conversions API (fire-and-forget).
+ *
+ * Requires META_PIXEL_ID and META_ACCESS_TOKEN in server environment.
+ * META_TEST_EVENT_CODE can be set for Events Manager test mode.
+ *
+ * @param string      $eventName  Meta standard event (Purchase, Lead, etc.)
+ * @param array       $userData   User matching: email, phone, client_ip, client_user_agent, fbc, fbp
+ * @param array       $customData Event data: value, currency, content_name, etc.
+ * @param string|null $eventId    Dedup ID — use the same value in browser fbq() call to prevent double-counting
+ */
+function metaCapiEvent(string $eventName, array $userData, array $customData = [], ?string $eventId = null): void {
+    $pixelId     = getenv('META_PIXEL_ID') ?: '';
+    $accessToken = getenv('META_ACCESS_TOKEN') ?: '';
+    if (!$pixelId || !$accessToken) return;
+
+    // Hash PII per Meta requirements
+    $hashed = [];
+    foreach (['email' => 'em', 'phone' => 'ph', 'first_name' => 'fn', 'last_name' => 'ln'] as $field => $key) {
+        if (!empty($userData[$field])) {
+            $hashed[$key] = hash('sha256', strtolower(trim($userData[$field])));
+        }
+    }
+    if (!empty($userData['client_ip']))         $hashed['client_ip_address']  = $userData['client_ip'];
+    if (!empty($userData['client_user_agent'])) $hashed['client_user_agent']   = $userData['client_user_agent'];
+    if (!empty($userData['fbc']))               $hashed['fbc']                 = $userData['fbc'];
+    if (!empty($userData['fbp']))               $hashed['fbp']                 = $userData['fbp'];
+
+    $event = [
+        'event_name'       => $eventName,
+        'event_time'       => time(),
+        'action_source'    => 'website',
+        'event_source_url' => 'https://auditandfix.com',
+        'user_data'        => $hashed,
+    ];
+    if ($eventId)           $event['event_id']   = $eventId;
+    if (!empty($customData)) $event['custom_data'] = $customData;
+
+    $payload = ['data' => [$event], 'access_token' => $accessToken];
+    $testCode = getenv('META_TEST_EVENT_CODE') ?: '';
+    if ($testCode) $payload['test_event_code'] = $testCode;
+
+    $apiVersion = getenv('META_API_VERSION') ?: 'v20.0';
+    $ch = curl_init("https://graph.facebook.com/{$apiVersion}/{$pixelId}/events");
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_TIMEOUT        => 3,
+        CURLOPT_NOSIGNAL       => 1,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
+/**
  * Derives a stable GA4 client_id from the visitor's IP.
  * GA4 MP requires a client_id; we use an IP-based hash as a privacy-safe proxy
  * since we have no access to the browser's _ga cookie server-side.
@@ -1254,4 +1354,242 @@ function activateSubscription(array $input): void {
     }
 
     echo json_encode(['status' => 'active', 'subscription_id' => $subscriptionId]);
+}
+
+// ── Customer Portal: Magic Link Auth ────────────────────────────────────────
+
+/**
+ * Send a passwordless magic link email for customer login.
+ *
+ * Rate limits: 5 per IP per hour, 3 per email per hour.
+ * Creates customer record if none exists (auto-registration).
+ * Token is hashed before storage (SHA-256). 30-min expiry. Single-use.
+ */
+function sendMagicLink(array $input): void {
+    require_once __DIR__ . '/includes/account/db.php';
+    require_once __DIR__ . '/includes/account/rate-limit.php';
+    require_once __DIR__ . '/includes/account/auth.php';
+
+    $email = strtolower(trim(filter_var($input['email'] ?? '', FILTER_VALIDATE_EMAIL) ?: ''));
+    if (!$email) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Please enter a valid email address.']);
+        return;
+    }
+
+    // Rate limiting
+    $ip = getClientIp();
+    $ipHash = hash('sha256', $ip);
+    $emailHash = hash('sha256', $email);
+
+    if (!checkRateLimit($ipHash, 'magic_link_ip', 5, 60)) {
+        http_response_code(429);
+        echo json_encode(['error' => 'Too many requests. Please try again in an hour.']);
+        return;
+    }
+    if (!checkRateLimit($emailHash, 'magic_link_email', 3, 60)) {
+        http_response_code(429);
+        echo json_encode(['error' => 'Too many login attempts for this email. Please try again in an hour.']);
+        return;
+    }
+
+    rateLimitGc();
+
+    $db = getCustomerDb();
+
+    // Find or create customer
+    $stmt = $db->prepare("SELECT id FROM customers WHERE email = ? AND deleted_at IS NULL");
+    $stmt->execute([$email]);
+    $customer = $stmt->fetch();
+
+    if (!$customer) {
+        $db->prepare("INSERT INTO customers (email) VALUES (?)")->execute([$email]);
+        $customerId = (int)$db->lastInsertId();
+    } else {
+        $customerId = (int)$customer['id'];
+    }
+
+    // Invalidate any existing unused magic links for this email
+    $db->prepare(
+        "UPDATE magic_links SET used_at = datetime('now')
+         WHERE email = ? AND used_at IS NULL AND expires_at > datetime('now')"
+    )->execute([$email]);
+
+    // Generate token — store hash, send plaintext in email
+    $token = bin2hex(random_bytes(32));
+    $tokenHash = hash('sha256', $token);
+    $expiresAt = gmdate('Y-m-d H:i:s', time() + 30 * 60); // 30 minutes
+
+    $db->prepare(
+        "INSERT INTO magic_links (email, token_hash, expires_at)
+         VALUES (?, ?, ?)"
+    )->execute([$email, $tokenHash, $expiresAt]);
+
+    // Build magic link URL
+    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'auditandfix.com';
+    $verifyUrl = $scheme . '://' . $host . '/account/verify?token=' . urlencode($token);
+
+    // Send branded email via Resend
+    $resendKey = getenv('RESEND_API_KEY');
+    if (!$resendKey) {
+        error_log('sendMagicLink: RESEND_API_KEY not set');
+        http_response_code(500);
+        echo json_encode(['error' => 'Email service unavailable. Please try again later.']);
+        return;
+    }
+
+    $htmlEmail = magicLinkEmailHtml($verifyUrl);
+    $textEmail = "Log in to your Audit&Fix account\n\n"
+        . "Click the link below to securely access your account:\n\n"
+        . $verifyUrl . "\n\n"
+        . "This link expires in 30 minutes. If you didn't request this, you can safely ignore this email.\n\n"
+        . "-- Audit&Fix (auditandfix.com)";
+
+    $ch = curl_init('https://api.resend.com/emails');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode([
+            'from'    => 'Audit&Fix <noreply@auditandfix.com>',
+            'to'      => [$email],
+            'subject' => 'Your Audit&Fix login link',
+            'html'    => $htmlEmail,
+            'text'    => $textEmail,
+        ]),
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $resendKey,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($code < 200 || $code >= 300) {
+        error_log('sendMagicLink Resend error ' . $code . ': ' . $resp);
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to send login email. Please try again.']);
+        return;
+    }
+
+    echo json_encode(['success' => true]);
+}
+
+/**
+ * Verify a magic link token and create an authenticated session.
+ * Called via GET /account/verify?token=xxx (routed through account.php).
+ * This function is also callable as a POST API action for AJAX flows.
+ */
+function verifyMagicLink(array $input): void {
+    require_once __DIR__ . '/includes/account/db.php';
+    require_once __DIR__ . '/includes/account/auth.php';
+
+    $token = trim($input['token'] ?? $_GET['token'] ?? '');
+    if (!$token || !preg_match('/^[a-f0-9]{64}$/', $token)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid login link.']);
+        return;
+    }
+
+    $tokenHash = hash('sha256', $token);
+    $db = getCustomerDb();
+
+    // Find valid token (unused, not expired)
+    $stmt = $db->prepare(
+        "SELECT id, email, expires_at
+         FROM magic_links
+         WHERE token_hash = ?
+           AND used_at IS NULL
+           AND expires_at > datetime('now')"
+    );
+    $stmt->execute([$tokenHash]);
+    $link = $stmt->fetch();
+
+    if (!$link) {
+        http_response_code(400);
+        echo json_encode(['error' => 'expired', 'message' => 'This login link has expired or already been used.']);
+        return;
+    }
+
+    // Mark token as used (single-use enforcement)
+    $db->prepare("UPDATE magic_links SET used_at = datetime('now') WHERE id = ?")
+       ->execute([$link['id']]);
+
+    // Find the customer
+    $custStmt = $db->prepare("SELECT id FROM customers WHERE email = ? AND deleted_at IS NULL");
+    $custStmt->execute([$link['email']]);
+    $customer = $custStmt->fetch();
+
+    if (!$customer) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Account not found.']);
+        return;
+    }
+
+    // Create authenticated session
+    createSession((int)$customer['id']);
+
+    echo json_encode(['success' => true, 'redirect' => '/account/dashboard']);
+}
+
+/**
+ * Branded HTML email template for magic link.
+ * Clean design matching A&F brand. No Mailchimp artifacts.
+ */
+function magicLinkEmailHtml(string $verifyUrl): string {
+    $url = htmlspecialchars($verifyUrl);
+    return <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:#f7f8fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f8fc;">
+<tr><td align="center" style="padding:40px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+
+<!-- Logo -->
+<tr><td style="padding:32px 32px 0;text-align:center;">
+  <img src="https://auditandfix.com/assets/img/logo.svg" alt="Audit&Fix" width="160" style="display:inline-block;max-width:160px;">
+</td></tr>
+
+<!-- Body -->
+<tr><td style="padding:24px 32px;">
+  <h1 style="color:#0a1428;font-size:1.25rem;font-weight:600;margin:0 0 12px;">Log in to your account</h1>
+  <p style="color:#4a5568;font-size:0.95rem;line-height:1.6;margin:0 0 24px;">
+    Click the button below to securely access your Audit&amp;Fix account. This link expires in 30 minutes.
+  </p>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+  <tr><td style="border-radius:8px;background:#1a365d;">
+    <a href="{$url}" target="_blank"
+       style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:1rem;font-weight:600;
+              text-decoration:none;border-radius:8px;">
+      Log In to Audit&amp;Fix &rarr;
+    </a>
+  </td></tr>
+  </table>
+
+  <p style="color:#718096;font-size:0.85rem;line-height:1.5;margin:24px 0 0;">
+    If the button doesn&rsquo;t work, copy and paste this link into your browser:<br>
+    <a href="{$url}" style="color:#2563eb;word-break:break-all;font-size:0.8rem;">{$url}</a>
+  </p>
+</td></tr>
+
+<!-- Footer -->
+<tr><td style="padding:0 32px 32px;">
+  <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 16px;">
+  <p style="color:#a0aec0;font-size:0.8rem;margin:0;line-height:1.5;">
+    If you didn&rsquo;t request this login link, you can safely ignore this email.
+    <br>Audit&amp;Fix &mdash; <a href="https://auditandfix.com" style="color:#a0aec0;">auditandfix.com</a>
+  </p>
+</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>
+HTML;
 }
