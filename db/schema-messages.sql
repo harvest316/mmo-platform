@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS messages (
 
     -- Delivery tracking
     delivery_status TEXT CHECK(delivery_status IN (
-        'queued', 'sent', 'delivered', 'failed', 'bounced', 'retry_later'
+        'queued', 'sent', 'delivered', 'failed', 'bounced', 'retry_later', 'skipped'
     )),
     error_message TEXT,
     retry_at TEXT,
