@@ -132,7 +132,8 @@ PROMPT_END
 log "Invoking claude -p --model opus (30 min timeout)"
 
 # Run Claude with the prompt — opus for complex content creation
-RESULT=$(claude -p \
+# Unset CLAUDECODE to allow nested claude -p invocation (same pattern as orchestrator)
+RESULT=$(env -u CLAUDECODE claude -p \
   --model opus \
   --output-format text \
   --max-turns 50 \
