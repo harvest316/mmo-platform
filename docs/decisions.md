@@ -1629,7 +1629,7 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 
 **Credentials note:** `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` are confirmed present in `.env`. Dry-run confirmed API auth works but account returned 40200 Payment Required for all test domains — the `keywords_for_site` endpoint requires credits. Top up the DataForSEO account before running production backfill.
 
-**Status:** Implemented (pending DataForSEO account top-up)
+**Status:** Backfill running (2026-03-30) — 291/210,505 sites complete. ETA ~5 days at 0.5 req/s. Running in separate Claude Code session.
 **Impl:** `333Method/src/utils/dataforseo.js`, `333Method/scripts/backfill-dataforseo-ads.js`
 
 
