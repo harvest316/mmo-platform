@@ -1651,7 +1651,7 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 **Status:** Implemented — deployed to Hostinger (commit 4b99fb2)
 **Impl:** `auditandfix.com/api.php:metaCapiEvent()`
 
-### DR-121: Cold SMS outreach — 10DLC incompatible, AU/NZ only, block CA/GB/IE/ZA (2026-03-30)
+### DR-121: Cold SMS permanently blocked for all countries except AU/NZ (2026-03-30)
 
 **Context:** Twilio A2P 10DLC campaign rejected with error 30909 (CTA verification). The TCR vetting team could not verify an opt-in mechanism because cold outreach recipients have not opted in. Comprehensive legal review of all target markets (AU, CA, GB, IE, IN, NZ, UK, US, ZA) against TCPA, CASL, PECR, Spam Act 2003, ePrivacy Regulations, and POPIA.
 
@@ -1671,5 +1671,9 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 
 7. **Toll-free verification, short codes, and alternative providers** (Plivo, Vonage, MessageBird) all participate in the same TCR ecosystem for US traffic. None bypass the consent requirement. Grey-market SIM farms are illegal and unreliable.
 
+8. **UK SMS permanently blocked** (user-confirmed 2026-03-30). While PECR's corporate subscriber exemption technically covers SMS, the ICO treats mobile numbers as personal in practice. The exemption is not a reliable defence for cold SMS. Do not reactivate without external legal counsel.
+
+9. **Compliance must apply cross-project.** The same SMS blocking rules apply to 2Step and any future mmo-platform project. Shared compliance module planned for `@mmo/outreach`.
+
 **Status:** Accepted
-**Impl:** Update `333Method/.env` `OUTREACH_BLOCKED_SMS_COUNTRIES` to add CA,GB,IE,ZA; update `docs/05-outreach/legal-basis.md` to reflect permanent US/CA block status and 10DLC incompatibility
+**Impl:** `333Method/.env` OUTREACH_BLOCKED_SMS_COUNTRIES updated; migration 129 disables sms_enabled for all except AU/NZ; `docs/05-outreach/legal-basis.md` updated with permanent block status. 2Step compliance to follow.
