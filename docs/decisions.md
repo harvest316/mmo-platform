@@ -1598,3 +1598,55 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 
 **Status:** Implemented
 **Impl:** `auditandfix.com/methodology.php` (new), `auditandfix.com/includes/header.php` (nav link), `auditandfix.com/includes/footer.php` (footer link)
+
+### DR-116: US follow-up email templates — 7-touch cadence with 4 variants per touch (2026-03-29)
+
+**Context:** 333Method had 18 US touch-1 email templates and AU follow-up templates (touches 2-8), but no US-specific follow-up sequence. US market requires American English (-ize not -ise), American tone ("Hey/Hi" not "G'day"), no "Best,/Regards,/Cheers" signoffs, and USD pricing. The follow-up sequence is the primary conversion mechanism — touch 1 opens the conversation, touches 2-8 close it.
+
+**Decision:** Created 28 US follow-up email templates (4 variants x 7 touches). Each touch has a distinct strategic angle with 4 different approaches per touch: Touch 2 (Day 3) — different weakness + social proof (4 approaches: social-proof, problem-solution, data-backed-social-proof, anecdote-social-proof). Touch 3 (Day 7) — ROI/dollar-loss framing (roi-framing, dollar-loss, compound-loss, competitor-loss-roi). Touch 4 (Day 14) — case study + sample report link (case-study-sample, case-study-detail, case-study-anecdote, case-study-personalized). Touch 5 (Day 21) — one free fix to demonstrate competence, audit remains paid (quick-win-free, quick-win-actionable, quick-win-no-strings, quick-win-premium). Touch 6 (Day 28) — ad waste + competitor gap (ad-waste, competitor-gap, ad-waste-optimize-first, competitor-benchmarking). Touch 7 (Day 35) — authority/43,000+ sites scored (authority-pattern, authority-compounding, authority-diagnostic, authority-persistence). Touch 8 (Day 42) — breakup/closing the file (breakup-graceful, breakup-casual, breakup-recap, breakup-open-door). Rich spintax at both sentence and word level — templates produce from ~1,700 to ~23 billion unique body combinations each. All templates validated: no British spellings, no forbidden phrases (free audit/report, complimentary, G'day, Best/Regards signoffs), correct JSON structure, sender is Marcus.
+
+**Status:** Implemented
+**Impl:** `333Method/data/templates/US/followup-email.json`
+
+### DR-117: 2Step — Google Guaranteed detection in reviews stage (2026-03-30)
+
+**Context:** Migration 015 added `is_google_guaranteed INTEGER DEFAULT 0` to `twostep.sites`. The column was only in the SQLite migration file — it had not been applied to the live PostgreSQL `twostep` schema. We needed to: (a) apply the migration to PG, (b) detect the badge during prospecting, and (c) backfill existing records.
+
+**Decision:**
+- Applied migration manually to PostgreSQL: `ALTER TABLE twostep.sites ADD COLUMN IF NOT EXISTS is_google_guaranteed INTEGER DEFAULT 0` + partial index.
+- Added `detectGoogleGuaranteed(result)` function to `src/stages/reviews.js`. Checks the Outscraper Maps v3 result object for `is_google_guaranteed`, `google_guaranteed`, `subtypes`/`type` array membership, and `badge`/`google_badge` text fields. Returns 1 or 0.
+- Wired detection into the `processKeyword` INSERT — new sites get the correct value automatically going forward.
+- Wrote `scripts/backfill-google-guaranteed.js` to check stored JSON blobs (`contacts_json`, `selected_review_json`, `all_reviews_json`) for badge data. All 40 existing sites were CSV-imported with no stored Outscraper data, so none could be backfilled — all remain at 0 (default). Site 34 has a `google_maps_url` but no stored place data. Correct values will populate automatically when these sites go through the reviews stage again.
+
+**Status:** Implemented
+**Impl:** `2Step/src/stages/reviews.js`, `2Step/scripts/backfill-google-guaranteed.js`
+
+### DR-118: DataForSEO Google Ads detection module — 333Method (2026-03-30)
+
+**Context:** The existing `ad-detector.js` detects ad platforms (Meta Pixel, Google Tag Manager, etc.) from the site's own HTML. This misses cases where a business runs Google Ads without embedding any tracking pixel on their site (e.g. using a third-party landing page or call-only campaigns). DataForSEO's `keywords_for_site/live` endpoint can confirm whether a domain is actively bidding on keywords in Google paid search — a complementary signal to HTML-based detection.
+
+**Decision:** Created `src/utils/dataforseo.js` with `checkDomainAdActivity(domain, options)` and `batchCheckDomainAdActivity(domains, options)`. Uses the `keywords_data/google_ads/keywords_for_site/live` endpoint (PAYG ~$0.0025/task). A domain is flagged `is_running_ads=true` if any returned keyword has `competition > 0` or `cpc > 0`. Confidence is `high` (3+ ad keywords), `medium` (1-2), or `low` (0). Returns `null` if credentials missing (no throw). Created `scripts/backfill-dataforseo-ads.js` to backfill the 210K+ sites with `is_running_ads IS NULL`, prioritising English-speaking markets (AU/US/CA/GB/NZ/IE/IN/ZA) at 1 request per 2 seconds. Merges `google_ads` key into existing `ad_signals` JSONB rather than overwriting. Task-level error handling distinguishes 40200 (Payment Required — account needs credits) from 40501 (no data for domain — treated as not running ads).
+
+**Credentials note:** `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` are confirmed present in `.env`. Dry-run confirmed API auth works but account returned 40200 Payment Required for all test domains — the `keywords_for_site` endpoint requires credits. Top up the DataForSEO account before running production backfill.
+
+**Status:** Implemented (pending DataForSEO account top-up)
+**Impl:** `333Method/src/utils/dataforseo.js`, `333Method/scripts/backfill-dataforseo-ads.js`
+
+
+### DR-119: AdManager dashboard not deployed to Hostinger — NixOS service instead (2026-03-30)
+
+**Context:** AdManager review dashboard needed remote access. Initial plan was to FTP-deploy to Hostinger alongside auditandfix.com.
+
+**Decision:** Hostinger deployment rejected — vendor/ is 2.5GB (Google Ads SDK), FTP upload impractical. Shared hosting also likely disables `shell_exec`, breaking background sync. Dashboard is an internal admin tool, not public-facing. Correct deployment is a systemd service on the NixOS host (via `php -S 0.0.0.0:PORT review/index.php`), accessible via SSH tunnel or internal network. Alternatively, run locally via `php bin/review-server.php`.
+
+**Status:** Pending NixOS service setup (user action required)
+**Impl:** N/A — no code change, architectural decision
+
+### DR-120: Meta CAPI wired into auditandfix.com Purchase + Lead flows (2026-03-30)
+
+**Context:** Server-side conversion events needed for reliable Meta attribution past browser ad-blockers and iOS restrictions.
+
+**Decision:** Added standalone `metaCapiEvent()` function to `auditandfix.com/api.php` (no Composer dependency — fire-and-forget curl). Fires `Purchase` in `capturePayment()` and `Lead` in `saveEmail()`. Requires `META_PIXEL_ID` + `META_ACCESS_TOKEN` env vars on Hostinger; silently no-ops if absent. Event dedup IDs: `purchase_{captureId}` and `lead_{sha256(email+date)}`. Browser pixel must use same IDs in `fbq()` calls for proper dedup (future work).
+
+**Status:** Implemented — deployed to Hostinger (commit 4b99fb2)
+**Impl:** `auditandfix.com/api.php:metaCapiEvent()`
