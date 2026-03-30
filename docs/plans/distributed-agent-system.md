@@ -6094,20 +6094,24 @@ production-stable. Goal: reduce dependency on GitHub without losing CI/CD automa
 
 ### 25.2 Phase 1 — Mirror to Radicle (Now)
 
-Install `rad` CLI on NixOS host (k7). GitHub remains the CI runner; Radicle receives a copy
-of every push to main. k7 is behind NAT so no daemon is needed — the GitHub Action pushes
-to `seed.radicle.garden` (public seed), and `rad` on k7 can pull from it via `rad sync`.
+Enable the Radicle node service on k7 via `services.radicle`. GitHub remains the CI runner;
+Radicle receives a copy of every push to main via the mirror action. k7 is behind NAT so
+other peers can't connect inbound, but the local daemon handles outbound sync to seeds —
+needed for `rad push`, `rad sync`, and issue/patch management from k7's terminal.
+
+Note: the GitHub Actions mirror workflow is independent of k7's daemon — it runs on GitHub's
+Ubuntu runners and pushes to `seed.radicle.garden` directly. k7's daemon is for local `rad`
+CLI use.
 
 **NixOS change (`/etc/nixos/configuration.nix` on host):**
 ```nix
-# Install rad CLI only — no daemon. k7 is behind NAT so a local node
-# can't be reached by peers; daemon adds no value until VPS is the seed.
-environment.systemPackages = with pkgs; [ radicle-node ];
+services.radicle.enable = true;
+# Node listens on :8776 locally; NAT means it's not reachable by peers inbound,
+# but it can connect outbound to seeds (seed.radicle.garden etc.) for sync.
 ```
 Rebuild: `sudo nixos-rebuild switch --flake /etc/nixos#k7`
 
-`nixos-24.11` includes `radicle-node` (added in 24.05). The package provides both the `rad`
-CLI and node daemon binary; enabling the systemd service is deferred to Phase 2.
+`nixos-24.11` has a `services.radicle` NixOS module (package: `radicle-node`, added 24.05).
 
 **Per-repo init (run from host terminal after rebuild):**
 ```bash
