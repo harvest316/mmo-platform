@@ -153,20 +153,24 @@ const DIRECTORIES = {
     name: 'Future Tools',
     async submit(page, tool) {
       await page.goto('https://www.futuretools.io/submit-a-tool', { waitUntil: 'networkidle', timeout: 60000 });
-      await page.waitForTimeout(3000); // Let NopeCHA initialise
-      await fillIfExists(page, 'input[placeholder*="name" i]:not([type="email"])', tool.contactName);
-      await fillIfExists(page, 'input[type="email"]', tool.contactEmail);
-      await fillIfExists(page, 'input[placeholder*="tool name" i]', tool.name);
-      await fillIfExists(page, 'input[placeholder*="url" i], input[placeholder*="link" i]', tool.url);
-      await fillIfExists(page, 'textarea', tool.shortDescription);
-      await selectIfExists(page, 'select', 'Freemium');
-      console.log('Form filled. NopeCHA will auto-solve Turnstile if active.');
-      console.log('Press Enter when CAPTCHA is solved and you are ready to submit...');
+      await page.waitForSelector('input#tool_name', { timeout: 15000 });
+      await page.waitForTimeout(2000); // Let NopeCHA initialise
+
+      await page.fill('input[name="submitter_name"]', tool.contactName);
+      await page.fill('input[name="tool_name"]', tool.name);
+      await page.fill('input[name="tool_url"]', tool.url);
+      await page.fill('input[name="submitter_email"]', tool.contactEmail);
+      await page.fill('textarea[name="description"]', tool.shortDescription);
+      await page.selectOption('select[name="category"]', 'generative-art');
+      // Pricing radio — click the label wrapping the freemium radio
+      await page.locator('label:has(input[name="pricing_tier"][value="freemium"])').click();
+
+      console.log('Form filled. Waiting for NopeCHA to solve Turnstile...');
+      console.log('Press Enter when CAPTCHA widget shows a tick, then submit...');
       await waitForKeypress();
       await clickSubmit(page);
       await page.waitForTimeout(4000);
-      const url = page.url();
-      console.log(`✓ FutureTools submitted. Current URL: ${url}`);
+      console.log(`✓ FutureTools submitted. URL: ${page.url()}`);
     },
   },
 
