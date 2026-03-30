@@ -69,7 +69,15 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           "name": "Audit&Fix",
           "description": "Professional CRO audit reports for small business websites. 10 conversion factors scored, annotated screenshots, prioritised fix list.",
           "publisher": {"@id": "https://www.auditandfix.com/#organization"},
-          "inLanguage": ["en","de","fr","es","ja","pt","nl","da","sv","ko","it","pl","zh","id","ru","hi","ar","tr","th","nb"]
+          "inLanguage": ["en","de","fr","es","ja","pt","nl","da","sv","ko","it","pl","zh","id","ru","hi","ar","tr","th","nb"],
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://www.auditandfix.com/scan?url={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
         },
         {
           "@type": "Organization",
@@ -114,7 +122,10 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
             "hasMerchantReturnPolicy": {
               "@type": "MerchantReturnPolicy",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-              "merchantReturnDays": 30
+              "merchantReturnDays": 30,
+              "returnFees": "https://schema.org/FreeReturn",
+              "returnMethod": "https://schema.org/ReturnByMail",
+              "applicableCountry": ["AU","GB","US","CA","NZ","IE","ZA","IN"]
             }
           }
         },
@@ -123,7 +134,7 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
           "@id": "https://www.auditandfix.com/#product-cro-audit",
           "name": "CRO Audit Report",
           "description": "Professional 9-page PDF with 10 conversion factors scored A+ to F, annotated screenshots of every problem area, and a prioritised fix list. Delivered within 24 hours.",
-          "brand": {"@id": "https://www.auditandfix.com/#organization"},
+          "brand": {"@type": "Brand", "name": "Audit&Fix"},
           "image": "https://www.auditandfix.com/assets/img/report-cover.png",
           "offers": {
             "@type": "Offer",
@@ -135,7 +146,10 @@ $sandboxMode = PAYPAL_SANDBOX_FORCED;
             "hasMerchantReturnPolicy": {
               "@type": "MerchantReturnPolicy",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-              "merchantReturnDays": 30
+              "merchantReturnDays": 30,
+              "returnFees": "https://schema.org/FreeReturn",
+              "returnMethod": "https://schema.org/ReturnByMail",
+              "applicableCountry": ["AU","GB","US","CA","NZ","IE","ZA","IN"]
             },
             "shippingDetails": {
               "@type": "OfferShippingDetails",

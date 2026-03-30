@@ -47,8 +47,8 @@ $sitesScored      = number_format($pricing['_meta']['sites_scored'] ?? 10000);
           "headline": "Our Scoring Methodology — How We Score Your Website",
           "description": "A detailed explanation of the 10-factor CRO scoring methodology used by Audit&Fix. Each conversion factor is scored 0–10 and graded A+ to F, using AI-powered visual analysis calibrated across thousands of real business websites.",
           "url": "https://www.auditandfix.com/methodology",
-          "datePublished": "2026-03-29",
-          "dateModified": "2026-03-29",
+          "datePublished": "2026-03-29T00:00:00+11:00",
+          "dateModified": "2026-03-30T00:00:00+11:00",
           "author": {
             "@type": "Person",
             "name": "Marcus Webb",
