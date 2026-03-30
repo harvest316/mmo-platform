@@ -1,0 +1,267 @@
+/* ── Account Portal ─────────────────────────────────────────────────────── */
+
+.account-main {
+  padding: 100px 0 60px;
+  min-height: 70vh;
+  background: #f7f8fc;
+}
+
+.account-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+
+.account-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.account-card--narrow {
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.account-card__header {
+  margin-bottom: 24px;
+}
+
+.account-card__header h1 {
+  color: #0a1428;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.account-card__subtext {
+  color: #64748b;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Forms ──────────────────────────────────────────────────────────────── */
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.form-input {
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: #111827;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #1a365d;
+  box-shadow: 0 0 0 3px rgba(26, 54, 93, 0.12);
+}
+
+.form-message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.form-message--error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.form-message--success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: #1a365d;
+  color: #fff;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: #1e4070;
+}
+
+.btn--full {
+  width: 100%;
+}
+
+.btn--outline {
+  background: transparent;
+  color: #1a365d;
+  border: 1.5px solid #1a365d;
+}
+
+.btn--outline:hover {
+  background: #1a365d;
+  color: #fff;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: #64748b;
+  padding: 8px 16px;
+}
+
+.btn--ghost:hover {
+  color: #1a365d;
+}
+
+.btn--sm {
+  padding: 8px 16px;
+  font-size: 0.85rem;
+}
+
+/* ── Sent State ─────────────────────────────────────────────────────────── */
+
+.account-card__sent {
+  text-align: center;
+  padding: 16px 0;
+}
+
+.sent-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.account-card__sent h2 {
+  color: #0a1428;
+  font-size: 1.3rem;
+  margin: 0 0 8px;
+}
+
+.account-card__sent p {
+  color: #4a5568;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+/* ── Verify Error ───────────────────────────────────────────────────────── */
+
+.verify-error {
+  text-align: center;
+  padding: 16px 0;
+}
+
+.verify-error__icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.verify-error h1 {
+  font-size: 1.3rem;
+  margin: 0 0 8px;
+}
+
+.verify-error p {
+  color: #4a5568;
+  margin: 0 0 20px;
+}
+
+/* ── Dashboard ──────────────────────────────────────────────────────────── */
+
+.account-dashboard__header {
+  margin-bottom: 24px;
+}
+
+.account-dashboard__header h1 {
+  color: #0a1428;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.account-dashboard__grid {
+  margin-bottom: 24px;
+}
+
+.account-features {
+  margin: 12px 0;
+  padding-left: 20px;
+  color: #374151;
+  line-height: 1.8;
+}
+
+.account-dashboard__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+
+.text-muted {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+/* ── Mobile ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .account-main {
+    padding: 80px 0 40px;
+  }
+
+  .account-card {
+    padding: 24px 20px;
+    border-radius: 8px;
+  }
+
+  .account-card__header h1,
+  .account-dashboard__header h1 {
+    font-size: 1.25rem;
+  }
+
+  .account-dashboard__actions {
+    flex-direction: column;
+  }
+
+  .account-dashboard__actions .btn {
+    width: 100%;
+  }
+}

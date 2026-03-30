@@ -3,7 +3,21 @@
  * Audit&Fix Configuration
  */
 
-// Session (for personalized nav links — standard PHPSESSID, not a tracking cookie)
+// Session — hardened for customer portal auth
+// Private save path avoids shared /tmp on Hostinger
+$_sessionDir = __DIR__ . '/../data/sessions';
+if (!is_dir($_sessionDir)) {
+    @mkdir($_sessionDir, 0700, true);
+}
+if (is_dir($_sessionDir) && is_writable($_sessionDir)) {
+    ini_set('session.save_path', $_sessionDir);
+}
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Strict');
+ini_set('session.use_strict_mode', '1');
+if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    ini_set('session.cookie_secure', '1');
+}
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

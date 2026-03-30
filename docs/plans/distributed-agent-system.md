@@ -6074,3 +6074,88 @@ Add CNAME or A record: `admanager.molecool.org → <vps-ip>`. Caddy provisions T
 ### 26.7 Future: Multi-Project Data on VPS
 
 Once on VPS, AdManager can sync + serve data for all projects continuously (scheduled via systemd timer). Current sync is manual ("Sync Now" button). Proposed: add `admanager-sync.timer` running every 6 hours per project. See `distributed-infra/modules/admanager.nix`.
+
+## Part 25: Source Control Sovereignty — Radicle + CI/CD Migration (Added 2026-03-30)
+
+Radicle (radicle.xyz) is a peer-to-peer, git-native code collaboration platform. Repos are
+replicated across peers; seed nodes provide 24/7 availability. Version 1.6.0 (Jan 2026) is
+production-stable. Goal: reduce dependency on GitHub without losing CI/CD automation.
+
+### 25.1 What We Use GitHub For
+
+| Feature | Projects | Replace with |
+|---------|----------|-------------|
+| Git hosting | All 5 repos | Radicle (Phase 1) |
+| Dependabot dep updates | mmo-platform, 333Method, 2Step, AdManager | Renovate Bot self-hosted (Phase 2) |
+| Auto-merge Dependabot PRs | All 4 | Renovate Bot auto-merge config (Phase 2) |
+| PR quality check (lint+test+audit) | 333Method, AdManager | Woodpecker CI pipeline (Phase 2) |
+| PR quality check (audit only) | mmo-platform, 2Step | Woodpecker CI pipeline (Phase 2) |
+| Weekly maintenance cron | 333Method only | Woodpecker CI + Radicle issue creation (Phase 2) |
+
+### 25.2 Phase 1 — Mirror to Radicle (Now)
+
+Install `rad` CLI on NixOS host (k7). GitHub remains the CI runner; Radicle receives a copy
+of every push to main. k7 is behind NAT so no daemon is needed — the GitHub Action pushes
+to `seed.radicle.garden` (public seed), and `rad` on k7 can pull from it via `rad sync`.
+
+**NixOS change (`/etc/nixos/configuration.nix` on host):**
+```nix
+# Install rad CLI only — no daemon. k7 is behind NAT so a local node
+# can't be reached by peers; daemon adds no value until VPS is the seed.
+environment.systemPackages = with pkgs; [ radicle-node ];
+```
+Rebuild: `sudo nixos-rebuild switch --flake /etc/nixos#k7`
+
+`nixos-24.11` includes `radicle-node` (added in 24.05). The package provides both the `rad`
+CLI and node daemon binary; enabling the systemd service is deferred to Phase 2.
+
+**Per-repo init (run from host terminal after rebuild):**
+```bash
+cd ~/code/mmo-platform    && rad init
+cd ~/code/333Method       && rad init
+cd ~/code/2Step           && rad init
+cd ~/code/AdManager       && rad init
+cd ~/code/distributed-infra && rad init
+```
+
+**GitHub → Radicle mirror action** — add `.github/workflows/mirror-radicle.yml` to each
+active repo (mmo-platform, 333Method, 2Step, AdManager). Pushes to main trigger a `rad push`
+to `seed.radicle.garden`. See workflow file in each repo for implementation.
+
+**Outcome:** All repos mirrored to Radicle on every push to main. GitHub Actions, Dependabot,
+and existing CI pipelines continue unchanged.
+
+### 25.3 Phase 2 — VPS CI/CD (When VPS is built)
+
+Replace GitHub Actions + Dependabot with self-hosted equivalents on the VPS.
+
+#### Woodpecker CI (replaces GitHub Actions)
+- Lightweight Docker-native CI; YAML pipeline syntax is near-identical to GitHub Actions
+- Runs as a Docker container on the VPS (fits within Part K memory budget)
+- Woodpecker agent connects to Radicle via webhook or polling for push events
+- Port the 3 workflow types:
+  1. **pr-quality-check** → Woodpecker pipeline per repo (lint + test:unit + npm audit)
+  2. **weekly-maintenance** (333Method) → Woodpecker cron pipeline (Monday 9am AEDT)
+     - Creates Radicle issue via `rad issue open` instead of GitHub API
+  3. **Dependabot auto-merge** → handled by Renovate Bot (see below)
+
+#### Renovate Bot self-hosted (replaces Dependabot + auto-merge)
+- Self-hosted Renovate runs as a Docker container or systemd timer on the VPS
+- Replaces Dependabot for: npm (root + workers), pip (333Method/dashboard), composer (AdManager)
+- Auto-merge config matches current behaviour: group all updates, auto-approve patch/minor
+- Configured via `renovate.json` in each repo root
+- Creates Radicle patches (PRs) instead of GitHub PRs
+
+#### Radicle as primary
+- Enable `services.radicle` on the VPS — it becomes the seed node
+- Once Woodpecker + Renovate are live, GitHub can be demoted to optional mirror or removed
+- `rad push` replaces `git push origin`
+- GitHub Actions workflows can be deleted or left inert
+
+### 25.4 Tooling Additions (Software Inventory — see Part 24)
+
+| Tool | License | Repo | FOSS | Audit |
+|------|---------|------|------|-------|
+| Radicle | MIT | github.com/radicle-dev | ✅ | No formal audit |
+| Woodpecker CI | Apache-2.0 | github.com/woodpecker-ci/woodpecker | ✅ | No formal audit |
+| Renovate Bot | AGPL-3.0 | github.com/renovatebot/renovate | ✅ | No formal audit |

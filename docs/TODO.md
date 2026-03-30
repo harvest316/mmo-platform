@@ -36,6 +36,7 @@
 - [ ] Move distributed-agent-system.md to 333Method-infra/docs/plans/
 - [ ] Update distributed-agent-system.md for Claude Max reality
 - [ ] Create mmo.code-workspace with all projects
+- [ ] **Consolidate web hosting DBs to Postgres on VPS** — Once VPS is reimaged/hardened (distributed-agent-system.md), migrate Hostinger SQLite DBs (customers.sqlite, subscriptions.sqlite, scan_emails.sqlite) into Postgres alongside existing m333/ops/tel/msgs/twostep schemas. New `portal` schema. Cleaner to have all DBs in one place with unified pg_dump + B2 offsite backup. AdManager SQLite also migrates at this point (`admanager` schema already reserved in pg-init-schemas.sql). Hostinger PHP would talk to Postgres via an API layer on the VPS rather than local SQLite.
 
 ## Website — auditandfix.com
 
