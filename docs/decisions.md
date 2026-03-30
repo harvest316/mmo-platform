@@ -1650,3 +1650,26 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 
 **Status:** Implemented — deployed to Hostinger (commit 4b99fb2)
 **Impl:** `auditandfix.com/api.php:metaCapiEvent()`
+
+### DR-121: Cold SMS outreach — 10DLC incompatible, AU/NZ only, block CA/GB/IE/ZA (2026-03-30)
+
+**Context:** Twilio A2P 10DLC campaign rejected with error 30909 (CTA verification). The TCR vetting team could not verify an opt-in mechanism because cold outreach recipients have not opted in. Comprehensive legal review of all target markets (AU, CA, GB, IE, IN, NZ, UK, US, ZA) against TCPA, CASL, PECR, Spam Act 2003, ePrivacy Regulations, and POPIA.
+
+**Decision:**
+
+1. **10DLC is fundamentally incompatible with cold outreach.** Do not resubmit. The TCR registration process requires demonstrated opt-in flow (URL, short code, or keyword). No creative framing can make unsolicited outreach pass 10DLC vetting. Repeated rejections risk Twilio account-level review.
+
+2. **10DLC does not affect AU/NZ SMS.** 10DLC is a US-only program for US long codes. Australian Twilio numbers (+61...) route through Australian carriers with no 10DLC requirement. Continue AU/NZ SMS as-is.
+
+3. **Only AU and NZ have a clean legal basis for cold SMS** (Spam Act 2003 s.7(1)(b) inferred consent for AU; Unsolicited Electronic Messages Act 2007 for NZ). All other markets require express consent that cold outreach cannot provide.
+
+4. **Block CA, GB, IE, ZA from SMS immediately.** CA was missing from both `OUTREACH_BLOCKED_COUNTRIES` and `OUTREACH_BLOCKED_SMS_COUNTRIES` in the live `.env` — a compliance gap exposing CASL liability (up to $10M CAD per violation). GB and IE have SMS templates but require PECR consent for mobile numbers. ZA has unclear POPIA status. Add all four to `OUTREACH_BLOCKED_SMS_COUNTRIES`.
+
+5. **US and CA SMS are permanently blocked**, not "pending legal review." The Duguid defence is a structural argument against ATDS liability only — it does not substitute for the express written consent requirement. Do not unblock without external legal counsel sign-off.
+
+6. **Future SMS expansion path (if desired):** Convert cold outreach to warm outreach via email-first consent funnel. Cold email (legal in US/CA/AU) asks recipient to reply YES for SMS follow-up. That reply constitutes express written consent under TCPA. This would also satisfy 10DLC registration requirements.
+
+7. **Toll-free verification, short codes, and alternative providers** (Plivo, Vonage, MessageBird) all participate in the same TCR ecosystem for US traffic. None bypass the consent requirement. Grey-market SIM farms are illegal and unreliable.
+
+**Status:** Accepted
+**Impl:** Update `333Method/.env` `OUTREACH_BLOCKED_SMS_COUNTRIES` to add CA,GB,IE,ZA; update `docs/05-outreach/legal-basis.md` to reflect permanent US/CA block status and 10DLC incompatibility
