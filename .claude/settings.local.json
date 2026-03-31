@@ -23,7 +23,9 @@
       "Read(//run/postgresql/**)",
       "Bash(curl -s https://auditandfix.com/v/O)",
       "Bash(bash scripts/deploy-website.sh v.php a.php includes/header.php)",
-      "Bash(systemctl --user status 333method-pipeline.service)"
+      "Bash(systemctl --user status 333method-pipeline.service)",
+      "Bash(rad inspect:*)",
+      "Bash(psql \"postgresql://jason@/mmo?host=/run/postgresql\" -c \"SELECT id, domain, country, phone, status FROM m333.sites WHERE domain LIKE ''%deljo%'';\")"
     ],
     "additionalDirectories": [
       "/home/jason/.claude"

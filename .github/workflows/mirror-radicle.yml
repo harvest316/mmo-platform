@@ -1,4 +1,5 @@
 name: Mirror to Radicle
+# Mirrors every push to main → Radicle seed.radicle.garden
 
 on:
   push:
