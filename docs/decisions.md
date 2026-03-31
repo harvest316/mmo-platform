@@ -1718,3 +1718,11 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 
 **Status:** Accepted
 **Impl:** `2Step/src/outreach/email-template.js`, `2Step/.env` (R2_PUBLIC_URL, TWOSTEP_SENDER_EMAIL), Resend + Cloudflare R2 DNS config
+
+### DR-125: Multiple sending subdomains don't reduce IP blacklist risk (2026-03-31)
+
+**Context:** Considered adding more subdomains (send2, send3, etc.) to Resend to spread blacklist risk across domains.
+
+**Decision:** Don't add more cold-outreach subdomains. Razor2 and Uceprotect L3 list IPs not domains — multiple subdomains all route through the same Resend shared IP pool, so blacklist exposure is identical. Current three subdomains are the right segmentation: `send.auditandfix.com` (cold outreach), `mail.auditandfix.com` (transactional, future use), `test.auditandfix.com` (test sends only). Additional subdomains only help with domain-level complaint isolation at Gmail/Outlook, which is not the current problem and won't be at <1k emails/month.
+
+**Status:** Accepted — no additional subdomains
