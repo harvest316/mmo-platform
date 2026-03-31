@@ -1709,3 +1709,12 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 
 **Status:** Implemented — placeholder live, Trustpilot BCC active
 **Impl:** `auditandfix.com/index.php` Product schema, `TODO.md`
+
+### DR-124: 2Step email infrastructure — no dedicated IP at current volume (2026-03-31)
+
+**Context:** Mail-tester scored 5.9/10. Razor2 (cf:100, -4.16pts) and Uceprotect L3 (-listed) were the only issues. Both stem from Resend's shared sending IP pool, not our content or authentication (SPF/DKIM/DMARC all pass). Investigated delisting both: Razor2 is a dead project with no maintainer responses in 30+ days; Uceprotect L3 lists entire ASNs and charges ~€200 for "express delisting" (widely considered extortion). Current send volume: ~465 emails + 3,600 SMS/month (333Method), 0 production emails (2Step).
+
+**Decision:** Do not pursue dedicated IP or delisting. At <1k emails/month, a cold dedicated IP would perform worse than shared (needs 10k+/month to build reputation). Razor2 and Uceprotect L3 are not used by Gmail, Outlook, Yahoo, or Apple Mail — the actual inboxes our prospects use. Mitigations already applied: replaced 21KB Mailchimp boilerplate template with clean 2.5KB HTML (removes content fingerprints), added sending subdomain `send.auditandfix.com` (isolates root domain reputation), added `cdn.auditandfix.com` CNAME to R2 bucket (removes hex hostname from URIs). Revisit dedicated IP when volume reaches 5k+/month.
+
+**Status:** Accepted
+**Impl:** `2Step/src/outreach/email-template.js`, `2Step/.env` (R2_PUBLIC_URL, TWOSTEP_SENDER_EMAIL), Resend + Cloudflare R2 DNS config
