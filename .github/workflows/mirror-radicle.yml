@@ -101,18 +101,8 @@ jobs:
           echo "=== Attempting git push ==="
           RAD_HOME="${HOME}/.radicle" GIT_TRACE2_EVENT=/tmp/git-trace.json \
             git push rad main --force 2>&1 || {
-            echo "=== git push failed ==="
-            cat /tmp/git-trace.json 2>/dev/null \
-              | python3 -c "
-import sys, json
-for l in sys.stdin:
-    l = l.strip()
-    if not l: continue
-    try:
-        o = json.loads(l)
-        print(o.get('event',''), o.get('argv',''), o.get('msg',''), o.get('data',''))
-    except: pass
-" 2>/dev/null | tail -30 || true
+            echo "=== git push failed, trace tail ==="
+            tail -20 /tmp/git-trace.json 2>/dev/null || true
             exit 1
           }
 
