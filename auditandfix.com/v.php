@@ -55,15 +55,16 @@ if (!$video || empty($video['video_url'])) {
     exit;
 }
 
-$businessName = htmlspecialchars($video['business_name'] ?? 'your business', ENT_QUOTES);
-$videoUrl     = htmlspecialchars($video['video_url'] ?? '', ENT_QUOTES);
-$posterUrl    = htmlspecialchars($video['poster_url'] ?? '', ENT_QUOTES);
-$niche        = htmlspecialchars($video['niche'] ?? '', ENT_QUOTES);
-$nicheDisplay = htmlspecialchars($video['niche_display'] ?? $video['niche'] ?? '', ENT_QUOTES);
-$city         = htmlspecialchars($video['city'] ?? '', ENT_QUOTES);
-$reviewCount  = (int)($video['review_count'] ?? 0);
-$starRating   = number_format((float)($video['google_rating'] ?? 5.0), 1);
-$countryCode  = $video['country_code'] ?? detectCountry();
+$businessName  = htmlspecialchars($video['business_name'] ?? 'your business', ENT_QUOTES);
+$videoUrl      = htmlspecialchars($video['video_url'] ?? '', ENT_QUOTES);
+$posterUrl     = htmlspecialchars($video['poster_url'] ?? '', ENT_QUOTES);
+$niche         = htmlspecialchars($video['niche'] ?? '', ENT_QUOTES);
+$nicheDisplay  = htmlspecialchars($video['niche_display'] ?? $video['niche'] ?? '', ENT_QUOTES);
+$city          = htmlspecialchars($video['city'] ?? '', ENT_QUOTES);
+$reviewCount   = (int)($video['review_count'] ?? 0);
+$starRating    = number_format((float)($video['google_rating'] ?? 5.0), 1);
+$countryCode   = $video['country_code'] ?? detectCountry();
+$contactEmail  = filter_var($video['contact_email'] ?? '', FILTER_VALIDATE_EMAIL) ?: '';
 
 // Pricing
 $videoPricing = get2StepPriceForCountry($countryCode);
@@ -493,7 +494,7 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
             color: #fff;
         }
 
-        .vp-email-gate { margin-bottom: 18px; }
+        .vp-email-gate { margin-bottom: 18px; max-width: 360px; margin-left: auto; margin-right: auto; }
         .vp-email-gate label {
             display: block;
             font-size: 0.82rem;
@@ -889,8 +890,13 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
     <?php endif; ?>
 
     <div class="vp-email-gate" id="email-gate" <?= !empty($_GET['subscription_activated']) ? 'style="display:none"' : '' ?>>
+        <?php if ($contactEmail): ?>
+        <label for="sub-email">Should we send your videos to the same address?</label>
+        <input type="email" id="sub-email" value="<?= htmlspecialchars($contactEmail, ENT_QUOTES) ?>" placeholder="you@yourbusiness.com">
+        <?php else: ?>
         <label for="sub-email">Where should we send your videos?</label>
         <input type="email" id="sub-email" placeholder="you@yourbusiness.com">
+        <?php endif; ?>
         <div class="vp-error" id="sub-error"></div>
     </div>
 

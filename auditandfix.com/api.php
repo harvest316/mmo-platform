@@ -592,6 +592,9 @@ function storeVideo(array $input): void {
         mkdir($videosDir, 0755, true);
     }
 
+    $contactEmail = filter_var($input['contact_email'] ?? '', FILTER_VALIDATE_EMAIL) ?: null;
+    $googleRating = isset($input['google_rating']) ? (float)$input['google_rating'] : null;
+
     $data = [
         'hash'             => $hash,
         'video_url'        => $input['video_url'] ?? null,
@@ -599,9 +602,13 @@ function storeVideo(array $input): void {
         'business_name'    => $input['business_name'] ?? null,
         'domain'           => isset($input['domain']) ? preg_replace('/[^a-zA-Z0-9.\-]/', '', $input['domain']) : null,
         'review_count'     => isset($input['review_count']) ? (int)$input['review_count'] : null,
+        'google_rating'    => $googleRating,
         'niche'            => $input['niche'] ?? null,
+        'niche_display'    => $input['niche_display'] ?? null,
         'niche_tier'       => $input['niche_tier'] ?? 'standard',
         'country_code'     => isset($input['country_code']) ? preg_replace('/[^A-Z]/', '', strtoupper($input['country_code'])) : null,
+        'contact_email'    => $contactEmail,
+        'city'             => $input['city'] ?? null,
         'created_at'       => date('c'),
         'views'            => [],
     ];
