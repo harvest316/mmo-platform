@@ -1726,3 +1726,12 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 **Decision:** Don't add more cold-outreach subdomains. Razor2 and Uceprotect L3 list IPs not domains — multiple subdomains all route through the same Resend shared IP pool, so blacklist exposure is identical. Current three subdomains are the right segmentation: `send.auditandfix.com` (cold outreach), `mail.auditandfix.com` (transactional, future use), `test.auditandfix.com` (test sends only). Additional subdomains only help with domain-level complaint isolation at Gmail/Outlook, which is not the current problem and won't be at <1k emails/month.
 
 **Status:** Accepted — no additional subdomains
+
+### DR-126: Stay on Resend, don't migrate to SES yet (2026-03-31)
+
+**Context:** Evaluated Amazon SES as alternative to Resend given shared IP blacklist issues (Uceprotect L3, Razor2). Current volume: ~465 emails/month (333Method), 0 production (2Step).
+
+**Decision:** Stay on Resend until volume reaches 5k+/month or real Gmail/Outlook rejection rates appear in production. SES has a cleaner shared IP pool and cheaper pricing ($0.10/1000 vs Resend's ~$0.40/1000 at base plan), but the migration overhead (sandbox approval, SNS bounce/complaint webhooks, lower-level SDK) isn't justified at current volume. The cost difference is <$20/month. Revisit trigger: 5k emails/month sustained, or >2% bounce/complaint rate in production sends.
+
+**Status:** Accepted — revisit at 5k emails/month
+**Impl:** n/a
