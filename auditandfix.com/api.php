@@ -595,6 +595,7 @@ function storeVideo(array $input): void {
     $data = [
         'hash'             => $hash,
         'video_url'        => $input['video_url'] ?? null,
+        'poster_url'       => $input['poster_url'] ?? null,
         'business_name'    => $input['business_name'] ?? null,
         'domain'           => isset($input['domain']) ? preg_replace('/[^a-zA-Z0-9.\-]/', '', $input['domain']) : null,
         'review_count'     => isset($input['review_count']) ? (int)$input['review_count'] : null,
