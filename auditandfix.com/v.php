@@ -236,30 +236,27 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
             opacity: 1;
             pointer-events: auto;
         }
-        .vp-download-link {
+        .vp-download-row p {
             font-size: 0.82rem;
-            color: rgba(255, 255, 255, 0.55);
+            color: rgba(255, 255, 255, 0.45);
+            margin: 0 0 5px;
+            line-height: 1.5;
+        }
+        .vp-download-link {
+            color: rgba(255, 255, 255, 0.65);
             text-decoration: underline;
             text-underline-offset: 3px;
         }
         .vp-download-link:hover {
-            color: rgba(255, 255, 255, 0.8);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        .vp-download-plans a {
+            color: rgba(255, 255, 255, 0.45);
             text-decoration: underline;
+            text-underline-offset: 3px;
         }
-        .vp-download-link svg {
-            width: 14px; height: 14px;
-            vertical-align: -2px;
-            margin-right: 4px;
-            fill: currentColor;
-        }
-        .vp-download-micro {
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.35);
-            margin-top: 4px;
-        }
-        .vp-download-micro a {
-            color: rgba(255, 255, 255, 0.5);
-            text-decoration: underline;
+        .vp-download-plans a:hover {
+            color: rgba(255, 255, 255, 0.7);
         }
 
         /* ── Video end overlay ── */
@@ -847,8 +844,9 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
         <p class="vp-tagline">30 seconds. Made from a real review. Yours to keep.</p>
 
         <div class="vp-download-row" id="download-row">
-            <a class="vp-download-link" href="<?= $videoUrl ?>" download="<?= $businessName ?>-review.mp4"><svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>Download your free video</a>
-            <p class="vp-download-micro">This one's on us. Want fresh videos every month? <a href="#pricing">See plans</a></p>
+            <p>30 seconds. Made from a real review. Yours to keep.</p>
+            <p>This one&#8217;s on us. <a class="vp-download-link" href="<?= $videoUrl ?>" download="<?= htmlspecialchars($businessName, ENT_QUOTES) ?>-review.mp4">Download it here</a> and post to your socials today.</p>
+            <p class="vp-download-plans">Want fresh videos every month? <a href="#pricing">See plans</a></p>
         </div>
     </div>
 </section>
