@@ -185,6 +185,8 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
         .vp-video-wrap video {
             width: 100%;
             display: block;
+            aspect-ratio: 9 / 16;
+            object-fit: cover;
         }
 
         .vp-play-btn {
@@ -222,6 +224,42 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
             color: rgba(255, 255, 255, 0.5);
             margin-top: 16px;
             letter-spacing: 0.01em;
+        }
+
+        .vp-download-row {
+            margin-top: 14px;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+        }
+        .vp-download-row.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .vp-download-link {
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.55);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+        .vp-download-link:hover {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: underline;
+        }
+        .vp-download-link svg {
+            width: 14px; height: 14px;
+            vertical-align: -2px;
+            margin-right: 4px;
+            fill: currentColor;
+        }
+        .vp-download-micro {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.35);
+            margin-top: 4px;
+        }
+        .vp-download-micro a {
+            color: rgba(255, 255, 255, 0.5);
+            text-decoration: underline;
         }
 
         /* ── Video end overlay ── */
@@ -807,6 +845,11 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
         </div>
 
         <p class="vp-tagline">30 seconds. Made from a real review. Yours to keep.</p>
+
+        <div class="vp-download-row" id="download-row">
+            <a class="vp-download-link" href="<?= $videoUrl ?>" download="<?= $businessName ?>-review.mp4"><svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>Download your free video</a>
+            <p class="vp-download-micro">This one's on us. Want fresh videos every month? <a href="#pricing">See plans</a></p>
+        </div>
     </div>
 </section>
 
@@ -1012,6 +1055,12 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
         track('video_play_started');
     });
 
+    // Show/hide play button on play/pause
+    video.addEventListener('play', function() { playBtn.classList.add('hidden'); });
+    video.addEventListener('pause', function() {
+        if (!video.ended) playBtn.classList.remove('hidden');
+    });
+
     // Tap video to pause/play
     video.addEventListener('click', function() {
         if (video.paused) { video.play(); }
@@ -1020,11 +1069,12 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
 
     // ── Video progress tracking ──
     var tracked25 = false, tracked50 = false, tracked75 = false;
+    var downloadRow = document.getElementById('download-row');
     video.addEventListener('timeupdate', function() {
         if (!video.duration) return;
         var pct = video.currentTime / video.duration;
         if (pct >= 0.25 && !tracked25) { tracked25 = true; track('video_25_pct'); }
-        if (pct >= 0.50 && !tracked50) { tracked50 = true; track('video_50_pct'); }
+        if (pct >= 0.50 && !tracked50) { tracked50 = true; track('video_50_pct'); if (downloadRow) downloadRow.classList.add('show'); }
         if (pct >= 0.75 && !tracked75) { tracked75 = true; track('video_75_pct'); }
     });
 
