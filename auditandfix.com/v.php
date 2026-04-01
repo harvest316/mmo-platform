@@ -844,7 +844,6 @@ $_GET['lang'] = $countryToLang[$countryCode] ?? 'en';  // override before i18n l
         <p class="vp-tagline">30 seconds. Made from a real review. Yours to keep.</p>
 
         <div class="vp-download-row" id="download-row">
-            <p>30 seconds. Made from a real review. Yours to keep.</p>
             <p>This one&#8217;s on us. <a class="vp-download-link" href="<?= $videoUrl ?>" download="<?= htmlspecialchars($businessName, ENT_QUOTES) ?>-review.mp4">Download it here</a> and post to your socials today.</p>
             <p class="vp-download-plans">Want fresh videos every month? <a href="#pricing">See plans</a></p>
         </div>
