@@ -1933,3 +1933,45 @@ Compliance boundary: free fix must be genuinely delivered (not claimed). Do not 
 
 **Status:** Proposed
 **Impl:** `docs/architecture-autoresponder-service.md` Section 11
+
+### DR-142: Country-specific state abbreviation stripping for business names (2026-04-02)
+
+**Context:** Google Maps business names often include legal suffixes (PTY LTD, LLC, GmbH) and state/territory abbreviations (NSW, VIC, CA, TX) that sound wrong when read aloud in video voiceovers. Hardcoding all state codes globally risks false positives — "IN" is both Indiana and a common English word, "CO" is Colorado and Company.
+
+**Decision:** Store state abbreviations as a JSON array per country in a new `countries` table (migration 016 in 2Step). `businessName(raw, stateAbbreviations)` only strips codes from the caller-provided list, so stripping is country-specific. Legal suffixes (PTY LTD, LLC, etc.) are stripped globally since they're unambiguous. ALL CAPS names (>70% uppercase) are title-cased. `buildScenes()` receives the list via opts; `runVideoStage()` loads the countries map once per batch.
+
+**Status:** Implemented
+**Impl:** `2Step/db/migrations/016-create-countries-table.sql`, `2Step/src/video/scene-builder.js:businessName()`, `2Step/src/stages/video.js:loadCountriesMap()`
+
+### DR-143: AI Autoresponder product strategy — build decision, AU-first, multi-channel (2026-04-02)
+
+**Context:** Evaluated the opportunity to build an AI autoresponder subscription SaaS for local service businesses (tradies: plumbers, electricians, cleaners, pest control). Market research confirmed: contractors lose $45K-$120K/year to missed calls, 62% of inbound calls go unanswered, 80% of voicemails never result in a callback. Competitive landscape fragmented — incumbents either too expensive (Podium $599/mo, Smith.ai $300/mo), phone-only (Dialzara, Trillet, My AI Front Desk), or US-only (LeadTruffle $229-629/mo). No AU-focused multi-channel autoresponder exists at tradie-friendly pricing.
+
+**Decision:** Build. Key strategic choices:
+
+1. **AU-first launch**, expand US/UK Q4 2026. AU gives cultural specificity ("tradie" branding), clean inbound SMS compliance (Spam Act 2003), and deepest Audit&Fix data (210K+ sites).
+2. **Multi-channel from MVP** (SMS + email + web chat), not phone-first like competitors. WhatsApp and Facebook Messenger in v1.0.
+3. **Pricing: $49/$99/$199 AUD all-in** (Starter/Pro/Business). No per-channel gating, no per-message anxiety. 14-day no-card trial. No setup fee (DR-082 pattern).
+4. **Cross-sell from Audit&Fix** as primary distribution channel. 210K+ scored businesses, proven outreach infrastructure, natural upsell: "We fixed your website. Now never miss a lead from it."
+5. **Primary persona: solo tradie** (Dave). Not multi-location enterprises. Conversational onboarding (<5 min), mobile-first PWA (DR-138), one-tap override.
+6. **Working brand: ReplyMate** (backup: QuickReply.ai). "ContactReplyAI" rejected — too long, too corporate, describes tech not benefit.
+7. **Unit economics:** ~70% gross margin at Pro tier ($99 AUD). LTV ~$1,980. Break-even ~30 customers. 100 customers = ~$7K/month gross profit.
+8. **AI safety guardrails:** Never confirm pricing/bookings/timelines. Always escalate emergencies. Identify as AI when asked. Owner override on every conversation. These are non-negotiable.
+
+**Trade-offs accepted:**
+- No voice calls in v1 (different tech stack, many competitors, add when voice AI is commodity)
+- No booking integration in v1 (80%+ of solo tradies don't use a booking platform — DR-135)
+- No CRM (integrate with ServiceM8/Tradify, don't compete)
+- No OAuth email (CASA Tier 2 compliance cost — DR-133, use custom subdomain instead)
+
+**Status:** Accepted — strategy approved, implementation pending
+**Impl:** `docs/autoresponder-product-strategy.md`
+
+### DR-144: NopeCHA extension does not need sitekey — never block on null sitekey when extension loaded (2026-04-02)
+
+**Context:** `captchaBlocksSubmit` in form.js was checking `unsolvedCaptchas.some(c => c.sitekey === null)` to fall back to manual mode. The NopeCHA extension injects `captcha/recaptcha.js` directly into reCAPTCHA iframes via manifest content_scripts — it does NOT need a sitekey from Node.js. Only the API paths need it. The check was preventing the extension from solving v2 image CAPTCHAs it was designed to handle.
+
+**Decision:** `captchaBlocksSubmit` only blocks on null sitekey when `!extensionLoaded` (API-only). Also added `context.addInitScript` to hide `navigator.webdriver` in extension context (plain chromium, no stealth plugin), and fixed key seeding race where `__key_seed__.js` only wrote to storage but the background had already cached empty settings at startup.
+
+**Status:** Implemented
+**Impl:** `333Method/src/outreach/form.js:captchaBlocksSubmit`, `333Method/src/utils/stealth-browser.js:launchWithExtensions+prepareNopeCHAExtension`
