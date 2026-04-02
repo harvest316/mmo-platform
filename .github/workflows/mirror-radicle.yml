@@ -81,6 +81,7 @@ jobs:
 
           git remote add rad "rad://${RID}" 2>/dev/null || \
             git remote set-url rad "rad://${RID}"
+          git remote set-url --push rad "rad://${RID}/${CI_NID}"
 
           # seed.radicle.garden = iris.radicle.xyz (NID from https://seed.radicle.garden/api/v1/node)
           SEED_NID="z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7"

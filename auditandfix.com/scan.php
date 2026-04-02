@@ -24,12 +24,12 @@ $ref         = isset($_GET['ref'])          ? htmlspecialchars($_GET['ref'])    
 $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL) ?: '' : '';
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars($lang) ?>" <?= ($i18n['_meta']['dir'] ?? 'ltr') === 'rtl' ? 'dir="rtl"' : '' ?>>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= t('scan.page_title') ?></title>
-    <meta name="description" content="<?= t('scan.page_description') ?>">
+    <title>Free Website Audit Tool — Score Your Site in 30 Seconds | Audit&Fix</title>
+    <meta name="description" content="Enter your URL and get an instant website conversion score. Our AI has scored 23,000+ websites. The average? D+. Find out where you stand. Free, 30 seconds.">
     <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
     <link rel="stylesheet" href="<?= asset_url('assets/css/scanner.css') ?>">
     <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
@@ -39,8 +39,8 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <link rel="alternate" hreflang="<?= htmlspecialchars($_hl) ?>" href="https://www.auditandfix.com/scan?lang=<?= htmlspecialchars($_hl) ?>">
     <?php endforeach; ?>
     <link rel="alternate" hreflang="x-default" href="https://www.auditandfix.com/scan">
-    <meta property="og:title" content="<?= t('scan.og_title') ?>">
-    <meta property="og:description" content="<?= t('scan.og_description') ?>">
+    <meta property="og:title" content="What grade does your website get?">
+    <meta property="og:description" content="We scored 23,000+ small business websites. The average grade? D+. Check yours free in 30 seconds.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.auditandfix.com/scan">
     <meta property="og:image" content="https://www.auditandfix.com/assets/img/og-image.png">
@@ -83,27 +83,35 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
 </head>
 <body class="scanner-page">
 <?php require_once __DIR__ . '/includes/consent-banner.php'; ?>
-<a href="#main-content" class="skip-link"><?= t('scan.skip_to_content') ?></a>
-
-<?php require_once __DIR__ . '/includes/header.php'; ?>
+<a href="#main-content" class="skip-link">Skip to main content</a>
 
 <!-- ── Hero Banner ───────────────────────────────────────────────────────── -->
 <header class="hero scan-hero-banner">
+    <nav class="nav" aria-label="Site navigation">
+        <a href="/" class="logo">
+            <img src="assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+            <span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span>
+        </a>
+        <div class="nav-right">
+            <a href="/" class="nav-cta">Full Audit →</a>
+        </div>
+    </nav>
 
     <div class="hero-body">
         <div class="hero-content">
             <div id="scan-status" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
-            <p class="pre-headline"><?= t('scan.pre_headline') ?></p>
-            <h1><?= t('scan.h1') ?></h1>
-            <p class="scan-h1-sub"><?= t('scan.h1_sub') ?></p>
-            <p class="subtitle"><?= t('scan.subtitle') ?></p>
+            <p class="pre-headline">Free website score</p>
+            <h1>Free Website Audit Tool</h1>
+            <p class="scan-h1-sub">Check your conversion score in 30 seconds — free, no signup required</p>
+            <p class="subtitle">We've analysed <strong>23,990+</strong> small business websites. The average conversion grade? <strong class="grade-bad">D+</strong>. See where yours stands — free, in 30 seconds.</p>
 
             <!-- Stage 1: Input -->
             <div id="stage-input">
-                <p class="scan-intro"><?= t('scan.intro') ?></p>
+                <p class="scan-intro">Our free website audit tool scores your site across 10 conversion factors — headline clarity, trust signals, call-to-action placement, mobile experience, and more. Used by 20,000+ small business owners. No signup required.</p>
                 <form class="scan-form" id="scan-form" novalidate>
                     <div class="scan-input-row">
-                        <label for="scan-url" class="sr-only"><?= t('scan.url_label') ?></label>
+                        <label for="scan-url" class="sr-only">Your website URL</label>
                         <input
                             type="url"
                             id="scan-url"
@@ -116,17 +124,17 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
                             required
                         >
                         <button type="submit" class="scan-btn" id="scan-btn">
-                            <?= t('scan.cta_button') ?>
+                            Score My Website →
                         </button>
                     </div>
-                    <p class="scan-form-note"><?= t('scan.form_note') ?></p>
+                    <p class="scan-form-note">Free. No signup required. Takes about 10 seconds.</p>
                     <div id="scan-error" class="scan-error" role="alert" style="display:none"></div>
                 </form>
 
                 <div class="hero-scan-trust">
-                    <span>✓ <?= t('scan.trust_no_cc') ?></span>
-                    <span>✓ <?= t('scan.trust_sites_scored') ?></span>
-                    <span>✓ <?= t('scan.trust_instant') ?></span>
+                    <span>✓ No credit card</span>
+                    <span>✓ 23,990+ sites scored</span>
+                    <span>✓ Instant results</span>
                 </div>
             </div>
 
@@ -134,14 +142,14 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
             <div id="stage-scanning" style="display:none">
                 <div class="scan-progress-inner">
                     <div class="scan-spinner"></div>
-                    <h2 class="scan-progress-title"><?= t('scan.progress_title') ?></h2>
+                    <h2 class="scan-progress-title">Analysing your website…</h2>
                     <div class="scan-progress-steps" id="progress-steps">
-                        <div class="progress-step" id="step-fetch"><?= t('scan.step_fetch') ?></div>
-                        <div class="progress-step" id="step-headline"><?= t('scan.step_headline') ?></div>
-                        <div class="progress-step" id="step-cta"><?= t('scan.step_cta') ?></div>
-                        <div class="progress-step" id="step-trust"><?= t('scan.step_trust') ?></div>
-                        <div class="progress-step" id="step-value"><?= t('scan.step_value') ?></div>
-                        <div class="progress-step" id="step-score"><?= t('scan.step_score') ?></div>
+                        <div class="progress-step" id="step-fetch">Fetching page content</div>
+                        <div class="progress-step" id="step-headline">Checking headline quality</div>
+                        <div class="progress-step" id="step-cta">Analysing call-to-action</div>
+                        <div class="progress-step" id="step-trust">Looking for trust signals</div>
+                        <div class="progress-step" id="step-value">Reviewing value proposition</div>
+                        <div class="progress-step" id="step-score">Computing conversion score</div>
                     </div>
                     <p class="scan-progress-domain" id="progress-domain"></p>
                 </div>
@@ -178,18 +186,18 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
                             <div class="teaser-blur-row teaser-blur-row--short"></div>
                         </div>
                         <div class="teaser-blur-overlay">
-                            <span class="teaser-blur-label"><?= t('scan.teaser_blur_label') ?></span>
+                            <span class="teaser-blur-label">+<span id="teaser-hidden-count">?</span> more issues — enter your email to unlock</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Email gate -->
                 <div class="email-gate" id="email-gate">
-                    <h3 class="email-gate-title" id="email-gate-title"><?= t('scan.email_gate_title') ?></h3>
-                    <p class="email-gate-desc" id="email-gate-desc"><?= t('scan.email_gate_desc') ?></p>
+                    <h3 class="email-gate-title" id="email-gate-title">Analysing your results…</h3>
+                    <p class="email-gate-desc" id="email-gate-desc">Enter your email to unlock all factor scores and see your biggest problem in detail.</p>
                     <form class="email-form" id="email-form" novalidate>
                         <div class="email-input-row">
-                            <label for="email-input" class="sr-only"><?= t('scan.email_label') ?></label>
+                            <label for="email-input" class="sr-only">Your email address</label>
                             <input
                                 type="email"
                                 id="email-input"
@@ -199,16 +207,16 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
                                 autocomplete="email"
                                 required
                             >
-                            <button type="submit" class="email-btn" id="email-btn"><?= t('scan.email_btn') ?></button>
+                            <button type="submit" class="email-btn" id="email-btn">Unlock My Factors →</button>
                         </div>
                         <div class="email-optin-row">
                             <label class="email-optin-label">
                                 <input type="checkbox" id="email-optin" name="optin" value="1" class="email-optin-checkbox">
-                                <span><?= t('scan.email_optin') ?></span>
+                                <span>Yes, email me tips and occasional offers from Audit&amp;Fix</span>
                             </label>
                         </div>
                         <div id="email-error" class="scan-error" role="alert" style="display:none"></div>
-                        <p class="email-note"><?= t('scan.email_note') ?></p>
+                        <p class="email-note">We'll also notify you if your score changes. Unsubscribe any time.</p>
                     </form>
                 </div>
 
@@ -224,11 +232,11 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
         <div class="scan-results-inner">
 
             <div class="factor-breakdown" id="factor-breakdown">
-                <h3 class="factors-title"><?= t('scan.factors_title') ?></h3>
+                <h3 class="factors-title">Your 10-factor breakdown</h3>
                 <div class="factor-list" id="factor-list"></div>
 
                 <div class="free-peek" id="free-peek" style="display:none">
-                    <div class="free-peek-badge"><?= t('scan.free_peek_badge') ?></div>
+                    <div class="free-peek-badge">Free insight</div>
                     <h4 class="free-peek-factor" id="free-peek-factor"></h4>
                     <div class="free-peek-score-row">
                         <span class="free-peek-score" id="free-peek-score"></span>
@@ -240,52 +248,52 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
                 </div>
 
                 <div class="js-heavy-note" id="js-heavy-note" style="display:none">
-                    <p><?= t('scan.js_heavy_note') ?></p>
+                    <p>⚡ This site uses advanced JavaScript — our HTML analysis gives it a neutral score. A full visual audit would provide a more accurate picture.</p>
                 </div>
 
                 <!-- Primary CTA: Quick Fixes (low-friction entry point) -->
                 <div class="pricing-hero" id="pricing-hero">
                     <div class="pricing-hero-card">
                         <div class="pricing-hero-header">
-                            <h3 class="pricing-hero-title"><?= t('scan.qf_title') ?></h3>
-                            <p class="pricing-hero-subtitle"><?= t('scan.qf_subtitle') ?></p>
+                            <h3 class="pricing-hero-title">Fix your 5 biggest issues — today</h3>
+                            <p class="pricing-hero-subtitle">Screenshot annotations and plain-English fix instructions for the 5 factors dragging your score down. Same-day delivery.</p>
                         </div>
                         <div class="pricing-hero-price">
                             <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span>
                         </div>
                         <ul class="pricing-hero-features">
-                            <li><?= t('scan.qf_feature_1') ?></li>
-                            <li><?= t('scan.qf_feature_2') ?></li>
-                            <li><?= t('scan.qf_feature_3') ?></li>
-                            <li><?= t('scan.qf_feature_4') ?></li>
-                            <li><?= t('scan.qf_feature_5') ?></li>
+                            <li>Your 5 worst-scoring factors analysed in detail</li>
+                            <li>Zoomed screenshots with problem areas marked</li>
+                            <li>Plain-English fix instructions you can hand to anyone</li>
+                            <li>Same-day delivery</li>
+                            <li>Price credited toward the Full Audit if you upgrade later</li>
                         </ul>
-                        <a href="/" class="pricing-cta pricing-cta-primary" id="cta-quick-fixes"><?= t('scan.qf_cta') ?></a>
-                        <p class="pricing-guarantee"><?= t('scan.qf_guarantee') ?></p>
+                        <a href="/" class="pricing-cta pricing-cta-primary" id="cta-quick-fixes">Get Your Quick Fixes →</a>
+                        <p class="pricing-guarantee">30-day money-back guarantee. Not happy? Full refund, no questions.</p>
                     </div>
                 </div>
 
                 <!-- Secondary CTA: Full Audit (upgrade path) -->
                 <div class="pricing-upgrade-strip" id="pricing-upgrade-strip">
                     <div class="pricing-upgrade-text">
-                        <strong><?= t('scan.full_audit_strong') ?></strong>
-                        <span><?= t('scan.full_audit_desc') ?></span>
+                        <strong>Want the complete picture?</strong>
+                        <span>Full 10-factor audit with 9-page PDF, all screenshots, and a prioritised roadmap. 24-hour delivery.</span>
                     </div>
                     <div class="pricing-upgrade-action">
                         <span class="pricing-upgrade-price"><span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="297" data-aud="337" data-gbp="159">297</span></span>
-                        <a href="/" class="pricing-cta pricing-cta-secondary" id="cta-full-audit"><?= t('scan.full_audit_cta') ?></a>
+                        <a href="/" class="pricing-cta pricing-cta-secondary" id="cta-full-audit">Get Full Audit →</a>
                     </div>
                 </div>
 
                 <!-- Tertiary: Audit + Implementation -->
                 <div class="pricing-upgrade-strip pricing-upgrade-strip--tertiary" id="pricing-impl-strip">
                     <div class="pricing-upgrade-text">
-                        <strong><?= t('scan.audit_fix_strong') ?></strong>
-                        <span><?= t('scan.audit_fix_desc') ?></span>
+                        <strong>Want us to just fix it?</strong>
+                        <span>Full audit + we implement your top 3 fixes with before/after screenshots. 48-hour turnaround.</span>
                     </div>
                     <div class="pricing-upgrade-action">
                         <span class="pricing-upgrade-price"><span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="497" data-aud="625" data-gbp="350">497</span></span>
-                        <a href="#" class="pricing-cta pricing-cta-secondary" id="cta-audit-fix"><?= t('scan.audit_fix_cta') ?></a>
+                        <a href="#" class="pricing-cta pricing-cta-secondary" id="cta-audit-fix">Get Audit + Fix →</a>
                     </div>
                 </div>
             </div>
@@ -300,63 +308,63 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <!-- SEO content: How the free website audit works -->
     <section class="included">
         <div class="container">
-            <h2><?= t('scan.how_title') ?></h2>
-            <p class="section-subhead"><?= t('scan.how_subhead') ?></p>
+            <h2>How the free website audit works</h2>
+            <p class="section-subhead">Our free website audit tool analyses your site the way a real visitor sees it — not just the code behind it. Here's what happens when you enter your URL.</p>
             <div class="checklist">
-                <div class="check-item"><?= t('scan.how_step_1') ?></div>
-                <div class="check-item"><?= t('scan.how_step_2') ?></div>
-                <div class="check-item"><?= t('scan.how_step_3') ?></div>
-                <div class="check-item"><?= t('scan.how_step_4') ?></div>
-                <div class="check-item"><?= t('scan.how_step_5') ?></div>
-                <div class="check-item"><?= t('scan.how_step_6') ?></div>
+                <div class="check-item">✓ <strong>We fetch your page</strong> — our scanner loads your website and reads the visible content, just like a potential customer would</div>
+                <div class="check-item">✓ <strong>10 conversion factors scored</strong> — headline clarity, value proposition, call-to-action, trust signals, urgency, and five more — each graded 0 to 10</div>
+                <div class="check-item">✓ <strong>Overall grade calculated</strong> — your scores are combined into a single grade from A+ to F, benchmarked against 23,990+ other small business websites</div>
+                <div class="check-item">✓ <strong>Your biggest issue identified</strong> — we show you your lowest-scoring factor for free, with a plain-English explanation of why it matters</div>
+                <div class="check-item">✓ <strong>Full breakdown via email</strong> — enter your email to unlock all 10 factor scores and see exactly where your site is losing visitors</div>
+                <div class="check-item">✓ <strong>No signup, no credit card</strong> — the free scan takes 30 seconds and requires nothing but your URL</div>
             </div>
-            <p class="included-footer"><?= t('scan.how_footer') ?></p>
+            <p class="included-footer">Unlike tools like Google Lighthouse that measure page speed and accessibility, our audit focuses on <strong>conversion</strong> — whether your website actually turns visitors into enquiries, calls, and customers.</p>
         </div>
     </section>
 
     <!-- SEO content: What we check -->
     <section class="value-props">
         <div class="container">
-            <h2 style="text-align:center; color:#1a365d; margin-bottom:12px; font-size:1.8rem;"><?= t('scan.factors_section_title') ?></h2>
-            <p class="section-subhead"><?= t('scan.factors_section_subhead') ?></p>
+            <h2 style="text-align:center; color:#1a365d; margin-bottom:12px; font-size:1.8rem;">The 10 conversion factors we score</h2>
+            <p class="section-subhead">Most free website checkers look at technical issues — SSL certificates, page speed, broken links. We look at the things that actually decide whether a visitor picks up the phone or hits the back button.</p>
             <div class="prop-grid">
-                <div class="prop"><div class="prop-icon" aria-hidden="true">📝</div><h3><?= t('scan.factor_headline_title') ?></h3><p><?= t('scan.factor_headline_body') ?></p></div>
-                <div class="prop"><div class="prop-icon" aria-hidden="true">💎</div><h3><?= t('scan.factor_value_title') ?></h3><p><?= t('scan.factor_value_body') ?></p></div>
-                <div class="prop"><div class="prop-icon" aria-hidden="true">🎯</div><h3><?= t('scan.factor_cta_title') ?></h3><p><?= t('scan.factor_cta_body') ?></p></div>
-                <div class="prop"><div class="prop-icon" aria-hidden="true">⭐</div><h3><?= t('scan.factor_trust_title') ?></h3><p><?= t('scan.factor_trust_body') ?></p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">📝</div><h3>Headline Quality</h3><p>Does your headline communicate what you do and who it's for within 3 seconds? If visitors can't tell immediately, they leave.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">💎</div><h3>Value Proposition</h3><p>Benefits, not features. "What's in it for me?" — if your site doesn't answer this clearly, visitors compare-shop and choose someone else.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">🎯</div><h3>Call to Action</h3><p>Is there a clear, visible way to contact you, book, or buy? If your phone number is buried at the bottom, visitors won't scroll to find it.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">⭐</div><h3>Trust Signals</h3><p>Reviews, licences, certifications, guarantees — the things that prove you're legitimate. Without them, visitors feel uncertain and move on.</p></div>
             </div>
-            <p style="text-align:center; margin-top:32px;"><a href="#" onclick="document.getElementById('scan-url')?.focus();window.scrollTo({top:0,behavior:'smooth'});return false;" class="cta-button"><?= t('scan.score_my_website_free') ?></a></p>
+            <p style="text-align:center; margin-top:32px;"><a href="#" onclick="document.getElementById('scan-url')?.focus();window.scrollTo({top:0,behavior:'smooth'});return false;" class="cta-button">Score My Website Free →</a></p>
         </div>
     </section>
 
     <!-- Social proof -->
     <section class="testimonials">
         <div class="container">
-            <p class="testimonials-rating">★★★★★ <?= t('scan.testimonials_rating') ?></p>
-            <h2><?= t('scan.testimonials_title') ?></h2>
+            <p class="testimonials-rating">★★★★★ Trusted by small business owners</p>
+            <h2>What business owners say after getting their score</h2>
             <div class="testimonial-grid">
                 <div class="testimonial">
                     <div class="stars" role="img" aria-label="5 out of 5 stars">★★★★★</div>
-                    <p>"<?= t('scan.testimonial_1_quote') ?>"</p>
+                    <p>"I'd been spending money on Google Ads and sending traffic to a site that was quietly losing me enquiries. The free score told me enough — the full audit told me exactly what to do."</p>
                     <div class="testimonial-author">
-                        <strong><?= t('scan.testimonial_1_author') ?></strong>
-                        <span><?= t('scan.testimonial_1_role') ?></span>
+                        <strong>Sarah T.</strong>
+                        <span>Interior Designer, Melbourne</span>
                     </div>
                 </div>
                 <div class="testimonial">
                     <div class="stars" role="img" aria-label="5 out of 5 stars">★★★★★</div>
-                    <p>"<?= t('scan.testimonial_2_quote') ?>"</p>
+                    <p>"Scored 52 when I thought we had a decent site. The report showed us the exact screenshots where visitors were losing confidence. Fixed the trust signals that weekend."</p>
                     <div class="testimonial-author">
-                        <strong><?= t('scan.testimonial_2_author') ?></strong>
-                        <span><?= t('scan.testimonial_2_role') ?></span>
+                        <strong>James K.</strong>
+                        <span>Electrical Contractor, Auckland</span>
                     </div>
                 </div>
                 <div class="testimonial">
                     <div class="stars" role="img" aria-label="5 out of 5 stars">★★★★★</div>
-                    <p>"<?= t('scan.testimonial_3_quote') ?>"</p>
+                    <p>"No fluff, no generic advice. Real screenshots of my site, real explanations, and a ranked list of what to fix first. Worth every cent."</p>
                     <div class="testimonial-author">
-                        <strong><?= t('scan.testimonial_3_author') ?></strong>
-                        <span><?= t('scan.testimonial_3_role') ?></span>
+                        <strong>Michelle R.</strong>
+                        <span>Physiotherapy Clinic, Brisbane</span>
                     </div>
                 </div>
             </div>
@@ -366,29 +374,29 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <!-- Report preview -->
     <section class="montage-section">
         <div class="container">
-            <h2><?= t('scan.montage_title') ?></h2>
-            <p class="section-subhead"><?= t('scan.montage_subhead') ?></p>
+            <h2>A professional report — not a generic checklist</h2>
+            <p class="section-subhead">A scored PDF with real screenshots from your site, 10 factors graded A+ to F, and a prioritised fix list — written for business owners, not developers.</p>
             <div class="montage-grid">
                 <div class="montage-item">
-                    <img src="assets/img/report-cover.png" alt="<?= t('scan.montage_img1_alt') ?>" loading="lazy">
-                    <p><?= t('scan.montage_caption_1') ?></p>
+                    <img src="assets/img/report-cover.png" alt="Report cover page showing domain, score and grade" loading="lazy">
+                    <p>Cover page with your overall grade</p>
                 </div>
                 <div class="montage-item">
-                    <img src="assets/img/report-factors.png" alt="<?= t('scan.montage_img2_alt') ?>" loading="lazy">
-                    <p><?= t('scan.montage_caption_2') ?></p>
+                    <img src="assets/img/report-factors.png" alt="Factor analysis page with score bars" loading="lazy">
+                    <p>Every factor scored with evidence</p>
                 </div>
                 <div class="montage-item">
-                    <img src="assets/img/report-screenshots.png" alt="<?= t('scan.montage_img3_alt') ?>" loading="lazy">
-                    <p><?= t('scan.montage_caption_3') ?></p>
+                    <img src="assets/img/report-screenshots.png" alt="Zoomed screenshots of problem areas" loading="lazy">
+                    <p>Zoomed screenshots of the actual problems</p>
                 </div>
                 <div class="montage-item">
-                    <img src="assets/img/report-recommendations.png" alt="<?= t('scan.montage_img4_alt') ?>" loading="lazy">
-                    <p><?= t('scan.montage_caption_4') ?></p>
+                    <img src="assets/img/report-recommendations.png" alt="Prioritised recommendations page" loading="lazy">
+                    <p>Ranked fix list — highest-impact wins first</p>
                 </div>
             </div>
             <div class="sample-download">
-                <a href="assets/sample-reports/sample-cro-audit.pdf" class="btn-secondary" target="_blank"><?= t('scan.sample_download_cta') ?></a>
-                <span class="sample-note"><?= t('scan.sample_download_note') ?></span>
+                <a href="assets/sample-reports/sample-cro-audit.pdf" class="btn-secondary" target="_blank">Download Sample Report (PDF)</a>
+                <span class="sample-note">Available in all languages</span>
             </div>
         </div>
     </section>
@@ -397,10 +405,10 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <section class="value-props">
         <div class="container">
             <div class="prop-grid">
-                <div class="prop"><div class="prop-icon" aria-hidden="true">🔍</div><h3><?= t('scan.prop_screenshots_title') ?></h3><p><?= t('scan.prop_screenshots_body') ?></p></div>
-                <div class="prop"><div class="prop-icon" aria-hidden="true">📊</div><h3><?= t('scan.prop_10factors_title') ?></h3><p><?= t('scan.prop_10factors_body') ?></p></div>
-                <div class="prop"><div class="prop-icon" aria-hidden="true">💬</div><h3><?= t('scan.prop_plain_english_title') ?></h3><p><?= t('scan.prop_plain_english_body') ?></p></div>
-                <div class="prop"><div class="prop-icon" aria-hidden="true">📈</div><h3><?= t('scan.prop_agency_title') ?></h3><p><?= t('scan.prop_agency_body') ?></p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">🔍</div><h3>Screenshots of Every Problem</h3><p>We zoom in on the exact parts of your page that are costing you conversions — so you can see the issue, not just read about it.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">📊</div><h3>10 Factors Graded A+ to F</h3><p>Headline, CTA, trust signals, urgency, and more — each graded independently, so you know precisely what to fix and in what order.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">💬</div><h3>Plain English, No Jargon</h3><p>Written for business owners, not developers. Every finding tells you what it is, why it matters, and exactly how to fix it.</p></div>
+                <div class="prop"><div class="prop-icon" aria-hidden="true">📈</div><h3>Agency Quality at a Fraction of the Price</h3><p>Professional CRO audits from agencies start at $2,500. We deliver the same expert-level analysis for a fraction of that — with same-day turnaround.</p></div>
             </div>
         </div>
     </section>
@@ -408,30 +416,30 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <!-- What's included -->
     <section class="included">
         <div class="container">
-            <h2><?= t('scan.audit_covers_title') ?></h2>
-            <p class="section-subhead"><?= t('scan.audit_covers_subhead') ?></p>
+            <h2>What your full audit covers</h2>
+            <p class="section-subhead">Each of the 10 conversion factors is scored 0–10 and graded A+ to F — so you know exactly what to fix and why.</p>
             <div class="checklist">
-                <div class="check-item">✓ <?= t('checklist.1') ?></div>
-                <div class="check-item">✓ <?= t('checklist.2') ?></div>
-                <div class="check-item">✓ <?= t('checklist.3') ?></div>
-                <div class="check-item">✓ <?= t('checklist.4') ?></div>
-                <div class="check-item">✓ <?= t('checklist.5') ?></div>
-                <div class="check-item">✓ <?= t('checklist.6') ?></div>
-                <div class="check-item">✓ <?= t('checklist.7') ?></div>
-                <div class="check-item">✓ <?= t('checklist.8') ?></div>
-                <div class="check-item">✓ <?= t('checklist.9') ?></div>
-                <div class="check-item">✓ <?= t('checklist.10') ?></div>
+                <div class="check-item">✓ <strong>Headline quality</strong> — does it communicate value in 3–5 seconds?</div>
+                <div class="check-item">✓ <strong>Value proposition</strong> — benefits, not features; "what's in it for me?"</div>
+                <div class="check-item">✓ <strong>Unique selling proposition</strong> — why choose you over alternatives?</div>
+                <div class="check-item">✓ <strong>Call-to-action</strong> — prominence, placement, and copy clarity</div>
+                <div class="check-item">✓ <strong>Trust &amp; credibility signals</strong> — testimonials, badges, certifications</div>
+                <div class="check-item">✓ <strong>Urgency &amp; scarcity</strong> — legitimate pressure to act now</div>
+                <div class="check-item">✓ <strong>Hook &amp; visual engagement</strong> — first-impression hero element</div>
+                <div class="check-item">✓ <strong>Imagery &amp; design</strong> — authentic photos vs. generic stock</div>
+                <div class="check-item">✓ <strong>Offer clarity</strong> — do visitors know exactly what they get?</div>
+                <div class="check-item">✓ <strong>Industry appropriateness</strong> — does the design fit your market?</div>
             </div>
-            <p class="included-footer"><?= t('scan.audit_covers_footer') ?></p>
+            <p class="included-footer">Plus: zoomed screenshots of every problem area, a two-pass below-the-fold analysis, and a technical assessment covering SSL, mobile responsiveness, and page speed.</p>
         </div>
     </section>
 
     <!-- USP -->
     <section class="usp">
         <div class="container">
-            <h2><?= t('scan.usp_title') ?></h2>
-            <p><?= t('scan.usp_p1') ?></p>
-            <p><?= t('scan.usp_p2') ?></p>
+            <h2>Not a checklist. Not a sales call. An actual report.</h2>
+            <p>Free tools like Google Lighthouse score page speed — they can't see that your headline is vague, your CTA is buried on mobile, or that you have no trust signals above the fold. That's what loses customers.</p>
+            <p>Unlike agency audits priced at $2,500–$15,000 for enterprise clients, we're built for small business owners. You get the same depth of analysis, delivered the same day, with no sales calls, no retainers, and no lock-in.</p>
         </div>
     </section>
 
@@ -440,13 +448,13 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
         <div class="container">
             <div class="urgency-inner">
                 <div class="urgency-text">
-                    <h2><?= t('scan.urgency_title') ?></h2>
-                    <p><?= t('scan.urgency_p1') ?></p>
-                    <p class="urgency-scarcity"><?= t('scan.urgency_scarcity') ?></p>
+                    <h2>Every day your site underconverts, you're leaving leads on the table</h2>
+                    <p>If your site converts at 1% and a fix pushes it to 2%, that's <strong>double the leads from the same traffic</strong> — without spending another cent on ads.</p>
+                    <p class="urgency-scarcity">⏱ Reports are processed in batches, twice daily. Order before 8 pm to receive your report by the following morning.</p>
                 </div>
                 <div class="urgency-cta">
-                    <a href="/" class="cta-button" id="urgency-cta-qf"><?= t('scan.urgency_cta') ?> <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span></a>
-                    <p class="urgency-note"><?= t('scan.urgency_note') ?></p>
+                    <a href="/" class="cta-button cta-button--light" id="urgency-cta-qf">Get Your Quick Fixes — <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span></a>
+                    <p class="urgency-note">Same-day delivery · Money-back guarantee · Credited toward Full Audit</p>
                 </div>
             </div>
         </div>
@@ -456,14 +464,14 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <section class="meet-expert">
         <div class="container">
             <div class="expert-card">
-                <img src="assets/img/marcus-webb.jpg" alt="<?= t('expert.photo_alt') ?>" class="expert-photo">
+                <img src="assets/img/marcus-webb.jpg" alt="Marcus Webb, CRO Specialist" class="expert-photo">
                 <div class="expert-bio">
-                    <p class="expert-label"><?= t('expert.label') ?></p>
-                    <h2><?= t('expert.name') ?></h2>
-                    <p class="expert-title"><?= t('expert.title') ?></p>
-                    <p><?= t('scan.expert_p1') ?></p>
-                    <p><?= t('scan.expert_p2') ?></p>
-                    <p><?= t('scan.expert_p3') ?></p>
+                    <p class="expert-label">A note from your analyst</p>
+                    <h2>Marcus Webb</h2>
+                    <p class="expert-title">CRO Specialist &amp; Marketing Strategist</p>
+                    <p>Hi, I'm Marcus. Our team has 24 years of combined digital marketing experience — and we've seen the same conversion mistakes repeated across thousands of small business websites.</p>
+                    <p>We've worked with clients across retail, trades, health, and hospitality. Our edge? We combine hands-on marketing expertise with AI-powered analysis that can see and read your page the same way a customer does.</p>
+                    <p><strong>Every report that comes through this system gets my eyes on it.</strong> If something doesn't look right, I flag it before it goes out.</p>
                 </div>
             </div>
         </div>
@@ -472,30 +480,30 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <!-- FAQ -->
     <section class="faq">
         <div class="container">
-            <h2><?= t('faq.title') ?></h2>
+            <h2>Frequently Asked Questions</h2>
             <div class="faq-item">
-                <h3><?= t('scan.faq_1_q') ?></h3>
-                <p><?= t('scan.faq_1_a') ?></p>
+                <h3>How long until I get my report?</h3>
+                <p>Reports are delivered to your email within 24 hours of payment. Most are delivered within a few hours during business hours.</p>
             </div>
             <div class="faq-item">
-                <h3><?= t('scan.faq_2_q') ?></h3>
-                <p><?= t('scan.faq_2_a') ?></p>
+                <h3>What format is the report?</h3>
+                <p>A professional PDF (typically 9 pages) with scored analysis, zoomed screenshots, a prioritised fix list, and plain-English explanations for every finding.</p>
             </div>
             <div class="faq-item">
-                <h3><?= t('scan.faq_3_q') ?></h3>
-                <p><?= t('scan.faq_3_a') ?></p>
+                <h3>How is this different from free tools like Google Lighthouse?</h3>
+                <p>Lighthouse scores your page speed and accessibility — useful, but unrelated to conversions. It can't tell you that your headline is weak, your CTA is buried, or that you're missing trust signals. That's what we look for.</p>
             </div>
             <div class="faq-item">
-                <h3><?= t('scan.faq_4_q') ?></h3>
-                <p><?= t('scan.faq_4_a') ?></p>
+                <h3>What if my site already scores well on the free scan?</h3>
+                <p>Even high-scoring sites have room for improvement. Our full audit uses real screenshot analysis and goes deeper than the free HTML-only scan — catching issues that only appear on the rendered page.</p>
             </div>
             <div class="faq-item">
-                <h3><?= t('scan.faq_5_q') ?></h3>
-                <p><?= t('scan.faq_5_a') ?></p>
+                <h3>Is there a follow-up option after I've made changes?</h3>
+                <p>Yes — once you've implemented fixes, you can order a follow-up benchmarking audit at 50% of the original price to measure your improvement.</p>
             </div>
             <div class="faq-item">
-                <h3><?= t('scan.faq_6_q') ?></h3>
-                <p><?= t('scan.faq_6_a') ?></p>
+                <h3>Do you implement the fixes?</h3>
+                <p>Our Quick Fixes and Full Audit reports give you everything your developer needs to action the changes. If you'd rather not deal with it yourself, our Audit + Fix option includes implementation of the top 3 fixes — we do the work and send you before/after screenshots as proof.</p>
             </div>
         </div>
     </section>
@@ -503,9 +511,9 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
     <!-- Footer CTA -->
     <section class="footer-cta">
         <div class="container">
-            <h2><?= t('scan.footer_cta_h2') ?></h2>
-            <a href="/" class="cta-button" id="footer-cta-qf"><?= t('scan.footer_cta_btn') ?> <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span></a>
-            <p><?= t('scan.footer_cta_sub') ?></p>
+            <h2>Ready to see what's holding your site back?</h2>
+            <a href="/" class="cta-button" id="footer-cta-qf">Get Your Quick Fixes — <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span></a>
+            <p>Same-day delivery · Money-back guarantee · Credited if you upgrade to Full Audit</p>
         </div>
     </section>
 
@@ -530,14 +538,14 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
 <!-- Exit-intent modal: Quick Fixes downsell (desktop only, once per session) -->
 <div id="exit-modal-backdrop" class="exit-modal-backdrop" style="display:none">
   <div class="exit-modal" role="dialog" aria-labelledby="exit-modal-heading">
-    <button class="exit-modal-close" aria-label="<?= t('scan.exit_close_label') ?>">&times;</button>
-    <h3 id="exit-modal-heading"><?= t('scan.exit_heading') ?></h3>
-    <p class="exit-modal-body"><?= t('scan.exit_body') ?>
+    <button class="exit-modal-close" aria-label="Close">&times;</button>
+    <h3 id="exit-modal-heading">Not ready for the full audit?</h3>
+    <p class="exit-modal-body">Get your <strong>top 5 fixes</strong> for just
       <span class="exit-modal-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="exit-modal-amount" data-usd="67" data-aud="97" data-gbp="47">67</span>
     </p>
-    <p class="exit-modal-desc"><?= t('scan.exit_desc') ?></p>
-    <a href="#" class="exit-modal-cta" id="exit-modal-cta"><?= t('scan.exit_cta') ?></a>
-    <p class="exit-modal-guarantee"><?= t('scan.exit_guarantee') ?></p>
+    <p class="exit-modal-desc">Screenshot annotations and plain-English fix instructions for your 5 worst-scoring issues. Same-day delivery.</p>
+    <a href="#" class="exit-modal-cta" id="exit-modal-cta">Get Quick Fixes →</a>
+    <p class="exit-modal-guarantee">30-day money-back guarantee</p>
   </div>
 </div>
 
