@@ -79,8 +79,8 @@ jobs:
           which git-remote-rad 2>&1 || true
           ls -la "$(which git-remote-rad 2>/dev/null)" 2>&1 || true
 
-          git config user.name "github-ci"
-          git config user.email "ci@harvest316.github.com"
+          git config --global user.name "github-ci"
+          git config --global user.email "ci@harvest316.github.com"
 
           git remote add rad "rad://${RID}" 2>/dev/null || \
             git remote set-url rad "rad://${RID}"
