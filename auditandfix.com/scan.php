@@ -85,18 +85,10 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
 <?php require_once __DIR__ . '/includes/consent-banner.php'; ?>
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
+<?php require_once __DIR__ . '/includes/header.php'; ?>
+
 <!-- ── Hero Banner ───────────────────────────────────────────────────────── -->
 <header class="hero scan-hero-banner">
-    <nav class="nav" aria-label="Site navigation">
-        <a href="/" class="logo">
-            <img src="assets/img/logo.svg" alt="Audit&amp;Fix" class="logo-img"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-            <span class="logo-text" style="display:none">Audit<span class="logo-amp">&amp;</span>Fix</span>
-        </a>
-        <div class="nav-right">
-            <a href="/" class="nav-cta">Full Audit →</a>
-        </div>
-    </nav>
 
     <div class="hero-body">
         <div class="hero-content">
@@ -453,7 +445,7 @@ $prefillUrl = isset($_GET['url']) ? filter_var($_GET['url'], FILTER_VALIDATE_URL
                     <p class="urgency-scarcity">⏱ Reports are processed in batches, twice daily. Order before 8 pm to receive your report by the following morning.</p>
                 </div>
                 <div class="urgency-cta">
-                    <a href="/" class="cta-button cta-button--light" id="urgency-cta-qf">Get Your Quick Fixes — <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span></a>
+                    <a href="/" class="cta-button" id="urgency-cta-qf">Get Your Quick Fixes — <span class="pricing-currency" data-usd="$" data-aud="$" data-gbp="£">$</span><span class="pricing-amount" data-usd="67" data-aud="97" data-gbp="47">67</span></a>
                     <p class="urgency-note">Same-day delivery · Money-back guarantee · Credited toward Full Audit</p>
                 </div>
             </div>
