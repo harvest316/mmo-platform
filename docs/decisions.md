@@ -436,6 +436,29 @@ Audit+Fix ($497) uses the full audit pipeline unchanged, then queues a `human_re
 
 ## Infrastructure (continued)
 
+### DR-119: Review acquisition campaign — compliant structure for Audit&Fix social proof (2026-04-02)
+
+**Context:** Audit&Fix (auditandfix.com) has zero Google and Trustpilot reviews. Cold outreach credibility is low without social proof. Considered offering free audit reports in exchange for reviews. Both Google Maps UGC Policy and Trustpilot Guidelines for Businesses explicitly prohibit incentivised reviews (offering anything of value in exchange for a review). ACCC (Australian Consumer Law) permits incentivised honest feedback only if (a) the incentive is given regardless of sentiment, (b) the reviewer is aware of this, and (c) the incentive is disclosed to readers. Google and Trustpilot have stricter policies than ACCC — their terms prohibit incentivised reviews entirely and can remove reviews or suspend the profile.
+
+**Decision:** Do not use a "free report in exchange for review" quid-pro-quo framing. Instead, structure the campaign as follows:
+
+1. Offer the free audit as a genuine lead-generation initiative (no strings attached, no review mentioned in the initial outreach).
+2. After delivering the report, send a follow-up that asks for feedback/a review as a completely separate and voluntary ask — the report is already delivered and the recipient has already received value. The review request is framed as "if you found it useful" not "in return for."
+3. Explicitly do NOT make the report conditional on a review (do not withhold or hint at withholding).
+4. Do NOT say "in exchange," "in return for," or "if you leave a review" in any messaging.
+5. Trustpilot: claim and verify the auditandfix.com profile before launching. Use the free plan — it allows direct invite links.
+6. Google Business Profile: register as a Service Area Business (SAB), no physical address required. Hide address, set AU service area.
+7. Target segment: businesses that already have Google reviews themselves (they understand the review ecosystem and are more likely to act).
+
+This structure is compliant with Google, Trustpilot, and ACCC. The free report functions as a lead-gen and credibility tool; the review ask is a separate, voluntary follow-up with no condition attached.
+
+**Status:** Accepted
+**Impl:** `docs/review-acquisition-campaign.md` (messaging templates and flow)
+
+---
+
+## Infrastructure (continued)
+
 ### DR-035: sops-nix + age encryption for secrets management (2026-03-01)
 
 **Context:** Needed version-controlled, encrypted secrets for NixOS deployments. Docker Secrets alone don't provide git history.
@@ -1735,3 +1758,52 @@ Structured data: TechArticle schema (datePublished, author linked to Marcus Webb
 
 **Status:** Accepted — revisit at 5k emails/month
 **Impl:** n/a
+
+### DR-127: Centralised AI model version management (2026-04-01)
+
+**Context:** Kling (`kling-v3`) and ElevenLabs (`eleven_turbo_v2_5`) model versions were hardcoded in 2Step source files. Claude models were already env-var configurable in 333Method, but there was no automated way to check if newer versions were available from any provider.
+
+**Decision:** (1) Extract all AI model versions to env vars with sensible defaults — `KLING_MODEL`, `ELEVENLABS_MODEL` in 2Step `.env`; Claude models were already in 333Method `.env`. (2) Create `mmo-platform/scripts/check-model-versions.js` that queries ElevenLabs (`GET /v1/models`) and Anthropic (`GET /v1/models`) APIs to list available models and compare against configured versions. Kling has no list-models API so it reports the configured version only with a manual-check reminder. OpenRouter models are excluded — they mirror the same Anthropic model IDs.
+
+**Status:** Implemented
+**Impl:** `mmo-platform/scripts/check-model-versions.js`, `2Step/.env.example` (KLING_MODEL, ELEVENLABS_MODEL), `2Step/src/stages/video.js`, `2Step/src/video/kling-clip-generator.js`, `2Step/src/video/shotstack.js`, `2Step/src/video/pronunciation-dict.js`, `2Step/src/video/test-pronunciation.js`
+
+### DR-128: Free-fix-first multi-touch outreach sequence (2026-04-02)
+
+**Context:** Audit&Fix cold email and SMS conversion is effectively zero. Single-touch outreach leads with the paid proposal immediately. Industry data confirms most cold-to-paid conversions require 5-8 touches, and reply rates for generic outreach run 1-3%. The pipeline already has a proposal (the audit results) and a follow-up engine (8 touches, DR-116). The missing layer is a value-delivery arc that builds trust before asking for money.
+
+**Decision:** Restructure outreach into a value-first, pitch-later sequence:
+
+1. Touch 1 (Day 0) — announce a free fix; do not mention paid services. Frame as "we noticed X and fixed it."
+2. Touch 2 (Day 3) — confirm the fix is live, share one more finding; still no price.
+3. Touch 3 (Day 7) — ROI reframe: cost of inaction, not cost of the product.
+4. Touch 4 (Day 14) — soft intro of paid audit; include the /o/{site_id} prefill link.
+5. Touch 5 (Day 21) — case study + competitor gap; price visible but not pushy.
+6. Touch 6 (Day 28) — ad waste angle (if is_running_ads=true) or reviews disconnect angle.
+7. Touch 7 (Day 35) — authority anchor (43,000+ sites scored); direct CTA.
+8. Touch 8 (Day 42) — breakup; door left open, auditandfix.com as self-serve.
+
+Free fix selection priority: missing/truncated meta description (zero-risk, 2-min fix, visibly verifiable) > broken internal links (crawlable) > missing alt text on hero image > missing canonical tag. Fix is executed server-side before touch 1 is sent. Evidence screenshot stored for use in touch 2.
+
+Price introduced at touch 4, not before. Framing: "we've already done one fix for free — here is the full picture and what it would cost to address everything."
+
+Implied opt-in mechanics: any non-STOP reply to touch 1 or touch 2 constitutes engagement and triggers the human reply funnel (existing autoresponder). Legally, AU Spam Act inferred consent already covers the full sequence (DR legal-basis.md); engagement tightens the argument. GDPR/CASL: the free fix is a service action, not a separate CEM — the original inferred consent covers the sequence. No separate explicit opt-in required for AU/NZ/CA/US email. UK email remains blocked pending LIA (DR legal-basis.md).
+
+Compliance boundary: free fix must be genuinely delivered (not claimed). Do not claim a fix was made if execution fails. Fix confirmation should include a link to the before state and after state where verifiable.
+
+**Status:** Accepted (strategy only — implementation in 333Method pipeline and prompts/FOLLOWUP.md)
+**Impl:** See `333Method/docs/03-pipeline/free-fix-sequence-strategy.md` (to be created)
+
+### DR-129: AdManager cron infrastructure — SQLite cron_jobs table + PHP runner (2026-04-02)
+
+**Context:** AdManager needs scheduled jobs (weekly policy checks, weekly copy refresh) but had no cron infrastructure. The mmo-platform cron dispatcher (`services/cron/runner.js`) existed for 333Method only.
+**Decision:** Add `cron_jobs` + `cron_job_logs` tables to AdManager's SQLite DB (matching 333Method's schema), create a PHP cron runner (`bin/cron-runner.php`), and register AdManager in the mmo cron dispatcher.
+**Status:** Implemented
+**Impl:** `AdManager/bin/cron-runner.php`, `AdManager/db/schema.sql`, `mmo-platform/services/cron/runner.js`
+
+### DR-130: CopyRefresher wired into optimise full cycle (2026-04-02)
+
+**Context:** CopyRefresher existed as standalone CLI (`bin/refresh-copy.php`) but wasn't integrated into the optimisation cycle (`bin/optimise.php full`).
+**Decision:** Add `copy-refresh` subcommand to optimise.php, include as step 6 in `full` run (after creative fatigue detection). Weekly cron registered as `weeklyCopyRefresh` (7 days, 600s timeout, non-critical).
+**Status:** Implemented
+**Impl:** `AdManager/bin/optimise.php`, `AdManager/db/admanager.db` cron_jobs table
