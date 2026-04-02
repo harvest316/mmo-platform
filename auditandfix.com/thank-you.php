@@ -1,19 +1,21 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/i18n.php';
 require_once __DIR__ . '/includes/pricing.php';
 
-$email = htmlspecialchars($_GET['email'] ?? 'your email');
+$emailRaw = $_GET['email'] ?? 'your email';
+$email    = htmlspecialchars($emailRaw);
 $product = $_GET['product'] ?? 'full_audit';
 if (!in_array($product, VALID_PRODUCTS, true)) {
     $product = 'full_audit';
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars($lang) ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thank You — Audit&Fix</title>
+    <title><?= htmlspecialchars(t('ty.page_title')) ?></title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="canonical" href="https://www.auditandfix.com/thank-you">
     <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
@@ -21,13 +23,13 @@ if (!in_array($product, VALID_PRODUCTS, true)) {
 </head>
 <body>
 <?php require_once __DIR__ . '/includes/consent-banner.php'; ?>
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#main-content" class="skip-link"><?= t('ty.skip_link') ?></a>
 <?php require_once __DIR__ . '/includes/header.php'; ?>
     <header class="hero hero-short">
 
         <div class="hero-body">
             <div class="hero-content">
-                <h1>Thank You for Your Purchase!</h1>
+                <h1><?= t('ty.hero_h1') ?></h1>
             </div>
         </div>
     </header>
@@ -39,106 +41,106 @@ if (!in_array($product, VALID_PRODUCTS, true)) {
                 <div class="check-circle">✓</div>
 
                 <?php if ($product === 'quick_fixes'): ?>
-                <h2>Your Quick Fixes Report is Being Prepared</h2>
-                <p>We'll deliver your top 5 fixes to <strong><?= $email ?></strong> <strong>today</strong>.</p>
+                <h2><?= t('ty.qf_h2') ?></h2>
+                <p><?= t('ty.qf_delivery', ['email' => $emailRaw]) ?></p>
 
                 <div class="steps">
                     <div class="step">
                         <span class="step-num">1</span>
-                        <span>AI analysis of your 5 worst-scoring factors</span>
+                        <span><?= t('ty.qf_step1') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">2</span>
-                        <span>Screenshot annotations of each problem</span>
+                        <span><?= t('ty.qf_step2') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">3</span>
-                        <span>Fix instructions delivered to your inbox</span>
+                        <span><?= t('ty.qf_step3') ?></span>
                     </div>
                 </div>
 
                 <div class="spam-notice">
-                    <p>Please check your spam/junk folder if you don't see the report today.</p>
+                    <p><?= t('ty.qf_spam') ?></p>
                 </div>
 
                 <div class="thankyou-upsell">
-                    <h3>Want the full picture?</h3>
-                    <p>Upgrade to the <strong>Full Audit</strong> and we'll credit your Quick Fixes purchase toward it. Just reply to your delivery email — no need to pay again from scratch.</p>
+                    <h3><?= t('ty.qf_upsell_h3') ?></h3>
+                    <p><?= t('ty.qf_upsell_body') ?></p>
                 </div>
 
                 <?php elseif ($product === 'audit_fix'): ?>
-                <h2>Your Audit + Implementation is Being Prepared</h2>
-                <p>We'll deliver your full audit and implement your top 3 fixes. Report to <strong><?= $email ?></strong> within <strong>48 hours</strong>.</p>
+                <h2><?= t('ty.af_h2') ?></h2>
+                <p><?= t('ty.af_delivery', ['email' => $emailRaw]) ?></p>
 
                 <div class="steps">
                     <div class="step">
                         <span class="step-num">1</span>
-                        <span>Full-page screenshot capture</span>
+                        <span><?= t('ty.af_step1') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">2</span>
-                        <span>AI analysis of 10 conversion factors</span>
+                        <span><?= t('ty.af_step2') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">3</span>
-                        <span>Problem area identification with screenshots</span>
+                        <span><?= t('ty.af_step3') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">4</span>
-                        <span>PDF report delivered to your inbox</span>
+                        <span><?= t('ty.af_step4') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">5</span>
-                        <span>Top 3 fixes implemented with before/after screenshots</span>
+                        <span><?= t('ty.af_step5') ?></span>
                     </div>
                 </div>
 
                 <div class="spam-notice">
-                    <p>Please check your spam/junk folder if you don't see the report within 48 hours.</p>
+                    <p><?= t('ty.af_spam') ?></p>
                 </div>
 
                 <?php else: ?>
-                <h2>Your CRO Audit Report is Being Prepared</h2>
-                <p>We'll deliver your comprehensive audit report to <strong><?= $email ?></strong> within <strong>24 hours</strong>.</p>
+                <h2><?= t('ty.fa_h2') ?></h2>
+                <p><?= t('ty.fa_delivery', ['email' => $emailRaw]) ?></p>
 
                 <div class="steps">
                     <div class="step">
                         <span class="step-num">1</span>
-                        <span>Full-page screenshot capture</span>
+                        <span><?= t('ty.fa_step1') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">2</span>
-                        <span>AI analysis of 10 conversion factors</span>
+                        <span><?= t('ty.fa_step2') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">3</span>
-                        <span>Problem area identification with screenshots</span>
+                        <span><?= t('ty.fa_step3') ?></span>
                     </div>
                     <div class="step">
                         <span class="step-num">4</span>
-                        <span>PDF report delivered to your inbox</span>
+                        <span><?= t('ty.fa_step4') ?></span>
                     </div>
                 </div>
 
                 <div class="spam-notice">
-                    <p>Please check your spam/junk folder if you don't see the report within 24 hours.</p>
+                    <p><?= t('ty.fa_spam') ?></p>
                 </div>
 
                 <?php endif; ?>
 
                 <div class="thankyou-referral">
-                    <h3>Know another business owner?</h3>
-                    <p>Forward them <strong>auditandfix.com</strong> — if they purchase, we'll give you <strong>15% off your next order</strong>. Just reply to your report delivery email with their details.</p>
+                    <h3><?= t('ty.referral_h3') ?></h3>
+                    <p><?= t('ty.referral_body') ?></p>
                 </div>
 
                 <?php if ($product === 'full_audit'): ?>
                 <div class="thankyou-upsell">
-                    <h3>Coming back after implementing your fixes?</h3>
-                    <p>Order a <strong>follow-up benchmarking audit at 50% off</strong> to measure your improvement. Email us at the address in your report, or visit <a href="/">auditandfix.com</a> and mention your original order.</p>
+                    <h3><?= t('ty.followup_h3') ?></h3>
+                    <p><?= t('ty.followup_body') ?></p>
                 </div>
                 <?php endif; ?>
 
-                <p class="contact-info">Questions? Contact us at <?= obfuscatedEmail(SUPPORT_EMAIL) ?></p>
+                <p class="contact-info"><?= t('ty.contact_prefix') ?> <?= obfuscatedEmail(SUPPORT_EMAIL) ?></p>
             </div>
         </div>
     </section>

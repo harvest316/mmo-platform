@@ -7,6 +7,7 @@
  */
 
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/i18n.php';
 require_once __DIR__ . '/../includes/geo.php';
 require_once __DIR__ . '/../includes/pricing.php';
 
@@ -18,18 +19,18 @@ $price8       = $videoPricing['monthly_8'];
 $price12      = $videoPricing['monthly_12'];
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars($lang) ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>How We Compare to Other Video Review Services | Audit&amp;Fix</title>
-    <meta name="description" content="Side-by-side comparison of Audit&Fix Video Reviews vs Testimonial.to, Vocal Video, Widewail, and DIY tools. See why zero-effort AI video wins.">
+    <title><?= htmlspecialchars(t('vcmp.page_title')) ?></title>
+    <meta name="description" content="<?= htmlspecialchars(t('vcmp.page_description')) ?>">
     <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
     <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="/assets/img/favicon-32.png" sizes="32x32" type="image/png">
     <link rel="canonical" href="https://www.auditandfix.com/video-reviews/compare">
-    <meta property="og:title" content="How we compare to other video review services">
-    <meta property="og:description" content="Side-by-side comparison of Audit&Fix Video Reviews vs Testimonial.to, Vocal Video, Widewail, and DIY tools.">
+    <meta property="og:title" content="<?= htmlspecialchars(t('vcmp.og_title')) ?>">
+    <meta property="og:description" content="<?= htmlspecialchars(t('vcmp.og_description')) ?>">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.auditandfix.com/video-reviews/compare">
     <meta property="og:image" content="https://www.auditandfix.com/assets/img/og-image.png">
@@ -450,10 +451,10 @@ $price12      = $videoPricing['monthly_12'];
 </head>
 <body>
 <?php require_once __DIR__ . '/../includes/consent-banner.php'; ?>
-<a href="#main-content" class="skip-link">Skip to main content</a>
+<a href="#main-content" class="skip-link"><?= t('vcmp.skip_link') ?></a>
 
 <?php
-$headerCta   = ['text' => 'Get Your Free Video', 'href' => '/video-reviews/'];
+$headerCta   = ['text' => t('vcmp.header_cta'), 'href' => '/video-reviews/'];
 $headerTheme = 'light';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -462,8 +463,8 @@ require_once __DIR__ . '/../includes/header.php';
 <header class="cmp-hero" style="padding-top: 0;">
 
     <div class="cmp-hero-body">
-        <h1>How we compare to other video review services</h1>
-        <p class="subtitle">Most video testimonial tools need your customers to record themselves. We don't. We turn the Google reviews you already have into professional videos &mdash; automatically.</p>
+        <h1><?= t('vcmp.hero_h1') ?></h1>
+        <p class="subtitle"><?= t('vcmp.hero_subtitle') ?></p>
     </div>
 </header>
 
@@ -473,89 +474,89 @@ require_once __DIR__ . '/../includes/header.php';
     <!-- Comparison table -->
     <section class="cmp-table-section">
         <div class="cmp-table-wrap">
-            <p class="cmp-scroll-hint">Scroll sideways to see all providers &rarr;</p>
+            <p class="cmp-scroll-hint"><?= t('vcmp.scroll_hint') ?></p>
             <table class="cmp-table">
                 <thead>
                     <tr>
-                        <th scope="col">Feature</th>
+                        <th scope="col"><?= t('vcmp.th_feature') ?></th>
                         <th scope="col" class="cmp-ours">Audit&amp;Fix Video&nbsp;Reviews</th>
                         <th scope="col">Testimonial.to</th>
                         <th scope="col">Vocal Video</th>
                         <th scope="col">Widewail</th>
-                        <th scope="col">DIY (InVideo/HeyGen)</th>
+                        <th scope="col"><?= t('vcmp.th_diy') ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Price</td>
-                        <td class="cmp-ours"><?= $symbol ?><?= $price4 ?>&ndash;<?= $symbol ?><?= $price12 ?>/mo</td>
-                        <td>$20&ndash;80/mo</td>
-                        <td>$69&ndash;139/mo</td>
-                        <td>$500&ndash;750/mo</td>
-                        <td>$29&ndash;99/mo</td>
+                        <td><?= t('vcmp.row_price') ?></td>
+                        <td class="cmp-ours"><?= t('vcmp.row_price_ours', ['symbol' => $symbol, 'price4' => $price4, 'price12' => $price12]) ?></td>
+                        <td><?= t('vcmp.row_price_testimonial') ?></td>
+                        <td><?= t('vcmp.row_price_vocal') ?></td>
+                        <td><?= t('vcmp.row_price_widewail') ?></td>
+                        <td><?= t('vcmp.row_price_diy') ?></td>
                     </tr>
                     <tr>
-                        <td>Setup fee</td>
-                        <td class="cmp-ours"><span class="cmp-yes">$0 (waived)</span></td>
-                        <td>$0</td>
-                        <td>$0</td>
-                        <td>$0</td>
-                        <td>$0</td>
+                        <td><?= t('vcmp.row_setup') ?></td>
+                        <td class="cmp-ours"><span class="cmp-yes"><?= t('vcmp.row_setup_ours') ?></span></td>
+                        <td><?= t('vcmp.row_setup_others') ?></td>
+                        <td><?= t('vcmp.row_setup_others') ?></td>
+                        <td><?= t('vcmp.row_setup_others') ?></td>
+                        <td><?= t('vcmp.row_setup_others') ?></td>
                     </tr>
                     <tr>
-                        <td>Customer effort required</td>
-                        <td class="cmp-ours"><span class="cmp-yes">None</span> &mdash; we use your existing Google&nbsp;reviews</td>
-                        <td>Customer must record video</td>
-                        <td>Customer records via questionnaire</td>
-                        <td>Customer must record video</td>
-                        <td>Business owner creates each video</td>
+                        <td><?= t('vcmp.row_effort') ?></td>
+                        <td class="cmp-ours"><span class="cmp-yes"><?= t('vcmp.row_effort_ours') ?></span> <?= t('vcmp.row_effort_ours_detail') ?></td>
+                        <td><?= t('vcmp.row_effort_testimonial') ?></td>
+                        <td><?= t('vcmp.row_effort_vocal') ?></td>
+                        <td><?= t('vcmp.row_effort_widewail') ?></td>
+                        <td><?= t('vcmp.row_effort_diy') ?></td>
                     </tr>
                     <tr>
-                        <td>Uses existing Google&nbsp;reviews</td>
-                        <td class="cmp-ours"><span class="cmp-yes">&#10003; Automatic</span></td>
+                        <td><?= t('vcmp.row_google') ?></td>
+                        <td class="cmp-ours"><span class="cmp-yes"><?= t('vcmp.row_google_ours') ?></span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
                     </tr>
                     <tr>
-                        <td>AI voiceover</td>
-                        <td class="cmp-ours"><span class="cmp-yes">&#10003; Professional</span></td>
+                        <td><?= t('vcmp.row_voiceover') ?></td>
+                        <td class="cmp-ours"><span class="cmp-yes"><?= t('vcmp.row_voiceover_ours') ?></span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
-                        <td><span class="cmp-partial">&#10003; Basic</span></td>
+                        <td><span class="cmp-partial"><?= t('vcmp.row_voiceover_diy') ?></span></td>
                     </tr>
                     <tr>
-                        <td>Custom video clips</td>
-                        <td class="cmp-ours"><span class="cmp-yes">&#10003; Niche-specific B-roll</span></td>
+                        <td><?= t('vcmp.row_clips') ?></td>
+                        <td class="cmp-ours"><span class="cmp-yes"><?= t('vcmp.row_clips_ours') ?></span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
                         <td><span class="cmp-no">&#10007;</span></td>
-                        <td><span class="cmp-partial">&#10003; Stock footage</span></td>
+                        <td><span class="cmp-partial"><?= t('vcmp.row_clips_diy') ?></span></td>
                     </tr>
                     <tr>
-                        <td>Videos per month</td>
-                        <td class="cmp-ours">4&ndash;12</td>
-                        <td>Unlimited text, limited video</td>
-                        <td>Varies by plan</td>
-                        <td>Varies</td>
-                        <td>Unlimited (manual effort)</td>
+                        <td><?= t('vcmp.row_videos_month') ?></td>
+                        <td class="cmp-ours"><?= t('vcmp.row_videos_ours') ?></td>
+                        <td><?= t('vcmp.row_videos_testimonial') ?></td>
+                        <td><?= t('vcmp.row_videos_vocal') ?></td>
+                        <td><?= t('vcmp.row_videos_widewail') ?></td>
+                        <td><?= t('vcmp.row_videos_diy') ?></td>
                     </tr>
                     <tr>
-                        <td>Time to first video</td>
-                        <td class="cmp-ours"><span class="cmp-yes">~15 minutes</span></td>
-                        <td>Days (waiting for customer)</td>
-                        <td>Days (waiting for customer)</td>
-                        <td>Days (waiting for customer)</td>
-                        <td>30&ndash;60 min per video (your time)</td>
+                        <td><?= t('vcmp.row_time') ?></td>
+                        <td class="cmp-ours"><span class="cmp-yes"><?= t('vcmp.row_time_ours') ?></span></td>
+                        <td><?= t('vcmp.row_time_testimonial') ?></td>
+                        <td><?= t('vcmp.row_time_vocal') ?></td>
+                        <td><?= t('vcmp.row_time_widewail') ?></td>
+                        <td><?= t('vcmp.row_time_diy') ?></td>
                     </tr>
                     <tr>
-                        <td>Cancel anytime</td>
+                        <td><?= t('vcmp.row_cancel') ?></td>
                         <td class="cmp-ours"><span class="cmp-yes">&#10003;</span></td>
                         <td><span class="cmp-yes">&#10003;</span></td>
-                        <td>Annual billing</td>
-                        <td>Custom contract</td>
+                        <td><?= t('vcmp.row_cancel_vocal') ?></td>
+                        <td><?= t('vcmp.row_cancel_widewail') ?></td>
                         <td><span class="cmp-yes">&#10003;</span></td>
                     </tr>
                 </tbody>
@@ -565,117 +566,117 @@ require_once __DIR__ . '/../includes/header.php';
 
     <!-- Competitor reviews -->
     <section class="cmp-reviews-section">
-        <h2>A closer look at each option</h2>
+        <h2><?= t('vcmp.reviews_h2') ?></h2>
 
         <div class="cmp-review-card cmp-review-ours">
             <h3>Audit&amp;Fix Video Reviews</h3>
             <dl>
-                <dt>What it is</dt>
-                <dd>A done-for-you service that turns your existing Google reviews into professional short-form videos with AI voiceover and niche-matched footage.</dd>
+                <dt><?= t('vcmp.review_label_what') ?></dt>
+                <dd><?= t('vcmp.review_af_what') ?></dd>
 
-                <dt>How it works</dt>
-                <dd>You sign up and we pull your best Google reviews automatically. Each review is paired with a natural-sounding voiceover, relevant B-roll clips for your industry, and background music. The finished videos are delivered to you ready to post &mdash; no filming, no editing, no customer involvement.</dd>
+                <dt><?= t('vcmp.review_label_how') ?></dt>
+                <dd><?= t('vcmp.review_af_how') ?></dd>
 
-                <dt>Best for</dt>
-                <dd>Local businesses that want professional video content from the reviews they've already earned, without asking customers to do anything.</dd>
+                <dt><?= t('vcmp.review_label_best_for') ?></dt>
+                <dd><?= t('vcmp.review_af_best') ?></dd>
 
-                <dt>Main limitation</dt>
-                <dd>You don't have direct control over the footage selection &mdash; we choose the B-roll clips based on your niche and the review content.</dd>
+                <dt><?= t('vcmp.review_label_limitation') ?></dt>
+                <dd><?= t('vcmp.review_af_limitation') ?></dd>
             </dl>
-            <p class="cmp-review-verdict">Verdict: The only option that produces videos without needing anyone to record themselves. If you've got Google reviews and want video content from them, this is the fastest route.</p>
+            <p class="cmp-review-verdict"><?= t('vcmp.review_label_verdict') ?> <?= t('vcmp.review_af_verdict') ?></p>
         </div>
 
         <div class="cmp-review-card">
             <h3>Testimonial.to</h3>
             <dl>
-                <dt>What it is</dt>
-                <dd>A widget-based platform that embeds a testimonial request form on your website, inviting customers to record video reviews in their browser.</dd>
+                <dt><?= t('vcmp.review_label_what') ?></dt>
+                <dd><?= t('vcmp.review_testimonial_what') ?></dd>
 
-                <dt>How it works</dt>
-                <dd>You install an embeddable widget or share a dedicated link. Customers visit the page, click record, and submit a video testimonial from their device. You can then curate and display these on a "wall of love" or embed them individually across your site.</dd>
+                <dt><?= t('vcmp.review_label_how') ?></dt>
+                <dd><?= t('vcmp.review_testimonial_how') ?></dd>
 
-                <dt>Best for</dt>
-                <dd>SaaS companies and online businesses whose customers are already comfortable recording themselves on camera.</dd>
+                <dt><?= t('vcmp.review_label_best_for') ?></dt>
+                <dd><?= t('vcmp.review_testimonial_best') ?></dd>
 
-                <dt>Main limitation</dt>
-                <dd>Most customers simply never record. Response rates are typically low, which means you'll spend time chasing testimonials and still end up with a handful at best.</dd>
+                <dt><?= t('vcmp.review_label_limitation') ?></dt>
+                <dd><?= t('vcmp.review_testimonial_limitation') ?></dd>
             </dl>
-            <p class="cmp-review-verdict">Verdict: A solid tool if your audience is tech-savvy and willing to record. For local businesses &mdash; tradies, dentists, restaurants &mdash; the ask is usually too big, and collection rates reflect that.</p>
+            <p class="cmp-review-verdict"><?= t('vcmp.review_label_verdict') ?> <?= t('vcmp.review_testimonial_verdict') ?></p>
         </div>
 
         <div class="cmp-review-card">
             <h3>Vocal Video</h3>
             <dl>
-                <dt>What it is</dt>
-                <dd>A guided video testimonial platform that walks customers through a structured questionnaire, prompting them to answer specific questions on camera.</dd>
+                <dt><?= t('vcmp.review_label_what') ?></dt>
+                <dd><?= t('vcmp.review_vocal_what') ?></dd>
 
-                <dt>How it works</dt>
-                <dd>You create a set of questions and send customers a unique link. They open the link, read each prompt, and record their answer one question at a time. Vocal Video stitches the clips together into a polished video with your branding. It's more structured than a blank recording widget, which helps customers who aren't sure what to say.</dd>
+                <dt><?= t('vcmp.review_label_how') ?></dt>
+                <dd><?= t('vcmp.review_vocal_how') ?></dd>
 
-                <dt>Best for</dt>
-                <dd>B2B companies that need detailed, story-driven testimonials and have customers willing to spend 5&ndash;10 minutes recording.</dd>
+                <dt><?= t('vcmp.review_label_best_for') ?></dt>
+                <dd><?= t('vcmp.review_vocal_best') ?></dd>
 
-                <dt>Main limitation</dt>
-                <dd>It still requires the customer to sit down, open a link, and record themselves &mdash; the guided prompts help, but the fundamental barrier (getting someone on camera) remains.</dd>
+                <dt><?= t('vcmp.review_label_limitation') ?></dt>
+                <dd><?= t('vcmp.review_vocal_limitation') ?></dd>
             </dl>
-            <p class="cmp-review-verdict">Verdict: A step up from Testimonial.to's blank-canvas approach. The questionnaire format genuinely helps, but you're still dependent on customers making time to record, which is the bottleneck for most businesses.</p>
+            <p class="cmp-review-verdict"><?= t('vcmp.review_label_verdict') ?> <?= t('vcmp.review_vocal_verdict') ?></p>
         </div>
 
         <div class="cmp-review-card">
             <h3>Widewail</h3>
             <dl>
-                <dt>What it is</dt>
-                <dd>An enterprise-focused managed service that handles outreach to your customers on your behalf to collect video testimonials.</dd>
+                <dt><?= t('vcmp.review_label_what') ?></dt>
+                <dd><?= t('vcmp.review_widewail_what') ?></dd>
 
-                <dt>How it works</dt>
-                <dd>Widewail assigns a team to reach out to your customers via SMS or email, asking them to record a short video testimonial. They manage the follow-ups, provide a recording portal, and handle the editing. It's a white-glove approach &mdash; you hand over your customer list and they do the chasing.</dd>
+                <dt><?= t('vcmp.review_label_how') ?></dt>
+                <dd><?= t('vcmp.review_widewail_how') ?></dd>
 
-                <dt>Best for</dt>
-                <dd>Multi-location enterprises (car dealerships, healthcare groups) with the budget for a managed service and a steady stream of new customers to contact.</dd>
+                <dt><?= t('vcmp.review_label_best_for') ?></dt>
+                <dd><?= t('vcmp.review_widewail_best') ?></dd>
 
-                <dt>Main limitation</dt>
-                <dd>Pricing starts around $500&ndash;750 per month with annual or multi-year contracts. The cost puts it out of reach for most small businesses, and even with managed outreach, the end result still depends on customers filming themselves.</dd>
+                <dt><?= t('vcmp.review_label_limitation') ?></dt>
+                <dd><?= t('vcmp.review_widewail_limitation') ?></dd>
             </dl>
-            <p class="cmp-review-verdict">Verdict: If you're an enterprise with budget and volume, Widewail removes the admin burden of collecting testimonials. For small-to-medium businesses, the price and contract length are hard to justify &mdash; especially when the videos still rely on customer willingness to record.</p>
+            <p class="cmp-review-verdict"><?= t('vcmp.review_label_verdict') ?> <?= t('vcmp.review_widewail_verdict') ?></p>
         </div>
 
         <div class="cmp-review-card">
-            <h3>DIY with InVideo or HeyGen</h3>
+            <h3><?= t('vcmp.th_diy') ?></h3>
             <dl>
-                <dt>What it is</dt>
-                <dd>AI-powered video creation tools that let you build review videos yourself using templates, stock footage, and text-to-speech.</dd>
+                <dt><?= t('vcmp.review_label_what') ?></dt>
+                <dd><?= t('vcmp.review_diy_what') ?></dd>
 
-                <dt>How it works</dt>
-                <dd>You sign up for a tool like InVideo or HeyGen, choose a template, paste in a review, select background clips or an AI avatar, and export the video. You have full creative control over every element &mdash; footage, voiceover, text overlays, music. Some tools also offer AI avatars that "speak" the review on screen.</dd>
+                <dt><?= t('vcmp.review_label_how') ?></dt>
+                <dd><?= t('vcmp.review_diy_how') ?></dd>
 
-                <dt>Best for</dt>
-                <dd>Business owners or marketers who enjoy video editing, want full creative control, and have the time to produce each video individually.</dd>
+                <dt><?= t('vcmp.review_label_best_for') ?></dt>
+                <dd><?= t('vcmp.review_diy_best') ?></dd>
 
-                <dt>Main limitation</dt>
-                <dd>Each video takes 30&ndash;60 minutes of your time. You need basic design instincts to avoid the "made with a template" look, and the work scales linearly &mdash; ten videos means ten sessions.</dd>
+                <dt><?= t('vcmp.review_label_limitation') ?></dt>
+                <dd><?= t('vcmp.review_diy_limitation') ?></dd>
             </dl>
-            <p class="cmp-review-verdict">Verdict: Maximum control, maximum time investment. These tools are genuinely capable, but "doing it yourself" means exactly that. Most business owners try a few videos, then stop because the time cost isn't sustainable.</p>
+            <p class="cmp-review-verdict"><?= t('vcmp.review_label_verdict') ?> <?= t('vcmp.review_diy_verdict') ?></p>
         </div>
     </section>
 
     <!-- Key differentiators -->
     <section class="cmp-diff-section">
-        <h2>What sets us apart</h2>
+        <h2><?= t('vcmp.diff_h2') ?></h2>
         <div class="cmp-diff-grid">
             <div class="cmp-diff-card">
                 <div class="cmp-diff-icon" aria-hidden="true">&#128588;</div>
-                <h3>Zero customer effort</h3>
-                <p>Every other video testimonial service needs your customers to sit down and record something. That means emails, reminders, and a lot of waiting. We skip all of it &mdash; your Google reviews are the raw material, and we do the rest.</p>
+                <h3><?= t('vcmp.diff_effort_title') ?></h3>
+                <p><?= t('vcmp.diff_effort_body') ?></p>
             </div>
             <div class="cmp-diff-card">
                 <div class="cmp-diff-icon" aria-hidden="true">&#11088;</div>
-                <h3>Uses reviews you already have</h3>
-                <p>You've already earned great reviews. They're sitting on Google right now, being read by a few people and ignored by everyone else. We turn them into short, shareable videos that work on every social platform.</p>
+                <h3><?= t('vcmp.diff_reviews_title') ?></h3>
+                <p><?= t('vcmp.diff_reviews_body') ?></p>
             </div>
             <div class="cmp-diff-card">
                 <div class="cmp-diff-icon" aria-hidden="true">&#127908;</div>
-                <h3>Professional AI voiceover</h3>
-                <p>Each video features a natural-sounding AI voiceover that reads the review aloud, paired with niche-specific B-roll footage and background music. The result looks and sounds like it was made by a production studio.</p>
+                <h3><?= t('vcmp.diff_voiceover_title') ?></h3>
+                <p><?= t('vcmp.diff_voiceover_body') ?></p>
             </div>
         </div>
     </section>
@@ -683,10 +684,10 @@ require_once __DIR__ . '/../includes/header.php';
     <!-- Footer CTA -->
     <section class="cmp-footer-cta">
         <div class="container">
-            <h2>Ready to see one made for your business?</h2>
-            <p class="subtitle">We'll create a free video from one of your best Google reviews. No credit card. No obligation.</p>
-            <a href="/video-reviews/#get-video" class="cta-button">Get Your Free Video &rarr;</a>
-            <p class="cta-note">Free. No credit card. One video per business.</p>
+            <h2><?= t('vcmp.footer_h2') ?></h2>
+            <p class="subtitle"><?= t('vcmp.footer_subtitle') ?></p>
+            <a href="/video-reviews/#get-video" class="cta-button"><?= t('vcmp.footer_cta') ?></a>
+            <p class="cta-note"><?= t('vcmp.footer_note') ?></p>
         </div>
     </section>
 

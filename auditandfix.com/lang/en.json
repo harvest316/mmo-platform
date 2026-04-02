@@ -356,6 +356,7 @@
   "cmp.footer_cta": "Get Your Free Score &rarr;",
   "cmp.footer_note": "Free. No credit card. No tracking code to install.",
 
+  "vcmp.skip_link": "Skip to main content",
   "vcmp.page_title": "How We Compare to Other Video Review Services | Audit&Fix",
   "vcmp.page_description": "Side-by-side comparison of Audit&Fix Video Reviews vs Testimonial.to, Vocal Video, Widewail, and DIY tools. See why zero-effort AI video wins.",
   "vcmp.og_title": "How we compare to other video review services",
@@ -410,6 +411,7 @@
   "vcmp.review_label_how": "How it works",
   "vcmp.review_label_best_for": "Best for",
   "vcmp.review_label_limitation": "Main limitation",
+  "vcmp.review_label_verdict": "Verdict:",
   "vcmp.review_af_what": "A done-for-you service that turns your existing Google reviews into professional short-form videos with AI voiceover and niche-matched footage.",
   "vcmp.review_af_how": "You sign up and we pull your best Google reviews automatically. Each review is paired with a natural-sounding voiceover, relevant B-roll clips for your industry, and background music. The finished videos are delivered to you ready to post &mdash; no filming, no editing, no customer involvement.",
   "vcmp.review_af_best": "Local businesses that want professional video content from the reviews they've already earned, without asking customers to do anything.",
@@ -472,6 +474,18 @@
   "blogpost.cta_button": "Scan Your Website Free",
   "blogpost.related_h2": "Related articles",
 
+  "bpost.page_title": "{title} | Audit&Fix Blog",
+  "bpost.breadcrumb_home": "Home",
+  "bpost.breadcrumb_blog": "Blog",
+  "bpost.author_bio_name": "Marcus Webb",
+  "bpost.author_bio_title": "CRO Specialist, Audit&amp;Fix",
+  "bpost.author_bio_text": "Marcus has analysed over 35,000 small business websites to understand what converts visitors into customers. He writes plain-English guides for business owners who want more enquiries without the jargon.",
+  "bpost.cta_h3": "Want to know how your website scores?",
+  "bpost.cta_body": "Our free scanner checks 10 conversion factors and gives you a grade in 30 seconds.",
+  "bpost.cta_button": "Scan Your Website Free",
+  "bpost.related_h2": "Related articles",
+
+  "ty.skip_link": "Skip to main content",
   "ty.page_title": "Thank You — Audit&Fix",
   "ty.hero_h1": "Thank You for Your Purchase!",
   "ty.qf_h2": "Your Quick Fixes Report is Being Prepared",
@@ -502,6 +516,7 @@
   "ty.followup_h3": "Coming back after implementing your fixes?",
   "ty.followup_body": "Order a <strong>follow-up benchmarking audit at 50% off</strong> to measure your improvement. Email us at the address in your report, or visit <a href=\"/\">auditandfix.com</a> and mention your original order.",
   "ty.contact": "Questions? Contact us at {email_link}",
+  "ty.contact_prefix": "Questions? Contact us at",
 
   "scan.page_title": "Free Website Audit Tool — Score Your Site in 30 Seconds | Audit&Fix",
   "scan.page_description": "Enter your URL and get an instant website conversion score. Our AI has scored 23,000+ websites. The average? D+. Find out where you stand. Free, 30 seconds.",

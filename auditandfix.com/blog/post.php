@@ -7,6 +7,7 @@
  */
 
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/i18n.php';
 require_once __DIR__ . '/../includes/geo.php';
 
 $countryCode = detectCountry();
@@ -98,11 +99,11 @@ function loadRelatedPosts(string $currentSlug, array $currentTags, int $limit = 
 $relatedPosts = loadRelatedPosts($slug, $post_tags);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars($lang) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $post_title_escaped ?> | Audit&amp;Fix Blog</title>
+    <title><?= htmlspecialchars(t('bpost.page_title', ['title' => $post_title])) ?></title>
     <meta name="description" content="<?= $post_excerpt_escaped ?>">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="<?= $post_url ?>">
@@ -385,8 +386,8 @@ $relatedPosts = loadRelatedPosts($slug, $post_tags);
 <?php $headerTheme = 'light'; require_once __DIR__ . '/../includes/header.php'; ?>
 
 <nav class="breadcrumbs" aria-label="Breadcrumb">
-    <a href="/">Home</a><span class="sep">/</span>
-    <a href="/blog/">Blog</a><span class="sep">/</span>
+    <a href="/"><?= t('bpost.breadcrumb_home') ?></a><span class="sep">/</span>
+    <a href="/blog/"><?= t('bpost.breadcrumb_blog') ?></a><span class="sep">/</span>
     <span><?= $post_title_escaped ?></span>
 </nav>
 
@@ -416,25 +417,25 @@ $relatedPosts = loadRelatedPosts($slug, $post_tags);
 
     <!-- Author Bio -->
     <aside class="author-bio">
-        <img src="/assets/img/marcus-webb.jpg" alt="Marcus Webb" class="author-bio-avatar">
+        <img src="/assets/img/marcus-webb.jpg" alt="<?= htmlspecialchars(t('bpost.author_bio_name')) ?>" class="author-bio-avatar">
         <div class="author-bio-text">
-            <div class="author-name">Marcus Webb</div>
-            <div class="author-title">CRO Specialist, Audit&amp;Fix</div>
-            <p>Marcus has analysed over 35,000 small business websites to understand what converts visitors into customers. He writes plain-English guides for business owners who want more enquiries without the jargon.</p>
+            <div class="author-name"><?= t('bpost.author_bio_name') ?></div>
+            <div class="author-title"><?= t('bpost.author_bio_title') ?></div>
+            <p><?= t('bpost.author_bio_text') ?></p>
         </div>
     </aside>
 
     <!-- Bottom CTA -->
     <div class="post-cta">
-        <h3>Want to know how your website scores?</h3>
-        <p>Our free scanner checks 10 conversion factors and gives you a grade in 30 seconds.</p>
-        <a href="/scan" class="cta-button">Scan Your Website Free</a>
+        <h3><?= t('bpost.cta_h3') ?></h3>
+        <p><?= t('bpost.cta_body') ?></p>
+        <a href="/scan" class="cta-button"><?= t('bpost.cta_button') ?></a>
     </div>
 
     <!-- Related Posts -->
     <?php if (!empty($relatedPosts)): ?>
     <section class="related-posts">
-        <h2>Related articles</h2>
+        <h2><?= t('bpost.related_h2') ?></h2>
         <div class="related-grid">
             <?php foreach ($relatedPosts as $rp): ?>
             <div class="related-card">

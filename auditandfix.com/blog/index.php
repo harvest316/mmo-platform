@@ -7,6 +7,7 @@
  */
 
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/i18n.php';
 require_once __DIR__ . '/../includes/geo.php';
 
 $countryCode = detectCountry();
@@ -59,20 +60,20 @@ function loadAllPosts(): array {
 $posts = loadAllPosts();
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars($lang) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Website Conversion Tips for Small Business | Audit&amp;Fix Blog</title>
-    <meta name="description" content="Practical tips to get more leads from your website. Conversion advice, audit checklists, and data-backed insights for tradies and local service businesses.">
+    <title><?= htmlspecialchars(t('blog.page_title')) ?></title>
+    <meta name="description" content="<?= htmlspecialchars(t('blog.page_description')) ?>">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://www.auditandfix.com/blog/">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.auditandfix.com/blog/">
-    <meta property="og:title" content="Website Conversion Tips for Small Business | Audit&amp;Fix Blog">
-    <meta property="og:description" content="Practical tips to get more leads from your website. Conversion advice, audit checklists, and insights for local businesses.">
+    <meta property="og:title" content="<?= htmlspecialchars(t('blog.og_title')) ?>">
+    <meta property="og:description" content="<?= htmlspecialchars(t('blog.og_description')) ?>">
     <meta property="og:image" content="https://www.auditandfix.com/assets/img/og-image.png">
     <meta property="og:site_name" content="Audit&amp;Fix">
     <meta name="twitter:card" content="summary_large_image">
@@ -215,21 +216,21 @@ $posts = loadAllPosts();
 <?php require_once __DIR__ . '/../includes/header.php'; ?>
 
 <header class="blog-header">
-    <h1>The Audit&amp;Fix Blog</h1>
-    <p>Practical tips to get more enquiries from your website. No jargon, no fluff — just what works.</p>
+    <h1><?= t('blog.header_h1') ?></h1>
+    <p><?= t('blog.header_subtitle') ?></p>
 </header>
 
 <nav class="breadcrumbs" aria-label="Breadcrumb">
-    <a href="/">Home</a><span class="sep">/</span>
-    <span>Blog</span>
+    <a href="/"><?= t('blog.breadcrumb_home') ?></a><span class="sep">/</span>
+    <span><?= t('blog.breadcrumb_blog') ?></span>
 </nav>
 
 <main class="blog-listing">
     <?php if (empty($posts)): ?>
     <div class="blog-empty">
-        <h2>Coming soon</h2>
-        <p>We're working on our first articles. In the meantime, try our free website scanner to see how your site scores.</p>
-        <a href="/scan" class="cta-button" style="margin-top: 1.5rem;">Scan Your Website Free</a>
+        <h2><?= t('blog.empty_h2') ?></h2>
+        <p><?= t('blog.empty_body') ?></p>
+        <a href="/scan" class="cta-button" style="margin-top: 1.5rem;"><?= t('blog.empty_cta') ?></a>
     </div>
     <?php else: ?>
     <div class="post-cards">
@@ -252,9 +253,9 @@ $posts = loadAllPosts();
 <!-- Scanner CTA -->
 <section style="max-width: 700px; margin: 0 auto 3rem; padding: 0 24px;">
     <div class="blog-cta">
-        <h2>Not sure how your website stacks up?</h2>
-        <p>Our free scanner checks 10 conversion factors and gives you a score in 30 seconds.</p>
-        <a href="/scan" class="cta-button">Scan Your Website Free</a>
+        <h2><?= t('blog.cta_h2') ?></h2>
+        <p><?= t('blog.cta_body') ?></p>
+        <a href="/scan" class="cta-button"><?= t('blog.cta_button') ?></a>
     </div>
 </section>
 
