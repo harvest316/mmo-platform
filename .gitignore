@@ -70,12 +70,7 @@ temp/
 *.backup
 *.bak
 
-# auditandfix.com website — secrets and generated files
-auditandfix.com/.htaccess
-auditandfix.com/e2e-test-page-*.php
-auditandfix.com/0482dfbb*.html
-auditandfix.com/data/orders/
-auditandfix.com/data/af_deals/
+# auditandfix.com website moved to private repo (harvest316/auditandfix-website)
 
 # Claude scheduled tasks lock
 .claude/scheduled_tasks.lock

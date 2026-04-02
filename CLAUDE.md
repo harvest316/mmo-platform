@@ -9,7 +9,9 @@ Parent platform for all "make money online" child projects. This workspace (`~/c
   mmo-platform/          ← you are here (shared @mmo/* packages, future)
   333Method/             ← Audit&Fix: SERP → score → proposal → outreach pipeline (ACTIVE)
   2Step/                 ← Video review outreach: prospect → video → DM/email (BUILDING)
-  distributed-infra/     ← NixOS infrastructure + infra plans
+  AdManager/             ← Multi-project ad platform (Google + Meta)
+  distributed-infra/     ← NixOS infrastructure + infra plans (PRIVATE)
+  auditandfix-website/   ← PHP website + CF Worker for auditandfix.com (PRIVATE)
   mmo.code-workspace     ← VSCode multi-root workspace file
 ```
 
@@ -88,22 +90,7 @@ Full catalog: `docs/agency-agents-reference.md`
 
 ## Website Deployment
 
-FTP deploy script for auditandfix.com (and future sites):
-
-```bash
-# Upload specific files (paths relative to auditandfix.com/)
-scripts/deploy-website.sh index.php api.php
-
-# Upload only git-changed files
-scripts/deploy-website.sh --changed
-
-# Upload everything
-scripts/deploy-website.sh --all
-```
-
-- Credentials: `mmo-platform/.env` (FTP_HOST, FTP_USER, FTP_PASS — gitignored)
-- Source dir: `mmo-platform/auditandfix.com/` (override with `WEBSITE_DIR` env var)
-- `.htaccess` and `e2e-test-page-*.php` are gitignored (contain live secrets — manage on Hostinger directly)
+The auditandfix.com website and CF Worker have been moved to a **private repo**: `~/code/auditandfix-website/` (harvest316/auditandfix-website). See that repo's CLAUDE.md for deploy instructions.
 
 ## VSCode Tips
 
