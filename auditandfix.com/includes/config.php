@@ -103,7 +103,11 @@ function getDealExpiresAt(int $durationMs = 20 * 60 * 1000): int {
     // Take only the first IP if comma-separated
     $ip = trim(explode(',', $ip)[0]);
     // HMAC with a salt to prevent rainbow-table attacks on plain sha256(IP)
-    $salt = getenv('DEAL_HASH_SALT') ?: 'af-deal-default-salt-change-in-prod';
+    $salt = getenv('DEAL_HASH_SALT');
+    if (!$salt) {
+        error_log('DEAL_HASH_SALT not set — deal timer disabled');
+        return time() + intdiv($durationMs, 1000); // no fingerprinting, just a flat timer
+    }
     $fingerprint = hash_hmac('sha256', $ip, $salt);
 
     // Storage: a JSON file per fingerprint under data/af_deals/ (persistent across requests)

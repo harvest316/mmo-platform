@@ -73,6 +73,7 @@ temp/
 # auditandfix.com website — secrets and generated files
 auditandfix.com/.htaccess
 auditandfix.com/e2e-test-page-*.php
+auditandfix.com/0482dfbb*.html
 auditandfix.com/data/orders/
 auditandfix.com/data/af_deals/
 

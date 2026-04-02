@@ -73,8 +73,15 @@ $price4   = $videoPricing['monthly_4'];
 $price8   = $videoPricing['monthly_8'];
 $price12  = $videoPricing['monthly_12'];
 
-// Twilio number for SMS deep-link (AU default)
-$smsNumber = '+61468089949';
+// Twilio number for SMS deep-link — country-specific
+$twilioNumbers = [
+    'AU' => getenv('TWILIO_NUMBER_AU') ?: '',
+    'US' => getenv('TWILIO_NUMBER_US') ?: '',
+    'GB' => getenv('TWILIO_NUMBER_GB') ?: '',
+    'CA' => getenv('TWILIO_NUMBER_CA') ?: '',
+    'NZ' => getenv('TWILIO_NUMBER_NZ') ?: '',
+];
+$smsNumber = $twilioNumbers[$country] ?? $twilioNumbers['AU'] ?? '';
 
 // Session for navbar (if they navigate to main site)
 $_SESSION['my_video'] = ['hash' => $hash, 'biz' => $video['business_name'] ?? 'your business'];
