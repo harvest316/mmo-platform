@@ -32,8 +32,8 @@ $demos = [
         'star_rating'   => '4.9',
         'review_count'  => 492,
         'country_code'  => 'AU',
-        'video_url'     => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900001-1773998424007.mp4',
-        'poster_url'    => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900001-1773998436379.jpg',
+        'video_url'     => 'https://cdn.auditandfix.com/video-s900001-1773998424007.mp4',
+        'poster_url'    => 'https://cdn.auditandfix.com/poster-s900001-1773998436379.jpg',
     ],
     'cleaning' => [
         'business_name' => 'ACME Cleaning',
@@ -44,8 +44,8 @@ $demos = [
         'star_rating'   => '4.8',
         'review_count'  => 318,
         'country_code'  => 'AU',
-        'video_url'     => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900002-1773998472988.mp4',
-        'poster_url'    => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900002-1773998485234.jpg',
+        'video_url'     => 'https://cdn.auditandfix.com/video-s900002-1773998472988.mp4',
+        'poster_url'    => 'https://cdn.auditandfix.com/poster-s900002-1773998485234.jpg',
     ],
     'plumber' => [
         'business_name' => 'ACME Plumbing',
@@ -56,8 +56,8 @@ $demos = [
         'star_rating'   => '4.7',
         'review_count'  => 256,
         'country_code'  => 'AU',
-        'video_url'     => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s900003-1773998522268.mp4',
-        'poster_url'    => 'https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s900003-1773998536448.jpg',
+        'video_url'     => 'https://cdn.auditandfix.com/video-s900003-1773998522268.mp4',
+        'poster_url'    => 'https://cdn.auditandfix.com/poster-s900003-1773998536448.jpg',
     ],
 ];
 
@@ -136,19 +136,12 @@ $paypalClientId = $isSandbox
     ? getenv('PAYPAL_SANDBOX_CLIENT_ID')
     : getenv('PAYPAL_CLIENT_ID');
 
-$planIds = $isSandbox ? [
-    'AU' => ['starter' => 'P-1TP70954XW883934LNG6QUHI', 'growth' => 'P-33E99084CG8374243NG6QUHI', 'scale' => 'P-2FR332186L946193CNG6QUHQ'],
-    'US' => ['starter' => 'P-9GF88425C2882640ENG6QUHQ', 'growth' => 'P-93P61657U5432500FNG6QUHY', 'scale' => 'P-4LK160410B762532FNG6QUIA'],
-    'UK' => ['starter' => 'P-7TG48242KB049050RNG6QUII', 'growth' => 'P-7WG79208XD6200539NG6QUII', 'scale' => 'P-39X77924LP161751YNG6QUIQ'],
-    'CA' => ['starter' => 'P-88X03952B0106751FNG6QUIY', 'growth' => 'P-8TA544333R185194GNG6QUIY', 'scale' => 'P-5SK92110SS805022WNG6QUJA'],
-    'NZ' => ['starter' => 'P-5DM7929802745500DNG6QUJA', 'growth' => 'P-0PS82605SX980890ANG6QUJA', 'scale' => 'P-3LW95193A8114213XNG6QUJI'],
-] : [
-    'AU' => ['starter' => 'P-7W199928FL1579849NG6QUOQ', 'growth' => 'P-3GY2606809896142XNG6QUOY', 'scale' => 'P-7VH136248N305402HNG6QUOY'],
-    'US' => ['starter' => 'P-6EN63979L5990353UNG6QUOY', 'growth' => 'P-3MH10976DN955194ENG6QUPA', 'scale' => 'P-0KL851053H3484118NG6QUPA'],
-    'UK' => ['starter' => 'P-2DC31436MD1011805NG6QUPA', 'growth' => 'P-7GS69409B3885052DNG6QUPA', 'scale' => 'P-1LN77501A24853239NG6QUPI'],
-    'CA' => ['starter' => 'P-51665869SJ963234ANG6QUPI', 'growth' => 'P-77L1313470409312TNG6QUPI', 'scale' => 'P-2Y835126JP858464RNG6QUPI'],
-    'NZ' => ['starter' => 'P-6CV17904YA921471KNG6QUPQ', 'growth' => 'P-9HM25243YF7494543NG6QUPQ', 'scale' => 'P-35860240W1938872LNG6QUPQ'],
-];
+// Plan IDs loaded from env: PAYPAL_PLANS_SANDBOX / PAYPAL_PLANS_LIVE (JSON)
+// Format: {"AU":{"starter":"P-xxx","growth":"P-xxx","scale":"P-xxx"},"US":{...},...}
+$plansJson = $isSandbox
+    ? getenv('PAYPAL_PLANS_SANDBOX')
+    : getenv('PAYPAL_PLANS_LIVE');
+$planIds = $plansJson ? json_decode($plansJson, true) : [];
 
 $cc = strtoupper($countryCode);
 if ($cc === 'GB') $cc = 'UK';

@@ -800,8 +800,8 @@ $price12 = $videoPricing['monthly_12'];
         <!-- Example 1: Pest Control -->
         <div class="example-card">
             <div class="example-video-wrap">
-                <video preload="auto" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s3-1774578500984.jpg">
-                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s3-1774578488894.mp4" type="video/mp4">
+                <video preload="auto" playsinline muted loop poster="https://cdn.auditandfix.com/poster-s3-1774578500984.jpg">
+                    <source src="https://cdn.auditandfix.com/video-s3-1774578488894.mp4" type="video/mp4">
                 </video>
                 <div class="example-play-btn" aria-label="<?= t('vr.play_video') ?>">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -820,8 +820,8 @@ $price12 = $videoPricing['monthly_12'];
         <!-- Example 2: Plumber -->
         <div class="example-card">
             <div class="example-video-wrap">
-                <video preload="auto" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s19-1774577448578.jpg">
-                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s19-1774577432668.mp4" type="video/mp4">
+                <video preload="auto" playsinline muted loop poster="https://cdn.auditandfix.com/poster-s19-1774577448578.jpg">
+                    <source src="https://cdn.auditandfix.com/video-s19-1774577432668.mp4" type="video/mp4">
                 </video>
                 <div class="example-play-btn" aria-label="<?= t('vr.play_video') ?>">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -840,8 +840,8 @@ $price12 = $videoPricing['monthly_12'];
         <!-- Example 3: House Cleaning -->
         <div class="example-card">
             <div class="example-video-wrap">
-                <video preload="auto" playsinline muted loop poster="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/poster-s25-1774578668477.jpg">
-                    <source src="https://pub-9e277996d5a74eee9508a861cccead66.r2.dev/video-s25-1774578655370.mp4" type="video/mp4">
+                <video preload="auto" playsinline muted loop poster="https://cdn.auditandfix.com/poster-s25-1774578668477.jpg">
+                    <source src="https://cdn.auditandfix.com/video-s25-1774578655370.mp4" type="video/mp4">
                 </video>
                 <div class="example-play-btn" aria-label="<?= t('vr.play_video') ?>">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
