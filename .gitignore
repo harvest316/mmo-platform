@@ -71,6 +71,8 @@ temp/
 *.bak
 
 # auditandfix.com website moved to private repo (harvest316/auditandfix-website)
+# These files still exist on the filesystem for FTP deploy but must not be tracked
+auditandfix.com/
 
 # Claude scheduled tasks lock
 .claude/scheduled_tasks.lock
