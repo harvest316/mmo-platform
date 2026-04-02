@@ -1807,3 +1807,129 @@ Compliance boundary: free fix must be genuinely delivered (not claimed). Do not 
 **Decision:** Add `copy-refresh` subcommand to optimise.php, include as step 6 in `full` run (after creative fatigue detection). Weekly cron registered as `weeklyCopyRefresh` (7 days, 600s timeout, non-critical).
 **Status:** Implemented
 **Impl:** `AdManager/bin/optimise.php`, `AdManager/db/admanager.db` cron_jobs table
+
+### DR-131: Legal compliance analysis — AI autoresponder subscription service (inbound-triggered) (2026-04-02)
+
+**Context:** Planning an AI autoresponder subscription for AU/US/UK SMBs (plumbers, electricians, cleaners). Channels: inbound SMS, email (OAuth or branded), WhatsApp, web chat, contact forms. Service is inbound-triggered only — never initiates first contact. Existing cold outreach projects (333Method, 2Step) have extensive compliance infrastructure (DR-121, legal-basis.md, compliance.js, suppression.js) built for outbound; needed analysis of how inbound-triggered model changes the legal landscape.
+
+**Decision:**
+
+1. **Inbound-triggered fundamentally changes the consent model.** Customer initiating contact provides implied consent to receive a response. This eliminates the core legal barrier that permanently blocked US/UK/CA SMS in cold outreach (DR-121). TCPA express written consent is NOT required for replies. Spam Act Schedule 1 clause 2(1)(a) explicitly exempts responses to inquiries. PECR "unsolicited" element absent.
+
+2. **Data processor, not controller.** Unlike 333Method (controller — decides who/what/why), the autoresponder service is a data processor (SMB client is controller). This shifts primary GDPR/privacy liability to the client but creates mandatory DPA obligations under GDPR Article 28.
+
+3. **AI disclosure mandatory in all markets.** California SB 1001 (bot disclosure in commercial transactions), UK GDPR Article 22 (automated decision-making transparency), ACCC guidance under ACL s.18 (misleading conduct). Default first-message disclosure in every conversation: "This is an automated assistant — a team member can jump in at any time."
+
+4. **10DLC now viable.** Register as "Customer Care" use case (not Marketing). Inbound-triggered model has clear opt-in mechanism (customer texted first) — will pass TCR vetting that cold outreach could not (DR-121 error 30909).
+
+5. **WhatsApp requires BSP registration** if serving multiple businesses. Meta policy requires AI disclosure in automated messages. 24-hour conversation window applies — after 24h, must use pre-approved templates.
+
+6. **OAuth email access (Gmail/Outlook) has highest compliance overhead.** Google Restricted Scope Policy requires CASA Tier 2 annual security assessment. Limited Use requirements prohibit using email content for model training or cross-client analysis. **Start with branded email (theirbrand@ourdomain.com) — no OAuth, lowest compliance surface. Add OAuth in later phase.**
+
+7. **AI-booked appointments create liability.** Prices must come from structured data (never hallucinated). AI must not make guarantees about timing/availability. ToS must include: liability cap (12 months fees), SMB indemnification for inaccurate data, AI limitations disclaimer.
+
+8. **Required before launch:** DPA template (Article 28), privacy policy, ToS with liability caps, AI disclosure default message, STOP/opt-out handling (reuse compliance.js), cross-project suppression (reuse suppression.js), business hours enforcement for follow-ups, price/availability guardrails, 10DLC "Customer Care" registration, human escalation on every channel.
+
+9. **Required before UK market:** Legitimate Interest Assessment, DSAR process (30-day response), breach notification procedure (72h to ICO).
+
+10. **Data retention default:** 90 days conversation data, 12 months anonymised analytics, full deletion within 30 days on contract termination. SMB client can configure shorter retention.
+
+**Status:** Analysis complete, pending product build decision
+**Impl:** This conversation. Full analysis in DR-131 conversation log. Compliance infrastructure to reuse: `mmo-platform/src/suppression.js`, `333Method/src/utils/compliance.js`, `333Method/docs/05-outreach/legal-basis.md`
+
+---
+
+## Autoresponder Service Architecture (2026-04-02)
+
+> These decisions are documented in `docs/architecture-autoresponder-service.md`.
+> Status is Proposed until implementation begins.
+
+### DR-132: Dedicated Twilio number per tenant, not number porting (2026-04-02)
+
+**Context:** Tradies have existing phone numbers on vans, GBP, and cards. Need SMS interception without disrupting voice calls. Options: new Twilio number, number porting with voice forwarding, conditional call forwarding, carrier APIs.
+
+**Decision:** Phase 1: Dedicated Twilio local number per tenant. Tradie keeps existing number for calls, adds "Text us: 04XX" to marketing materials. Zero carrier interaction, zero porting risk, works in AU/US/UK/NZ identically. Phase 2: Hosted SMS via number porting for tenants wanting single-number experience (premium tier). Conditional SMS forwarding rejected — AU carriers do not support it at consumer/SMB level. Carrier APIs rejected — require enterprise contracts incompatible with sole-trader customers.
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 2
+
+### DR-133: Custom sending subdomain on tenant's domain for email, not OAuth (2026-04-02)
+
+**Context:** Need to send AI replies as the tenant's business. Options: OAuth into Gmail/Outlook, IMAP polling, email forwarding + branded reply, custom subdomain on their domain. DR-131 flagged OAuth as highest compliance overhead (CASA Tier 2 assessment, Restricted Scope Policy).
+
+**Decision:** Primary: Custom subdomain `reply.theirdomain.com.au` with SPF/DKIM/DMARC pointing to Resend. Inbound via email forwarding rule to `{tenant_id}@inbound.replymate.com.au` (Resend inbound webhooks or CF Email Workers). Fallback: Branded email `theirbusiness@replymate.com.au` for tenants who cannot add DNS records. OAuth rejected for: full mailbox access risk, token refresh maintenance, Google Restricted Scope compliance cost, and incompatibility with free Gmail accounts (most tradies). IMAP rejected for: app password deprecation, polling latency, connection management at scale.
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 3
+
+### DR-134: WhatsApp via Twilio BSP, not direct Cloud API (2026-04-02)
+
+**Context:** WhatsApp Business integration required. Options: direct Meta Cloud API, Twilio as BSP, other BSPs.
+
+**Decision:** Twilio as BSP. Same webhook format as SMS (minimal incremental code), Twilio handles Meta Business Verification (2-4 weeks, document-heavy process offloaded), single vendor for SMS + WhatsApp. Direct Cloud API is ~30% cheaper per conversation but adds a second webhook format, separate Meta developer account management, and direct Meta verification burden per tenant. Template pre-approval for 24h window handling: enquiry_followup, booking_confirmation, conversation_reopen.
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 4
+
+### DR-135: No booking integration at launch; AI captures intent, owner books manually (2026-04-02)
+
+**Context:** Booking system landscape: ServiceTitan, Jobber, Housecall Pro, Calendly, Google Calendar, paper diary. Options: custom API per platform, Zapier/Make/n8n middleware, Cal.com self-hosted, no integration.
+
+**Decision:** Phase 1: No integration. AI extracts booking details (service type, date/time preference, address, urgency) and presents as structured notification in dashboard. Owner books in whatever system they use. Rationale: 80%+ of sole-trader tradies do not use a booking platform. Building integrations before validating demand is architecture astronautics. Phase 2 (50+ tenants): Cal.com self-hosted + Google Calendar sync. Phase 3: ServiceTitan/Jobber direct API for enterprise-tier tenants, n8n self-hosted for long-tail platforms. Zapier/Make rejected for per-tenant cost ($20-50/mo exceeding the integration's value).
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 5
+
+### DR-136: Anthropic API direct for replies, complexity classifier for cost routing (2026-04-02)
+
+**Context:** LLM architecture for multi-tenant autoresponder. Options: Claude Max `claude -p` CLI, Anthropic API direct, OpenRouter, hybrid. Existing ecosystem uses `claude -p` for high-quality tasks (DR-080) and OpenRouter for volume (DR-059).
+
+**Decision:** Hybrid: Haiku complexity classifier (~$0.001/call) routes each inbound message. Simple messages (hours, location, pricing FAQ) -> Sonnet via OpenRouter ($0.003-0.01/reply). Complex messages (complaints, multi-turn, negotiation) -> Opus via Anthropic API ($0.02-0.08/reply). Booking requests -> Haiku structured extraction only (cheapest). `claude -p` CLI rejected for multi-tenant service: 2-5s startup overhead per invocation, lack of streaming, process-level isolation only. Estimated LLM cost per tenant at 200 msgs/month: $2-8 (87-98% gross margin on $99 subscription). Knowledge base stored as structured JSON in JSONB column (not vector embeddings) — a tradie's FAQ is 10-50 entries, fits trivially within context window.
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 6
+
+### DR-137: Web chat proof-of-work over CAPTCHA for bot prevention (2026-04-02)
+
+**Context:** Web chat widget is highest risk for LLM credit drain. Need bot prevention that does not degrade UX for a tradie's customer asking about a leaking pipe.
+
+**Decision:** 7-layer defence: (1) CF Worker rate limiting (5 msg/min per IP, 20/hr per session), (2) HMAC session tokens with 30-min rolling expiry, (3) client-side SHA-256 proof of work (difficulty 18, ~0.5s mobile, invisible to user), (4) browser fingerprinting (canvas + WebGL + AudioContext), (5) behavioural analysis (typing speed variance <50ms = bot), (6) per-tenant daily cap (100 conversations), (7) LLM cost circuit breaker ($5/tenant/day switches to canned responses). CAPTCHA rejected — terrible UX for a chat widget. Proof of work runs invisibly; bots without JS runtime cannot solve it.
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 7
+
+### DR-138: PWA for business owner dashboard, not native app (2026-04-02)
+
+**Context:** Business owners need a mobile app to view conversations, override AI, set hours, receive notifications. Options: native iOS + Android, React Native/Expo, Flutter, PWA, Capacitor wrapper.
+
+**Decision:** Phase 1: PWA. No app store required (tradie opens URL, taps "Add to Home Screen"). Web Push API supported on iOS 16.4+ and all Android. Instant updates without app store review. The UI is a conversation list + detail view + settings — no hardware API access needed. Phase 2: Capacitor wrapper if PWA limitations become a churn driver (adds App Store/Play Store presence, native push via APNs/FCM). Native iOS + Android rejected for: 2x codebase cost, $99/yr Apple Developer fee, 30% revenue cut, app store review delays. React Native/Flutter rejected for: premature complexity for a CRUD UI.
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 8
+
+### DR-139: PostgreSQL with row-level security for multi-tenant, not SQLite per tenant (2026-04-02)
+
+**Context:** Multi-tenant data architecture. Options: SQLite per tenant, single PostgreSQL with tenant_id, PG schema-per-tenant, hybrid. VPS already runs PostgreSQL (DR-004, DR-106 for suppression system).
+
+**Decision:** Single PostgreSQL with `tenant_id` column on all tables + Row-Level Security as defence in depth. RLS policies enforce tenant isolation even if application code misses a WHERE clause. Connection middleware sets `SET app.current_tenant_id = {id}` per request. SQLite per tenant rejected: operational nightmare at 100+ tenants (file management, connection pooling, backup orchestration, no cross-tenant analytics). Schema-per-tenant rejected: migration management across N schemas is worse than row-level filtering with indexes.
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 9
+
+### DR-140: PostgreSQL LISTEN/NOTIFY + FOR UPDATE SKIP LOCKED as message queue (2026-04-02)
+
+**Context:** Need a queue system for the 5-10 minute reply window. Options: Redis/Valkey, RabbitMQ, PostgreSQL as queue, SQS.
+
+**Decision:** PostgreSQL as the queue. `FOR UPDATE SKIP LOCKED` for concurrent dequeue (already planned per DR-052). `LISTEN/NOTIFY` for pseudo-real-time wake-up when new messages arrive (polling every 30s as backup). 30-second deliberate delay on dequeue allows rapid-fire messages from same customer to batch into one AI call and handles webhook delivery ordering. Redis/RabbitMQ rejected: the 5-10 minute window means sub-second dequeue latency is unnecessary, and adding infrastructure for a ~1 msg/sec throughput at 100 tenants is unjustified. SQS rejected: vendor lock-in, no advantage at this scale.
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 11
+
+### DR-141: CF Workers for webhook ingestion, Node.js for reply generation (2026-04-02)
+
+**Context:** Architecture split between edge and origin for the autoresponder service. Need to handle Twilio/Resend/WhatsApp webhooks and web chat WebSocket connections.
+
+**Decision:** CF Workers handle webhook ingestion (signature validation, rate limiting, insert to PG, NOTIFY) — same pattern as 333Method (DR-031, DR-034). CF Durable Objects for WebSocket state (web chat widget sessions). All LLM calls happen in the Node.js Reply Service on the VPS (10ms CPU limit in Workers makes LLM calls impossible there). This splits cleanly: Workers handle the "fast, stateless, high-availability" ingestion layer; Node.js handles the "slow, stateful, compute-heavy" intelligence layer. Monitoring via cron (reusing pipeline-status-monitor.js and process-guardian.js patterns).
+
+**Status:** Proposed
+**Impl:** `docs/architecture-autoresponder-service.md` Section 11
