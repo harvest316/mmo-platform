@@ -481,6 +481,24 @@ This structure is compliant with Google, Trustpilot, and ACCC. The free report f
 **Status:** Accepted
 **Impl:** Separate repos; `~/code/mmo.code-workspace`
 
+### DR-148: Multi-source pronunciation pipeline with CMU ARPAbet PLS (2026-04-02)
+
+**Context:** ElevenLabs TTS mispronounces many place names (Aboriginal AU, Māori NZ, irregular UK). Hand-crafted alias rules don't scale (38 AU suburbs). Need a comprehensive, automated system.
+
+**Key discovery:** ElevenLabs CMU ARPAbet phoneme rules only work on `eleven_turbo_v2` and `eleven_flash_v2`. Silently dropped by `v2_5` and `multilingual_v2`. IPA phoneme rules are dropped by ALL models. PLS file upload works with `text/xml` content type. BBC/ABC pronunciation guides are internal-only (inaccessible). Government gazetteers have no pronunciation data — they're spatial databases.
+
+**Decision:** Multi-source pronunciation pipeline:
+- Sources (priority order): Manual overrides > Wikipedia IPA > CMU dict > eSpeak-NG fallback
+- Storage: PLS files per country (CMU ARPAbet, `data/pronunciation/{cc}.pls`)
+- Delivery: PLS upload to ElevenLabs, one dict per country (avoids cross-country collisions like Reading UK vs Reading PA)
+- Place name lists: Geonames bulk download (consistent format across all 7 countries)
+- Model: `eleven_turbo_v2` (phoneme-compatible)
+- Voices: Country-appropriate (AU=Charlie, UK=George, US=Roger, env var overridable)
+- New country rollout: documented checklist in `docs/pronunciation-system.md`
+
+**Status:** Accepted — pipeline built, AU gazetteer gathering in progress
+**Impl:** `scripts/gather-pronunciations.js`, `scripts/fetch-gazetteer.js`, `scripts/upload-pls.js`, `src/video/pronunciation-sources.js`, `src/video/ipa-to-cmu.js`, `src/video/espeak-to-cmu.js`, `src/video/elevenlabs-voices.js`
+
 ### DR-037: Separate SQLite DB per project (2026-03-10)
 
 **Context:** Each project has different data models. Shared DB vs separate?
