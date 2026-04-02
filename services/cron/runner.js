@@ -36,6 +36,11 @@ export const PROJECTS = {
   //   runner: '/home/jason/code/2Step/src/cron.js',
   //   root: '/home/jason/code/2Step',
   // },
+  'admanager': {
+    db: '/home/jason/code/AdManager/db/admanager.db',
+    runner: '/home/jason/code/AdManager/bin/cron-runner.php',
+    root: '/home/jason/code/AdManager',
+  },
 };
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
