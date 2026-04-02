@@ -486,5 +486,21 @@
   "scan.exit_body": "Sadece <strong>5 büyük düzeltmenizi</strong> alın, fiyatı ",
   "scan.exit_desc": "En kötü puanlı 5 sorununuz için ekran görüntüsü açıklamaları ve sade dilde düzeltme talimatları. Aynı gün teslim.",
   "scan.exit_cta": "Hızlı Düzeltmeleri Alın →",
-  "scan.exit_guarantee": "30 günlük para iade garantisi"
+  "scan.exit_guarantee": "30 günlük para iade garantisi",
+  "scan.expert_label": "Analistinizden bir not",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "CRO Uzmanı &amp; Pazarlama Stratejisti",
+  "scan.expert_photo_alt": "Marcus Webb, CRO Uzmanı",
+  "scan.stars_aria": "5 üzerinden 5 yıldız",
+  "scan.checklist_1": "✓ <strong>Başlık kalitesi</strong> — 3–5 saniyede değer iletiyor mu?",
+  "scan.checklist_2": "✓ <strong>Değer teklifi</strong> — özellikler değil faydalar; \"bundan bana ne?\"",
+  "scan.checklist_3": "✓ <strong>Benzersiz satış noktası</strong> — rakipler yerine sizi neden tercih etsinler?",
+  "scan.checklist_4": "✓ <strong>Harekete geçirici mesaj</strong> — görünürlük, konum ve metin netliği",
+  "scan.checklist_5": "✓ <strong>Güven &amp; itibar sinyalleri</strong> — yorumlar, rozetler, sertifikalar",
+  "scan.checklist_6": "✓ <strong>Aciliyet &amp; kıtlık</strong> — şimdi harekete geçmek için inandırıcı neden",
+  "scan.checklist_7": "✓ <strong>Dikkat çekici &amp; görsel etki</strong> — hero bölümündeki ilk izlenim",
+  "scan.checklist_8": "✓ <strong>Görseller &amp; tasarım</strong> — jenerik stok fotoğraflar yerine gerçek fotoğraflar",
+  "scan.checklist_9": "✓ <strong>Teklif netliği</strong> — ziyaretçiler tam olarak ne alacaklarını biliyor mu?",
+  "scan.checklist_10": "✓ <strong>Sektöre uygunluk</strong> — tasarım pazarınıza uygun mu?",
+  "scan.faq_section_title": "Sıkça Sorulan Sorular"
 }

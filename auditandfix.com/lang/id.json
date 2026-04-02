@@ -486,5 +486,21 @@
   "scan.exit_body": "Dapatkan <strong>5 perbaikan teratas</strong> Anda hanya dengan ",
   "scan.exit_desc": "Anotasi screenshot dan instruksi perbaikan bahasa sederhana untuk 5 masalah dengan skor terburuk Anda. Pengiriman hari yang sama.",
   "scan.exit_cta": "Dapatkan Perbaikan Cepat →",
-  "scan.exit_guarantee": "Garansi uang kembali 30 hari"
+  "scan.exit_guarantee": "Garansi uang kembali 30 hari",
+  "scan.expert_label": "Catatan dari analis Anda",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "Spesialis CRO &amp; Ahli Strategi Pemasaran",
+  "scan.expert_photo_alt": "Marcus Webb, Spesialis CRO",
+  "scan.stars_aria": "5 dari 5 bintang",
+  "scan.checklist_1": "✓ <strong>Kualitas judul</strong> — apakah menyampaikan nilai dalam 3–5 detik?",
+  "scan.checklist_2": "✓ <strong>Proposisi nilai</strong> — manfaat, bukan fitur; \"apa untungnya bagi saya?\"",
+  "scan.checklist_3": "✓ <strong>Keunggulan unik</strong> — mengapa memilih Anda, bukan kompetitor?",
+  "scan.checklist_4": "✓ <strong>Ajakan bertindak</strong> — visibilitas, penempatan, dan kejelasan teks",
+  "scan.checklist_5": "✓ <strong>Sinyal kepercayaan &amp; kredibilitas</strong> — ulasan, lencana, sertifikasi",
+  "scan.checklist_6": "✓ <strong>Urgensi &amp; kelangkaan</strong> — alasan yang meyakinkan untuk bertindak sekarang",
+  "scan.checklist_7": "✓ <strong>Hook &amp; dampak visual</strong> — kesan pertama di bagian hero",
+  "scan.checklist_8": "✓ <strong>Gambar &amp; desain</strong> — foto autentik, bukan stok gambar generik",
+  "scan.checklist_9": "✓ <strong>Kejelasan penawaran</strong> — apakah pengunjung tahu persis apa yang mereka dapatkan?",
+  "scan.checklist_10": "✓ <strong>Kesesuaian industri</strong> — apakah desainnya cocok dengan pasar Anda?",
+  "scan.faq_section_title": "Pertanyaan yang Sering Diajukan"
 }

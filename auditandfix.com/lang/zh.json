@@ -486,5 +486,21 @@
   "scan.exit_body": "仅需 获取您的<strong>前5大修复</strong> ",
   "scan.exit_desc": "针对您5个最低分问题的截图注释和通俗修复说明。当天交付。",
   "scan.exit_cta": "获取快速修复 →",
-  "scan.exit_guarantee": "30天退款保证"
+  "scan.exit_guarantee": "30天退款保证",
+  "scan.expert_label": "分析师寄语",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "CRO专家 &amp; 营销策略师",
+  "scan.expert_photo_alt": "Marcus Webb，CRO专家",
+  "scan.stars_aria": "5星满分，5星评价",
+  "scan.checklist_1": "✓ <strong>标题质量</strong>——能否在3至5秒内传达价值？",
+  "scan.checklist_2": "✓ <strong>价值主张</strong>——强调好处而非功能；“这对我有什么用？”",
+  "scan.checklist_3": "✓ <strong>独特卖点</strong>——为什么选择你而不是竞争对手？",
+  "scan.checklist_4": "✓ <strong>行动号召</strong>——可见度、位置和文案清晰度",
+  "scan.checklist_5": "✓ <strong>信任 &amp; 信誉信号</strong>——评价、认证徽章、资质证书",
+  "scan.checklist_6": "✓ <strong>紧迫感 &amp; 稀缺性</strong>——合理的立即行动理由",
+  "scan.checklist_7": "✓ <strong>吸引力 &amp; 视觉冲击</strong>——首屏hero区域的第一印象",
+  "scan.checklist_8": "✓ <strong>图片 &amp; 设计</strong>——真实照片而非通用素材图",
+  "scan.checklist_9": "✓ <strong>产品/服务清晰度</strong>——访客是否清楚自己能获得什么？",
+  "scan.checklist_10": "✓ <strong>行业适配性</strong>——设计是否契合您的市场？",
+  "scan.faq_section_title": "常见问题"
 }

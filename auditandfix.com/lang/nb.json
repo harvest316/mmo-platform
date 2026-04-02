@@ -486,5 +486,21 @@
   "scan.exit_body": "Få <strong>de 5 beste fiksene</strong> dine for bare ",
   "scan.exit_desc": "Skjermbildeannoteringer og lettfattelige fiksinstruksjoner for de 5 lavest scorede problemene dine. Levering samme dag.",
   "scan.exit_cta": "Få raske fikser →",
-  "scan.exit_guarantee": "30-dagers pengene-tilbake-garanti"
+  "scan.exit_guarantee": "30-dagers pengene-tilbake-garanti",
+  "scan.expert_label": "Et ord fra din analytiker",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "CRO-spesialist &amp; Markedsføringsstrateg",
+  "scan.expert_photo_alt": "Marcus Webb, CRO-spesialist",
+  "scan.stars_aria": "5 av 5 stjerner",
+  "scan.checklist_1": "✓ <strong>Overskriftskvalitet</strong> — formidler den verdien på 3–5 sekunder?",
+  "scan.checklist_2": "✓ <strong>Verdiforslag</strong> — fordeler, ikke funksjoner; \"hva får jeg ut av det?\"",
+  "scan.checklist_3": "✓ <strong>Unikt salgsargument</strong> — hvorfor velge deg fremfor konkurrentene?",
+  "scan.checklist_4": "✓ <strong>Handlingsoppfordring</strong> — synlighet, plassering og tydelighet i teksten",
+  "scan.checklist_5": "✓ <strong>Tillitssignaler &amp; troverdighet</strong> — anmeldelser, merker, sertifiseringer",
+  "scan.checklist_6": "✓ <strong>Hastverk &amp; knapphet</strong> — troverdig grunn til å handle nå",
+  "scan.checklist_7": "✓ <strong>Krok &amp; visuell effekt</strong> — førsteinntrykket i hero-seksjonen",
+  "scan.checklist_8": "✓ <strong>Bilder &amp; design</strong> — autentiske bilder fremfor generiske stockfoto",
+  "scan.checklist_9": "✓ <strong>Tydelighet i tilbudet</strong> — vet besøkende nøyaktig hva de får?",
+  "scan.checklist_10": "✓ <strong>Bransjetilpasning</strong> — passer designet til markedet ditt?",
+  "scan.faq_section_title": "Ofte stilte spørsmål"
 }

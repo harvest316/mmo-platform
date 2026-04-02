@@ -486,5 +486,21 @@
   "scan.exit_body": "Holen Sie sich Ihre <strong>Top-5-Fixes</strong> für nur ",
   "scan.exit_desc": "Screenshot-Annotationen und verständliche Anleitungen für Ihre 5 schlechtesten Faktoren. Lieferung noch am selben Tag.",
   "scan.exit_cta": "Quick Fixes erhalten →",
-  "scan.exit_guarantee": "30-tägige Geld-zurück-Garantie"
+  "scan.exit_guarantee": "30-tägige Geld-zurück-Garantie",
+  "scan.expert_label": "Ein Wort von Ihrem Analysten",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "CRO-Spezialist &amp; Marketing-Stratege",
+  "scan.expert_photo_alt": "Marcus Webb, CRO-Spezialist",
+  "scan.stars_aria": "5 von 5 Sternen",
+  "scan.checklist_1": "✓ <strong>Überschrift-Qualität</strong> — vermittelt sie den Nutzen in 3–5 Sekunden?",
+  "scan.checklist_2": "✓ <strong>Nutzenversprechen</strong> — Vorteile statt Merkmale; „Was habe ich davon?“",
+  "scan.checklist_3": "✓ <strong>Alleinstellungsmerkmal</strong> — warum Sie und nicht die Konkurrenz?",
+  "scan.checklist_4": "✓ <strong>Handlungsaufforderung</strong> — Sichtbarkeit, Platzierung und Klarheit",
+  "scan.checklist_5": "✓ <strong>Vertrauen &amp; Glaubwürdigkeit</strong> — Bewertungen, Siegel, Zertifizierungen",
+  "scan.checklist_6": "✓ <strong>Dringlichkeit &amp; Verknappung</strong> — glaubwürdiger Handlungsdruck",
+  "scan.checklist_7": "✓ <strong>Aufmacher &amp; visuelle Wirkung</strong> — erster Eindruck im Hero-Bereich",
+  "scan.checklist_8": "✓ <strong>Bildsprache &amp; Design</strong> — authentische Fotos statt Stockbilder",
+  "scan.checklist_9": "✓ <strong>Angebotsklarheit</strong> — wissen Besucher genau, was sie bekommen?",
+  "scan.checklist_10": "✓ <strong>Branchenangemessenheit</strong> — passt das Design zu Ihrem Markt?",
+  "scan.faq_section_title": "Häufig gestellte Fragen"
 }

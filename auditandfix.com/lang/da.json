@@ -486,5 +486,21 @@
   "scan.exit_body": "Få dine <strong>top 5 rettelser</strong> for bare ",
   "scan.exit_desc": "Screenshot-annotationer og klare rettelsesinstruktioner for dine 5 lavest scorede problemer. Levering samme dag.",
   "scan.exit_cta": "Få hurtige rettelser →",
-  "scan.exit_guarantee": "30-dages pengene-tilbage-garanti"
+  "scan.exit_guarantee": "30-dages pengene-tilbage-garanti",
+  "scan.expert_label": "Et ord fra din analytiker",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "CRO-specialist &amp; Marketingstrateg",
+  "scan.expert_photo_alt": "Marcus Webb, CRO-specialist",
+  "scan.stars_aria": "5 ud af 5 stjerner",
+  "scan.checklist_1": "✓ <strong>Overskriftskvalitet</strong> — formidler den værdien på 3–5 sekunder?",
+  "scan.checklist_2": "✓ <strong>Værdiforslag</strong> — fordele, ikke funktioner; \"hvad får jeg ud af det?\"",
+  "scan.checklist_3": "✓ <strong>Unikt salgsargument</strong> — hvorfor vælge dig frem for konkurrenterne?",
+  "scan.checklist_4": "✓ <strong>Handlingsopfordring</strong> — synlighed, placering og tekstens klarhed",
+  "scan.checklist_5": "✓ <strong>Tillidssignaler &amp; troværdighed</strong> — anmeldelser, mærker, certificeringer",
+  "scan.checklist_6": "✓ <strong>Hastighed &amp; knaphed</strong> — troværdigt pres for at handle nu",
+  "scan.checklist_7": "✓ <strong>Hook &amp; visuel effekt</strong> — førstehåndsindtrykket i hero-sektionen",
+  "scan.checklist_8": "✓ <strong>Billeder &amp; design</strong> — autentiske fotos frem for generiske stockbilleder",
+  "scan.checklist_9": "✓ <strong>Tilbudsklarhed</strong> — ved besøgende præcis, hvad de får?",
+  "scan.checklist_10": "✓ <strong>Branchetilpasning</strong> — passer designet til dit marked?",
+  "scan.faq_section_title": "Ofte stillede spørgsmål"
 }

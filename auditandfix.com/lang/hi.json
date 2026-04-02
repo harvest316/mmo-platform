@@ -486,5 +486,21 @@
   "scan.exit_body": "बस <strong>टॉप 5 फिक्स</strong> पाएँ केवल ",
   "scan.exit_desc": "आपकी 5 सबसे खराब स्कोरिंग समस्याओं के लिए स्क्रीनशॉट एनोटेशन और सरल भाषा में फिक्स इंस्ट्रक्शन। उसी दिन डिलीवरी।",
   "scan.exit_cta": "क्विक फिक्स पाएँ →",
-  "scan.exit_guarantee": "30-दिन मनी-बैक गारंटी"
+  "scan.exit_guarantee": "30-दिन मनी-बैक गारंटी",
+  "scan.expert_label": "आपके विश्लेषक का संदेश",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "CRO विशेषज्ञ &amp; मार्केटिंग रणनीतिकार",
+  "scan.expert_photo_alt": "Marcus Webb, CRO विशेषज्ञ",
+  "scan.stars_aria": "5 में से 5 सितारे",
+  "scan.checklist_1": "✓ <strong>शीर्षक गुणवत्ता</strong> — क्या यह 3–5 सेकंड में मूल्य बताता है?",
+  "scan.checklist_2": "✓ <strong>मूल्य प्रस्ताव</strong> — फ़ीचर नहीं, फ़ायदे; \"मुझे इससे क्या मिलेगा?\"",
+  "scan.checklist_3": "✓ <strong>अनोखा विक्रय बिंदु</strong> — प्रतिस्पर्धी की जगह आपको क्यों चुनें?",
+  "scan.checklist_4": "✓ <strong>कार्रवाई का आह्वान</strong> — दृश्यता, स्थान और टेक्स्ट की स्पष्टता",
+  "scan.checklist_5": "✓ <strong>विश्वास &amp; विश्वसनीयता के संकेत</strong> — समीक्षाएँ, बैज, प्रमाणपत्र",
+  "scan.checklist_6": "✓ <strong>तात्कालिकता &amp; कमी</strong> — अभी कार्रवाई करने का उचित कारण",
+  "scan.checklist_7": "✓ <strong>हुक &amp; दृश्य प्रभाव</strong> — हीरो सेक्शन में पहली छाप",
+  "scan.checklist_8": "✓ <strong>छवियाँ &amp; डिज़ाइन</strong> — सामान्य स्टॉक के बजाय वास्तविक तस्वीरें",
+  "scan.checklist_9": "✓ <strong>ऑफ़र की स्पष्टता</strong> — क्या विज़िटर जानते हैं कि उन्हें क्या मिलेगा?",
+  "scan.checklist_10": "✓ <strong>उद्योग उपयुक्तता</strong> — क्या डिज़ाइन आपके बाज़ार के लिए उपयुक्त है?",
+  "scan.faq_section_title": "अक्सर पूछे जाने वाले प्रश्न"
 }

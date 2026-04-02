@@ -486,5 +486,21 @@
   "scan.exit_body": "Pobierz <strong>swoje 5 najważniejszych poprawek</strong> za jedyne ",
   "scan.exit_desc": "Adnotacje na zrzutach ekranu i jasne instrukcje naprawy 5 najgorzej ocenionych problemów. Dostawa tego samego dnia.",
   "scan.exit_cta": "Pobierz szybkie poprawki →",
-  "scan.exit_guarantee": "30-dniowa gwarancja zwrotu pieniędzy"
+  "scan.exit_guarantee": "30-dniowa gwarancja zwrotu pieniędzy",
+  "scan.expert_label": "Słowo od Twojego analityka",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "Specjalista CRO &amp; Strateg Marketingowy",
+  "scan.expert_photo_alt": "Marcus Webb, Specjalista CRO",
+  "scan.stars_aria": "5 na 5 gwiazdek",
+  "scan.checklist_1": "✓ <strong>Jakość nagłówka</strong> — czy komunikuje wartość w 3–5 sekund?",
+  "scan.checklist_2": "✓ <strong>Propozycja wartości</strong> — korzyści, nie cechy; „co ja z tego mam?”",
+  "scan.checklist_3": "✓ <strong>Unikalna propozycja sprzedaży</strong> — dlaczego wybrać Ciebie zamiast konkurencji?",
+  "scan.checklist_4": "✓ <strong>Wezwanie do działania</strong> — widoczność, umiejscowienie i klarowność tekstu",
+  "scan.checklist_5": "✓ <strong>Sygnały zaufania &amp; wiarygodność</strong> — opinie, odznaki, certyfikaty",
+  "scan.checklist_6": "✓ <strong>Pilność &amp; niedobór</strong> — wiarygodny powód, aby działać teraz",
+  "scan.checklist_7": "✓ <strong>Hak &amp; efekt wizualny</strong> — pierwsze wrażenie w sekcji hero",
+  "scan.checklist_8": "✓ <strong>Zdjęcia &amp; design</strong> — autentyczne zdjęcia zamiast generycznych ze stocka",
+  "scan.checklist_9": "✓ <strong>Jasność oferty</strong> — czy odwiedzający wiedzą dokładnie, co otrzymują?",
+  "scan.checklist_10": "✓ <strong>Dopasowanie branżowe</strong> — czy design pasuje do Twojego rynku?",
+  "scan.faq_section_title": "Często zadawane pytania"
 }

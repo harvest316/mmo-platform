@@ -486,5 +486,21 @@
   "scan.exit_body": "احصل على <strong>أهم 5 إصلاحات</strong> بمبلغ ",
   "scan.exit_desc": "تعليقات على لقطات الشاشة وتعليمات إصلاح بلغة واضحة لأسوأ 5 مشكلات لديك. تسليم في نفس اليوم.",
   "scan.exit_cta": "احصل على الإصلاحات السريعة →",
-  "scan.exit_guarantee": "ضمان استرداد الأموال لمدة 30 يومًا"
+  "scan.exit_guarantee": "ضمان استرداد الأموال لمدة 30 يومًا",
+  "scan.expert_label": "كلمة من محللك",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "متخصص CRO &amp; استراتيجي تسويق",
+  "scan.expert_photo_alt": "Marcus Webb، متخصص CRO",
+  "scan.stars_aria": "5 من 5 نجوم",
+  "scan.checklist_1": "✓ <strong>جودة العنوان</strong> — هل يوصل القيمة خلال 3–5 ثوانٍ؟",
+  "scan.checklist_2": "✓ <strong>عرض القيمة</strong> — فوائد وليس ميزات؛ \"ما الذي سأستفيده؟\"",
+  "scan.checklist_3": "✓ <strong>عرض البيع الفريد</strong> — لماذا يختارونك بدلاً من المنافسين؟",
+  "scan.checklist_4": "✓ <strong>الحث على اتخاذ إجراء</strong> — الوضوح والموقع وصياغة النص",
+  "scan.checklist_5": "✓ <strong>إشارات الثقة &amp; المصداقية</strong> — تقييمات، شارات، شهادات",
+  "scan.checklist_6": "✓ <strong>الإلحاح &amp; الندرة</strong> — سبب مقنع للتصرف الآن",
+  "scan.checklist_7": "✓ <strong>الجذب &amp; التأثير البصري</strong> — الانطباع الأول في قسم الهيرو",
+  "scan.checklist_8": "✓ <strong>الصور &amp; التصميم</strong> — صور حقيقية بدلاً من صور مخزون عامة",
+  "scan.checklist_9": "✓ <strong>وضوح العرض</strong> — هل يعرف الزوار بالضبط ما سيحصلون عليه؟",
+  "scan.checklist_10": "✓ <strong>ملاءمة القطاع</strong> — هل يناسب التصميم سوقك؟",
+  "scan.faq_section_title": "الأسئلة الشائعة"
 }

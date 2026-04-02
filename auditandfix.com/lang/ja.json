@@ -486,5 +486,21 @@
   "scan.exit_body": "わずか<strong>上位5件の修正</strong>を取得 ",
   "scan.exit_desc": "最もスコアが低い5件の問題についてのスクリーンショット注釈とわかりやすい修正手順。当日配信。",
   "scan.exit_cta": "クイックフィックスを取得 →",
-  "scan.exit_guarantee": "30日間返金保証"
+  "scan.exit_guarantee": "30日間返金保証",
+  "scan.expert_label": "アナリストからのメッセージ",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "CROスペシャリスト &amp; マーケティングストラテジスト",
+  "scan.expert_photo_alt": "Marcus Webb、CROスペシャリスト",
+  "scan.stars_aria": "5つ星中5つ",
+  "scan.checklist_1": "✓ <strong>見出しの質</strong>——3〜5秒で価値が伝わるか？",
+  "scan.checklist_2": "✓ <strong>価値提案</strong>——機能ではなくメリット。「私にとって何が得か？」",
+  "scan.checklist_3": "✓ <strong>独自の強み</strong>——競合ではなく、なぜ御社を選ぶのか？",
+  "scan.checklist_4": "✓ <strong>行動喚起</strong>——視認性、配置、文言の明確さ",
+  "scan.checklist_5": "✓ <strong>信頼性 &amp; 実績</strong>——レビュー、認定バッジ、資格",
+  "scan.checklist_6": "✓ <strong>緊急性 &amp; 希少性</strong>——今すぐ行動すべき合理的な理由",
+  "scan.checklist_7": "✓ <strong>フック &amp; ビジュアルインパクト</strong>——ヒーローセクションの第一印象",
+  "scan.checklist_8": "✓ <strong>画像 &amp; デザイン</strong>——ストック素材ではなく本物の写真",
+  "scan.checklist_9": "✓ <strong>オファーの明確さ</strong>——訪問者は何が得られるか正確に分かるか？",
+  "scan.checklist_10": "✓ <strong>業界適合性</strong>——デザインが市場に合っているか？",
+  "scan.faq_section_title": "よくある質問"
 }

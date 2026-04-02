@@ -486,5 +486,21 @@
   "scan.exit_body": "Obtén tus <strong>5 correcciones prioritarias</strong> por solo ",
   "scan.exit_desc": "Anotaciones de capturas e instrucciones de corrección en lenguaje claro para tus 5 factores con peor puntuación. Entrega el mismo día.",
   "scan.exit_cta": "Obtener correcciones rápidas →",
-  "scan.exit_guarantee": "Garantía de devolución 30 días"
+  "scan.exit_guarantee": "Garantía de devolución 30 días",
+  "scan.expert_label": "Mensaje de su analista",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "Especialista en CRO &amp; Estratega de Marketing",
+  "scan.expert_photo_alt": "Marcus Webb, Especialista en CRO",
+  "scan.stars_aria": "5 de 5 estrellas",
+  "scan.checklist_1": "✓ <strong>Calidad del titular</strong> — ¿comunica el valor en 3–5 segundos?",
+  "scan.checklist_2": "✓ <strong>Propuesta de valor</strong> — beneficios, no características; «¿qué gano yo?»",
+  "scan.checklist_3": "✓ <strong>Propuesta única de venta</strong> — ¿por qué elegirle a usted y no a la competencia?",
+  "scan.checklist_4": "✓ <strong>Llamada a la acción</strong> — visibilidad, ubicación y claridad del texto",
+  "scan.checklist_5": "✓ <strong>Señales de confianza &amp; credibilidad</strong> — reseñas, insignias, certificaciones",
+  "scan.checklist_6": "✓ <strong>Urgencia &amp; escasez</strong> — presión legítima para actuar ahora",
+  "scan.checklist_7": "✓ <strong>Gancho &amp; impacto visual</strong> — la primera impresión en el hero",
+  "scan.checklist_8": "✓ <strong>Imágenes &amp; diseño</strong> — fotos auténticas frente a bancos de imágenes genéricos",
+  "scan.checklist_9": "✓ <strong>Claridad de la oferta</strong> — ¿saben los visitantes exactamente qué obtienen?",
+  "scan.checklist_10": "✓ <strong>Adecuación al sector</strong> — ¿el diseño encaja con su mercado?",
+  "scan.faq_section_title": "Preguntas frecuentes"
 }
