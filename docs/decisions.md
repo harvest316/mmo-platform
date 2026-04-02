@@ -1975,3 +1975,30 @@ Compliance boundary: free fix must be genuinely delivered (not claimed). Do not 
 
 **Status:** Implemented
 **Impl:** `333Method/src/outreach/form.js:captchaBlocksSubmit`, `333Method/src/utils/stealth-browser.js:launchWithExtensions+prepareNopeCHAExtension`
+
+### DR-145: Replace hardcoded auditandfix.com in 2Step with BRAND_DOMAIN/BRAND_URL env vars (2026-04-02)
+
+**Context:** 2Step had hardcoded `auditandfix.com` domain strings in outreach emails (sender address, logo URL, poster tracking URL), proposal video URLs, video watermark text, batch script video links, and test email scripts. This couples the codebase to a single brand domain and prevents white-labelling or domain migration.
+
+**Decision:** Introduce `BRAND_DOMAIN` (bare domain, e.g. `auditandfix.com`) and `BRAND_URL` (full URL with protocol, e.g. `https://auditandfix.com`) env vars. All runtime references now read from env with fallback defaults. Files already using `AUDITANDFIX_URL` (reposter.js, backfill-poster-urls.js, sync-video-views.js) were left as-is since they serve a different purpose (API endpoint for the Hostinger site, not brand-facing URLs). JSDoc comments and test fixtures were left unchanged.
+
+**Status:** Implemented
+**Impl:** `2Step/src/stages/outreach.js`, `2Step/src/stages/proposals.js`, `2Step/src/video/ffmpeg-render.js`, `2Step/scripts/2step-batch.js`, `2Step/scripts/send-test-email.mjs`, `2Step/.env.example`
+
+### DR-146: Replace hardcoded auditandfix.com in AdManager with BRAND_URL env var (2026-04-02)
+
+**Context:** AdManager had `auditandfix.com` hardcoded as fallback URLs in ad creation (Google and Meta), the OpenRouter HTTP-Referer header, docblock examples, test fixtures, CLAUDE.md quick-start examples, and docs. This couples the codebase to a single brand and prevents multi-project use.
+
+**Decision:** Runtime code (`bin/create-ad.php`, `src/Creative/ImageGen.php`) now reads `BRAND_URL` env var with `https://example.com` fallback. Docblocks in `ResponsiveSearch.php` and `Meta/Ad.php` replaced with `https://example.com`. All test files updated to use `https://example.com`. CLAUDE.md quick-start uses generic `myproject`/`example.com`. Docs references replaced with "the main site". `BRAND_URL` added to `.env.example`.
+
+**Status:** Implemented
+**Impl:** `AdManager/bin/create-ad.php`, `AdManager/src/Creative/ImageGen.php`, `AdManager/src/Google/Ads/ResponsiveSearch.php`, `AdManager/src/Meta/Ad.php`, `AdManager/tests/`, `AdManager/CLAUDE.md`, `AdManager/.env.example`, `AdManager/docs/`
+
+### DR-147: Replace hardcoded auditandfix.com in 333Method JS source with BRAND_DOMAIN/BRAND_URL env vars (2026-04-02)
+
+**Context:** 333Method `src/` had ~30 hardcoded `auditandfix.com` references across email senders, PDF contact info, LLM prompts, HTTP-Referer headers, URL allowlists, identity signatures, and CTA URLs. This couples the public repo to a specific domain and blocks website extraction to a private repo.
+
+**Decision:** All references now use `process.env.BRAND_DOMAIN || 'auditandfix.com'` (bare domain) or `process.env.BRAND_URL || 'https://auditandfix.com'` (full URL) with fallback defaults. Added `BRAND_DOMAIN` and `BRAND_URL` to `.env.example`. Files in `data/templates/` and `workers/` excluded (handled separately). Comments updated to remove brand references. Follows the same pattern already applied in 2Step (DR-145) and AdManager (DR-146).
+
+**Status:** Implemented
+**Impl:** 18 files in `333Method/src/` (cron, reports, inbound, payment, cli, utils, proposal-generator-v2), `333Method/.env.example`
