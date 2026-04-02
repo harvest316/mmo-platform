@@ -636,5 +636,21 @@
   "scan.exit_body": "Get your <strong>top 5 fixes</strong> for just ",
   "scan.exit_desc": "Screenshot annotations and plain-English fix instructions for your 5 worst-scoring issues. Same-day delivery.",
   "scan.exit_cta": "Get Quick Fixes →",
-  "scan.exit_guarantee": "30-day money-back guarantee"
+  "scan.exit_guarantee": "30-day money-back guarantee",
+  "scan.expert_label": "A note from your analyst",
+  "scan.expert_name": "Marcus Webb",
+  "scan.expert_title": "CRO Specialist &amp; Marketing Strategist",
+  "scan.expert_photo_alt": "Marcus Webb, CRO Specialist",
+  "scan.stars_aria": "5 out of 5 stars",
+  "scan.checklist_1": "✓ <strong>Headline quality</strong> — does it communicate value in 3–5 seconds?",
+  "scan.checklist_2": "✓ <strong>Value proposition</strong> — benefits, not features; \"what's in it for me?\"",
+  "scan.checklist_3": "✓ <strong>Unique selling proposition</strong> — why choose you over alternatives?",
+  "scan.checklist_4": "✓ <strong>Call-to-action</strong> — prominence, placement, and copy clarity",
+  "scan.checklist_5": "✓ <strong>Trust &amp; credibility signals</strong> — testimonials, badges, certifications",
+  "scan.checklist_6": "✓ <strong>Urgency &amp; scarcity</strong> — legitimate pressure to act now",
+  "scan.checklist_7": "✓ <strong>Hook &amp; visual engagement</strong> — first-impression hero element",
+  "scan.checklist_8": "✓ <strong>Imagery &amp; design</strong> — authentic photos vs. generic stock",
+  "scan.checklist_9": "✓ <strong>Offer clarity</strong> — do visitors know exactly what they get?",
+  "scan.checklist_10": "✓ <strong>Industry appropriateness</strong> — does the design fit your market?",
+  "scan.faq_section_title": "Frequently Asked Questions"
 }
