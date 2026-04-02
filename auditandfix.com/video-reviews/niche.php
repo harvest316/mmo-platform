@@ -10,6 +10,7 @@
  */
 
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/i18n.php';
 require_once __DIR__ . '/../includes/geo.php';
 require_once __DIR__ . '/../includes/pricing.php';
 
@@ -25,12 +26,12 @@ $niches = [
         'hero_h1'        => 'Your customers\' reviews. Turned into video.',
         'hero_sub'       => 'When someone Googles "pest control near me", they look at 3 businesses. The one with a video review gets the call. We make that video for you — free.',
         'hook'           => 'When someone Googles "pest control near me", they\'re looking at 3 businesses. The one with a video review gets the call.',
-        'r2_video'       => 'https://cdn.auditandfix.com/video-s900001-1773998424007.mp4',
-        'r2_poster'      => 'https://cdn.auditandfix.com/poster-s900001-1773998436379.jpg',
-        'biz_name'       => 'Pest Power Sydney',
-        'biz_rating'     => '5.0',
-        'biz_reviews'    => '257',
-        'review_snippet' => '"Mac was professional and knowledgeable. Thorough inspection inside and out, treated the termite nests, and the price was competitive. Highly recommend."',
+        'r2_video'       => 'https://cdn.auditandfix.com/video-s3-1774578488894.mp4',
+        'r2_poster'      => 'https://cdn.auditandfix.com/poster-s3-1774578500984.jpg',
+        'biz_name'       => 'BugFree Pest Control',
+        'biz_rating'     => '4.9',
+        'biz_reviews'    => '5,103',
+        'review_snippet' => '"Reece and the team were knowledgeable, responsive, and easy to book. Despite difficult to access to attic space, two possums were safely trapped and released over four days. …"',
         'faqs'           => [
             ['q' => 'How do you get the review text?', 'a' => 'We pull it directly from your Google Business Profile — your customer\'s actual words, verbatim. No editing, no AI-written copy.'],
             ['q' => 'Will it work for my pest control niche?', 'a' => 'Yes — we have clips for general pest control, cockroaches, termites, spiders, and rodents. The video is matched to your most common job type.'],
@@ -47,12 +48,12 @@ $niches = [
         'hero_h1'        => 'Your customers\' reviews. Turned into video.',
         'hero_sub'       => 'Video reviews are referrals that work 24 hours a day. We turn your best Google review into a 30-second video — automatically.',
         'hook'           => 'Video reviews are referrals that work 24 hours a day.',
-        'r2_video'       => 'https://cdn.auditandfix.com/video-s900003-1773998522268.mp4',
-        'r2_poster'      => 'https://cdn.auditandfix.com/poster-s900003-1773998536448.jpg',
-        'biz_name'       => 'Proximity Plumbing',
-        'biz_rating'     => '4.9',
-        'biz_reviews'    => '2,238',
-        'review_snippet' => '"Had an underground water leak we didn\'t know about. Proximity responded quickly, turned up on time, and got it done professionally. Sent a warranty too."',
+        'r2_video'       => 'https://cdn.auditandfix.com/video-s19-1774577432668.mp4',
+        'r2_poster'      => 'https://cdn.auditandfix.com/poster-s19-1774577448578.jpg',
+        'biz_name'       => 'Fix n Flow',
+        'biz_rating'     => '4.8',
+        'biz_reviews'    => '812',
+        'review_snippet' => '"Jim and Dan came to our place today to fix a plumbing issue and did an outstanding job. They managed to clear a 20+-year-old plumbing blockage, which made a huge difference. …"',
         'faqs'           => [
             ['q' => 'What kind of plumbing jobs work best?', 'a' => 'Any job that gets 4–5 star reviews works great. Blocked drains, hot water systems, emergency call-outs — reviews for these tend to be detailed and emotional, which makes for compelling video.'],
             ['q' => 'How long does it take?', 'a' => 'Your free demo video is usually ready in about 15 minutes after you verify your email.'],
@@ -69,12 +70,12 @@ $niches = [
         'hero_h1'        => 'Your customers\' reviews. Turned into video.',
         'hero_sub'       => 'Before someone lets a cleaner into their home, they need to feel safe. A 30-second video of a happy client does that — better than any text review.',
         'hook'           => 'Before someone lets a cleaner into their home, they need to feel safe. A 30-second video of a happy client does that.',
-        'r2_video'       => 'https://cdn.auditandfix.com/video-p25.mp4',
-        'r2_poster'      => 'https://cdn.auditandfix.com/poster-p25.jpg',
+        'r2_video'       => 'https://cdn.auditandfix.com/video-s25-1774578655370.mp4',
+        'r2_poster'      => 'https://cdn.auditandfix.com/poster-s25-1774578668477.jpg',
         'biz_name'       => 'Maid2Go Cleaning Sydney',
         'biz_rating'     => '4.9',
         'biz_reviews'    => '827',
-        'review_snippet' => '"Left our place spotless. Even cleaned behind the fridge without us asking. Absolutely recommend — we\'ve booked them for fortnightly cleans."',
+        'review_snippet' => '"I recently booked a deep clean with Maid2Go, and I cannot express how much of a relief the experience was. The quote was really reasonable. …"',
         'faqs'           => [
             ['q' => 'Will the video look professional?', 'a' => 'Yes — it uses professional stock clips matched to your cleaning niche, your customer\'s real review words, and AI voiceover. It\'s indistinguishable from a professionally produced testimonial video.'],
             ['q' => 'What if my business serves multiple suburbs?', 'a' => 'The video uses your business name and review text. You can post it across all your service area social accounts.'],
@@ -113,7 +114,7 @@ $verifyToken  = isset($_GET['token'])  ? preg_replace('/[^a-f0-9]/',   '', $_GET
 $headerCta = ['text' => 'Get Your Free Video', 'href' => '#get-video'];
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars($lang) ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -255,6 +256,7 @@ $headerCta = ['text' => 'Get Your Free Video', 'href' => '#get-video'];
             background: #0d1b2a;
             aspect-ratio: 9 / 16;
             max-height: 340px;
+            cursor: pointer;
         }
         .example-video-wrap video {
             width: 100%;
@@ -262,6 +264,90 @@ $headerCta = ['text' => 'Get Your Free Video', 'href' => '#get-video'];
             object-fit: cover;
             display: block;
         }
+        /* Hide native browser play button — we use our own overlay */
+        .example-video-wrap video::-webkit-media-controls-panel,
+        .example-video-wrap video::-webkit-media-controls-play-button,
+        .example-video-wrap video::-webkit-media-controls-start-playback-button,
+        .example-video-wrap video::-webkit-media-controls {
+            display: none !important;
+            -webkit-appearance: none;
+        }
+        .example-play-btn {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.2);
+            transition: opacity 0.2s ease, background 0.2s ease;
+        }
+        .example-play-btn svg {
+            width: 52px;
+            height: 52px;
+            color: rgba(255, 255, 255, 0.92);
+            filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.6));
+        }
+        .example-play-btn:hover { background: rgba(0, 0, 0, 0.35); }
+        .example-video-wrap.playing .example-play-btn {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* ── Video lightbox ─────────────────────────────────── */
+        .video-lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .video-lightbox--open {
+            display: flex;
+        }
+        .video-lightbox__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .video-lightbox__content {
+            position: relative;
+            max-width: 420px;
+            width: 90vw;
+            max-height: 90vh;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        .video-lightbox__video {
+            width: 100%;
+            display: block;
+            background: #000;
+            cursor: pointer;
+        }
+        .video-lightbox__close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: 22px;
+            line-height: 40px;
+            text-align: center;
+            cursor: pointer;
+            z-index: 1;
+            transition: background 0.2s;
+        }
+        .video-lightbox__close:hover {
+            background: rgba(0, 0, 0, 0.75);
+        }
+
         .example-meta {
             padding: 12px 16px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -816,9 +902,12 @@ $headerCta = ['text' => 'Get Your Free Video', 'href' => '#get-video'];
             </div>
             <div class="example-arrow">&darr;</div>
             <div class="example-video-wrap">
-                <video preload="metadata" playsinline muted loop poster="<?= htmlspecialchars($nicheData['r2_poster']) ?>">
+                <video preload="auto" playsinline muted loop poster="<?= htmlspecialchars($nicheData['r2_poster']) ?>">
                     <source src="<?= htmlspecialchars($nicheData['r2_video']) ?>" type="video/mp4">
                 </video>
+                <div class="example-play-btn" aria-label="Play video">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </div>
             </div>
             <div class="example-meta">
                 <div class="example-meta-name"><?= htmlspecialchars($nicheData['biz_name']) ?></div>
@@ -915,12 +1004,33 @@ $headerCta = ['text' => 'Get Your Free Video', 'href' => '#get-video'];
 
                 <div class="form-group">
                     <label for="vod-country">Country</label>
+                    <?php
+                    $countries = [
+                        'AF'=>'Afghanistan','AL'=>'Albania','DZ'=>'Algeria','AR'=>'Argentina','AT'=>'Austria',
+                        'AU'=>'Australia','BH'=>'Bahrain','BD'=>'Bangladesh','BE'=>'Belgium','BR'=>'Brazil',
+                        'BG'=>'Bulgaria','KH'=>'Cambodia','CA'=>'Canada','CL'=>'Chile','CN'=>'China',
+                        'CO'=>'Colombia','HR'=>'Croatia','CY'=>'Cyprus','CZ'=>'Czech Republic','DK'=>'Denmark',
+                        'EG'=>'Egypt','EE'=>'Estonia','FI'=>'Finland','FR'=>'France','DE'=>'Germany',
+                        'GH'=>'Ghana','GR'=>'Greece','HK'=>'Hong Kong','HU'=>'Hungary','IN'=>'India',
+                        'ID'=>'Indonesia','IE'=>'Ireland','IL'=>'Israel','IT'=>'Italy','JP'=>'Japan',
+                        'JO'=>'Jordan','KE'=>'Kenya','KW'=>'Kuwait','LV'=>'Latvia','LB'=>'Lebanon',
+                        'LT'=>'Lithuania','LU'=>'Luxembourg','MY'=>'Malaysia','MT'=>'Malta','MX'=>'Mexico',
+                        'MA'=>'Morocco','NL'=>'Netherlands','NZ'=>'New Zealand','NG'=>'Nigeria','NO'=>'Norway',
+                        'OM'=>'Oman','PK'=>'Pakistan','PE'=>'Peru','PH'=>'Philippines','PL'=>'Poland',
+                        'PT'=>'Portugal','QA'=>'Qatar','RO'=>'Romania','SA'=>'Saudi Arabia','RS'=>'Serbia',
+                        'SG'=>'Singapore','SK'=>'Slovakia','SI'=>'Slovenia','ZA'=>'South Africa',
+                        'KR'=>'South Korea','ES'=>'Spain','LK'=>'Sri Lanka','SE'=>'Sweden',
+                        'CH'=>'Switzerland','TW'=>'Taiwan','TH'=>'Thailand','TR'=>'Turkey',
+                        'UA'=>'Ukraine','AE'=>'United Arab Emirates','UK'=>'United Kingdom',
+                        'US'=>'United States','VN'=>'Vietnam',
+                    ];
+                    $detected = in_array($countryCode, array_keys($countries), true) ? $countryCode : 'US';
+                    if ($countryCode === 'GB') $detected = 'UK';
+                    ?>
                     <select id="vod-country" name="country" required>
-                        <option value="AU" <?= $countryCode === 'AU' ? 'selected' : '' ?>>Australia</option>
-                        <option value="NZ" <?= $countryCode === 'NZ' ? 'selected' : '' ?>>New Zealand</option>
-                        <option value="US" <?= ($countryCode === 'US' || !in_array($countryCode, ['AU','NZ','UK','CA','GB'], true)) ? 'selected' : '' ?>>United States</option>
-                        <option value="UK" <?= ($countryCode === 'UK' || $countryCode === 'GB') ? 'selected' : '' ?>>United Kingdom</option>
-                        <option value="CA" <?= $countryCode === 'CA' ? 'selected' : '' ?>>Canada</option>
+                        <?php foreach ($countries as $code => $name): ?>
+                        <option value="<?= $code ?>"<?= $code === $detected ? ' selected' : '' ?>><?= htmlspecialchars($name) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
 
@@ -1101,7 +1211,7 @@ if ($googleMapsKey):
 <script src="/video-reviews/video-demo-flow.js?v=<?= filemtime(__DIR__ . '/video-demo-flow.js') ?: '1' ?>" defer></script>
 <script src="/assets/js/obfuscate-email.js?v=1" defer></script>
 
-<!-- Inline: "Other" niche toggle + video hover/tap play -->
+<!-- Inline: "Other" niche toggle + lightbox + video click-to-play -->
 <script>
 (function() {
     'use strict';
@@ -1115,24 +1225,144 @@ if ($googleMapsKey):
         });
     }
 
-    // Play example video on hover (desktop) or tap (mobile)
-    var exampleVideos = document.querySelectorAll('.example-video-wrap video');
-    exampleVideos.forEach(function(video) {
-        var card = video.closest('.example-card');
-        if (!card) return;
-        card.addEventListener('mouseenter', function() {
-            video.play().catch(function() {});
-        });
-        card.addEventListener('mouseleave', function() {
-            video.pause();
-            video.currentTime = 0;
-        });
-        video.addEventListener('click', function() {
-            if (video.paused) {
-                video.play().catch(function() {});
-            } else {
-                video.pause();
+    // ── Lightbox ──────────────────────────────────────────────────────────
+    var lightbox = document.createElement('div');
+    lightbox.className = 'video-lightbox';
+    lightbox.innerHTML = '<div class="video-lightbox__backdrop"></div>' +
+        '<div class="video-lightbox__content">' +
+        '<video class="video-lightbox__video" playsinline preload="auto"></video>' +
+        '<button class="video-lightbox__close" aria-label="Close">&times;</button>' +
+        '</div>';
+    document.body.appendChild(lightbox);
+    var lbVideo = lightbox.querySelector('.video-lightbox__video');
+    var lbClose = lightbox.querySelector('.video-lightbox__close');
+    var lbBackdrop = lightbox.querySelector('.video-lightbox__backdrop');
+    var activeCardVideo = null;
+
+    function openLightbox(cardVideo) {
+        activeCardVideo = cardVideo;
+        // Pause card video, transfer src and position to lightbox
+        var wasPlaying = !cardVideo.paused;
+        var pos = cardVideo.currentTime < 3 ? 0 : cardVideo.currentTime;
+        cardVideo.pause();
+        cardVideo.muted = true;
+        lbVideo.src = cardVideo.querySelector('source').src;
+        lbVideo.currentTime = pos;
+        lbVideo.muted = false;
+        lbVideo.loop = false;
+        lightbox.classList.add('video-lightbox--open');
+        document.body.style.overflow = 'hidden';
+        // Play once ready
+        function playLb() {
+            lbVideo.play().catch(function() {});
+        }
+        if (lbVideo.readyState >= 3) {
+            lbVideo.currentTime = pos;
+            playLb();
+        } else {
+            lbVideo.addEventListener('loadeddata', function() {
+                lbVideo.currentTime = pos;
+                playLb();
+            }, { once: true });
+        }
+    }
+
+    function closeLightbox() {
+        lbVideo.pause();
+        lightbox.classList.remove('video-lightbox--open');
+        document.body.style.overflow = '';
+        // Resume position back on card but stay paused and muted
+        if (activeCardVideo) {
+            activeCardVideo.currentTime = lbVideo.currentTime;
+            activeCardVideo.muted = true;
+            var w = activeCardVideo.closest('.example-video-wrap');
+            if (w) { w.classList.remove('playing'); w.__userPlaying = false; }
+        }
+        lbVideo.removeAttribute('src');
+        activeCardVideo = null;
+    }
+
+    // Tap lightbox video to pause/resume
+    lbVideo.addEventListener('click', function() {
+        if (lbVideo.paused) { lbVideo.play().catch(function(){}); }
+        else { lbVideo.pause(); }
+    });
+    lbVideo.addEventListener('ended', closeLightbox);
+    lbClose.addEventListener('click', closeLightbox);
+    lbBackdrop.addEventListener('click', closeLightbox);
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && lightbox.classList.contains('video-lightbox--open')) closeLightbox();
+    });
+
+    // ── Card video interactions ─────────────────────────────────────────
+    document.querySelectorAll('.example-video-wrap').forEach(function(wrap) {
+        var video   = wrap.querySelector('video');
+        var playBtn = wrap.querySelector('.example-play-btn');
+        if (!video) return;
+
+        var userPlaying = false;
+
+        function userPlay() {
+            // Pause any other card videos
+            document.querySelectorAll('.example-video-wrap video').forEach(function(v) {
+                if (v !== video && !v.paused) {
+                    v.pause(); v.muted = true;
+                    var w = v.closest('.example-video-wrap');
+                    if (w) { w.classList.remove('playing'); w.__userPlaying = false; }
+                }
+            });
+            video.loop = false;
+            userPlaying = true;
+            wrap.__userPlaying = true;
+            function playUnmuted() {
+                video.muted = false;
+                video.play().then(function() {
+                    wrap.classList.add('playing');
+                    // Open lightbox after a brief moment so user sees the transition
+                    setTimeout(function() { openLightbox(video); }, 300);
+                }).catch(function() {});
             }
+            if (video.readyState >= 3) { playUnmuted(); }
+            else { video.addEventListener('canplay', playUnmuted, { once: true }); }
+        }
+
+        function userPause() {
+            video.pause();
+            // Don't reset position — resume where we left off
+            userPlaying = false;
+            wrap.__userPlaying = false;
+            wrap.classList.remove('playing');
+        }
+
+        [playBtn, video].forEach(function(el) {
+            if (!el) return;
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (userPlaying) { userPause(); } else { userPlay(); }
+            });
+        });
+
+        // Desktop hover preview (muted, no interference)
+        wrap.addEventListener('mouseenter', function() {
+            if (!userPlaying && video.paused) {
+                video.muted = true;
+                video.play().catch(function() {});
+            }
+        });
+        wrap.addEventListener('mouseleave', function() {
+            if (!userPlaying && !video.paused) {
+                video.pause();
+                video.currentTime = 0;
+                wrap.classList.remove('playing');
+            }
+        });
+
+        video.addEventListener('ended', function() {
+            video.muted = true;
+            video.loop = true;
+            userPlaying = false;
+            wrap.__userPlaying = false;
+            wrap.classList.remove('playing');
         });
     });
 })();
