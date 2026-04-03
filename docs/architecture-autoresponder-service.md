@@ -815,7 +815,7 @@ Monitoring runs as a cron job (same pattern as `pipeline-status-monitor.js` and 
 | LLM provider routing | 333Method `src/utils/llm-provider.js` | Adapt (add Anthropic direct API alongside OpenRouter) |
 | Compliance validation | 333Method `src/utils/compliance.js`, `sms-compliance.js` | Direct reuse |
 | Suppression system | mmo-platform `src/suppression.js` | Direct reuse (already cross-project PG) |
-| CF Worker webhook pattern | 333Method `workers/auditandfix-api/` | Adapt (new routes, same pattern) |
+| CF Worker webhook pattern | 333Method `workers/brand-api/` | Adapt (new routes, same pattern) |
 | Cron framework | 333Method `src/cron/` | Direct reuse (add autoresponder service crons) |
 | Logger | 333Method `src/utils/logger.js` | Direct reuse (extract to @mmo/core) |
 | Spintax | 333Method `src/utils/spintax.js` | Reuse for template variation in canned responses |

@@ -27,7 +27,7 @@ Updated: 2026-03-23
 
 ### 2. Promotion & Marketing
 
-*SEO, UX, Legal, Ad Creative, and Tracking agents already running on auditandfix.com.*
+*SEO, UX, Legal, Ad Creative, and Tracking agents already running on the production site.*
 
 | Agent | Model | Effort | Thinking | Trigger | Use Case |
 |-------|-------|--------|----------|---------|----------|
@@ -177,7 +177,7 @@ Run an Automation Governance audit. Read the cron_jobs table (sqlite3 db/sites.d
 
 ### Brand Guardian (Quarterly)
 ```
-Run a Brand Guardian review across auditandfix.com, 2Step, and colorcraft-ai.com. Fetch each site and evaluate: visual consistency, messaging tone, value proposition clarity, call-to-action alignment. Output a brand consistency scorecard with specific recommendations per property.
+Run a Brand Guardian review across the production site, 2Step, and colorcraft-ai.com. Fetch each site and evaluate: visual consistency, messaging tone, value proposition clarity, call-to-action alignment. Output a brand consistency scorecard with specific recommendations per property.
 ```
 
 ### colorcraft-ai.com Report (Monthly)

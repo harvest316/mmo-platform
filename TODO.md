@@ -15,7 +15,7 @@ Candidates:
   graphic (pass/fail grid for all 10 factors)
 
 Notes:
-- Images should be stored in `auditandfix.com/assets/img/blog/`
+- Images should be stored in the website repo's `assets/img/blog/`
 - Use `<figure>` + `<figcaption>` for semantic HTML
 - Add `ImageObject` to Article schema in `blog/post.php` template once images exist
 - Consider generating with an image AI tool (Flux, Midjourney, or Gemini via
@@ -25,11 +25,12 @@ Notes:
 
 ## Trustpilot Review Data in Schema
 
-Once Trustpilot reviews start coming in for auditandfix.com, update the Product
-structured data in `auditandfix.com/index.php` with real `aggregateRating` and
+Once Trustpilot reviews start coming in for the production site, update the Product
+structured data in `index.php` with real `aggregateRating` and
 `review` values. Currently a placeholder (1 review, 5/5).
 
-- Trustpilot profile: https://au.trustpilot.com/review/auditandfix.com
+- Trustpilot profile: linked from the production site
+
 - BCC invite email is active: `TRUSTPILOT_BCC_EMAIL` in `333Method/.env`
 - Schema location: `index.php` → `@graph` → `Product` → `aggregateRating` + `review`
 - Consider: pull rating/count from Trustpilot API automatically, or update manually

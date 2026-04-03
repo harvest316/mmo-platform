@@ -13,9 +13,9 @@ Local service businesses (plumbers, electricians, cleaners, landscapers, pest co
 
 The market is heating up but fragmented. Competitors either cost too much (Podium at $599/month, Smith.ai at $300/month for human agents), focus only on phone calls (My AI Front Desk, Dialzara), or solve a broader problem poorly (CRM + reviews + messaging bundled together). There is a clear gap for a purpose-built, multi-channel AI responder priced for solo operators at $49-149/month.
 
-We have a structural advantage: the auditandfix.com customer base is already local SMBs who we have proven we can reach, engage, and convert. This product is a natural cross-sell -- "we found problems with your website; we can also make sure you never miss a lead."
+We have a structural advantage: the existing customer base is already local SMBs who we have proven we can reach, engage, and convert. This product is a natural cross-sell -- "we found problems with your website; we can also make sure you never miss a lead."
 
-**Recommendation:** Build. Start with SMS + email + web chat in AU market. Target first 10 customers from existing Audit&Fix pipeline by Q3 2026. Expand to US/UK by Q4.
+**Recommendation:** Build. Start with SMS + email + web chat in AU market. Target first 10 customers from existing pipeline by Q3 2026. Expand to US/UK by Q4.
 
 ---
 

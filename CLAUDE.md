@@ -7,11 +7,11 @@ Parent platform for all "make money online" child projects. This workspace (`~/c
 ```
 ~/code/
   mmo-platform/          ← you are here (shared @mmo/* packages, future)
-  333Method/             ← Audit&Fix: SERP → score → proposal → outreach pipeline (ACTIVE)
+  333Method/             ← SERP → score → proposal → outreach pipeline (ACTIVE)
   2Step/                 ← Video review outreach: prospect → video → DM/email (BUILDING)
   AdManager/             ← Multi-project ad platform (Google + Meta)
   distributed-infra/     ← NixOS infrastructure + infra plans (PRIVATE)
-  auditandfix-website/   ← PHP website + CF Worker for auditandfix.com (PRIVATE)
+  auditandfix-website/   ← PHP website + CF Worker for the production site (PRIVATE)
   mmo.code-workspace     ← VSCode multi-root workspace file
 ```
 
@@ -90,7 +90,7 @@ Full catalog: `docs/agency-agents-reference.md`
 
 ## Website Deployment
 
-The auditandfix.com website and CF Worker have been moved to a **private repo**: `~/code/auditandfix-website/` (harvest316/auditandfix-website). See that repo's CLAUDE.md for deploy instructions.
+The brand website and CF Worker have been moved to a **private repo**: `~/code/auditandfix-website/` (harvest316/auditandfix-website). See that repo's CLAUDE.md for deploy instructions.
 
 ## VSCode Tips
 

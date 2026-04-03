@@ -28,9 +28,12 @@ log() {
 log "Starting citation monitor run"
 log "Previous baseline: ${LATEST_BASELINE:-none}"
 
+BRAND_DOMAIN="${BRAND_DOMAIN:-auditandfix.com}"
+BRAND_NAME="${BRAND_NAME:-Audit\&Fix}"
+
 # Build the prompt with context
-PROMPT=$(cat <<'PROMPT_END'
-You are the AI Citation Monitor for auditandfix.com — a B2B CRO audit service for small business websites.
+PROMPT=$(cat <<PROMPT_END
+You are the AI Citation Monitor for ${BRAND_DOMAIN} — a B2B CRO audit service for small business websites.
 
 ## Your mission
 
@@ -38,12 +41,12 @@ Run a citation audit, compare against the previous baseline, identify gaps, and 
 
 ## Step 1: Run citation audit
 
-Search for these 25 queries using WebSearch and record whether auditandfix.com or 'Audit&Fix' appears in results:
+Search for these 25 queries using WebSearch and record whether ${BRAND_DOMAIN} or '${BRAND_NAME}' appears in results:
 
 ### Brand queries
-1. Audit and Fix website audit service
-2. auditandfix.com reviews
-3. auditandfix.com CRO audit
+1. ${BRAND_NAME} website audit service
+2. ${BRAND_DOMAIN} reviews
+3. ${BRAND_DOMAIN} CRO audit
 
 ### Service queries
 4. CRO audit service small business
@@ -102,13 +105,13 @@ Only create content if there's a clear gap to fill. If no actionable gaps, just 
 ## Step 4: Create content (if needed)
 
 When creating new PHP pages:
-- Read auditandfix.com/compare.php and auditandfix.com/methodology.php as style references
+- Read the website's compare.php and methodology.php as style references
 - Match the exact design language (same CSS class prefixes, colour palette, layout patterns)
 - Use the same PHP includes: config.php, i18n.php, geo.php, pricing.php, header.php, footer.php, consent-banner.php
 - Add structured data (BreadcrumbList + appropriate page-level schema)
 - Use British spelling (optimisation, prioritised, analyse, colour)
 - First person plural, conversational tone. No corporate jargon.
-- Add i18n translation keys to ALL 20 language files in auditandfix.com/lang/
+- Add i18n translation keys to ALL 20 language files in the website's lang/ directory
 - Add .htaccess rewrite rules for clean URLs
 - Add nav links to includes/header.php and includes/footer.php if appropriate
 
@@ -125,7 +128,7 @@ If files were changed:
 - Never modify existing page content without clear evidence it would improve citations
 - Validate PHP syntax with: php -l filename.php
 - The working directory is ~/code/mmo-platform/
-- Read CLAUDE.md and auditandfix.com files for full context
+- Read CLAUDE.md and the website files for full context
 PROMPT_END
 )
 
@@ -143,7 +146,7 @@ echo "$RESULT" >> "$LOG_FILE"
 
 # Count new/changed files
 CHANGED=$(git diff --name-only 2>/dev/null | wc -l)
-UNTRACKED=$(git ls-files --others --exclude-standard auditandfix.com/ tmp/ 2>/dev/null | wc -l)
+UNTRACKED=$(git ls-files --others --exclude-standard tmp/ 2>/dev/null | wc -l)
 
 log "Run complete. Changed files: $CHANGED, New files: $UNTRACKED"
 log "Review log: $LOG_FILE"

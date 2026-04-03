@@ -17,7 +17,7 @@
 
 ## Website Migration
 
-- [ ] Move auditandfix.com/ from 333Method to mmo-platform/website/
+- [ ] Move website from 333Method to mmo-platform/website/
 - [ ] Move workers/ from 333Method to mmo-platform/website/workers/
 - [ ] Update wrangler.toml paths
 - [ ] Delete leftover cloudflare-worker/ directory from 333Method
@@ -38,10 +38,10 @@
 - [ ] Create mmo.code-workspace with all projects
 - [ ] **Consolidate web hosting DBs to Postgres on VPS** — Once VPS is reimaged/hardened (distributed-agent-system.md), migrate Hostinger SQLite DBs (customers.sqlite, subscriptions.sqlite, scan_emails.sqlite) into Postgres alongside existing m333/ops/tel/msgs/twostep schemas. New `portal` schema. Cleaner to have all DBs in one place with unified pg_dump + B2 offsite backup. AdManager SQLite also migrates at this point (`admanager` schema already reserved in pg-init-schemas.sql). Hostinger PHP would talk to Postgres via an API layer on the VPS rather than local SQLite.
 
-## Website — auditandfix.com
+## Website (production site)
 
 ### HIGH PRIORITY
-- [ ] **Generate hero images** — AI-generate replacement hero backgrounds for scan, video-reviews, compare, blog pages. Prompts stored in `auditandfix.com/assets/img/hero-prompts.md`. Current `hero-background.png` works but is generic. Target: cohesive, editorial-quality, <200KB each.
+- [ ] **Generate hero images** — AI-generate replacement hero backgrounds for scan, video-reviews, compare, blog pages. Prompts stored in the website repo's `assets/img/hero-prompts.md`. Current `hero-background.png` works but is generic. Target: cohesive, editorial-quality, <200KB each.
 
 ### Medium Priority
 - [ ] RTL background image for Arabic layout (current hero/section backgrounds assume LTR — need mirrored or neutral versions for `?lang=ar`)
