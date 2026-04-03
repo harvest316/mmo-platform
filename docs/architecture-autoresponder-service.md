@@ -125,7 +125,7 @@ The tradie has an existing phone number printed on their van, Google Business Pr
 | C. IMAP polling + SMTP relay | Yes (send via their SMTP) | High (app passwords, IMAP config) | Their existing reputation | Connection failures, credential rotation | Medium (stored credentials) |
 | D. Email forwarding + branded reply | Partial (replies from our domain) | Low (one forwarding rule) | Our reputation (new) | Minimal | Low risk |
 | E. Branded email (theirbrand@ourdomain.com) | No (from our domain) | Low (DNS CNAME) | Our reputation | Minimal | Low risk |
-| F. Custom domain (send@theirdomain.com) | Yes (from their domain, our infra) | Medium (DNS records: SPF, DKIM, DMARC) | Their domain, our IP reputation | DNS must stay configured | Low risk |
+| F. Custom subdomain (ai@reply.theirdomain.com) | Yes (from their domain, our infra) | Medium (DNS records: SPF, DKIM, DMARC) | Their domain, our IP reputation | DNS must stay configured | Low risk |
 
 ### Decision: Option F (custom subdomain on their domain) as primary, Option D as fallback
 

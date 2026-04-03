@@ -2127,3 +2127,187 @@ Key learnings:
 
 **Status:** Implemented
 **Impl:** mmo-platform (8 files: CLAUDE.md, TODO.md, .gitignore, docs/TODO.md, docs/agency-agents-reference.md, docs/architecture-autoresponder-service.md, docs/autoresponder-product-strategy.md, scripts/citation-monitor.sh), 333Method (34 files across docs/, prompts/, config/, tests/, __quarantined_tests__/, .github/, dashboard-v2/, src/utils/), 2Step (3 files: docs/TODO.md, docs/architecture.md, docs/pricing-research.md)
+
+### DR-159: Claude Max subscription rejected for multi-tenant autoresponder — API key required (2026-04-02)
+
+**Context:** Research task for ReplyMate (DR-143): could a single Claude Max subscription ($100–$200/month) power reply generation for 30–100 business tenants, instead of paying per-API-call? Existing projects use `claude -p` CLI (OAuth-backed) for high-quality tasks. Research covered Max limits, `claude -p` for automation, the Agent SDK, throughput estimation, model selection, port-forwarding architecture, cost comparison, and ToS.
+
+**Findings:**
+
+1. **ToS: hard blocker.** Anthropic's legal/compliance page (`code.claude.com/docs/en/legal-and-compliance`) is explicit: OAuth tokens (used by Free/Pro/Max) are "intended exclusively for Claude Code and Claude.ai. Using OAuth tokens obtained through [Max] in any other product, tool, or service — including the Agent SDK — is not permitted and constitutes a violation of the Consumer Terms of Service." Max subscriptions are consumer plans for individual use. Multi-tenant commercial services must use API key authentication.
+
+2. **Max rate limits are token-bucket / session-window, not per-tenant-message.** Max 20x ($200/month USD ≈ ~$320 AUD) gives "20× the usage of Pro." Measured empirically by users: one power user drains the 5-hour window in ~90 minutes under heavy load. There are no published per-hour message counts — it's token-based. A 50-session/month soft guideline exists (5-hour sessions = ~250 hours/month). Since March 2026 Anthropic has tightened peak-hour limits further. This is entirely unsuitable for multi-tenant SaaS where 50 tenants × 10 messages/day = 500 messages/day with unpredictable concurrency.
+
+3. **`claude -p` CLI problems for automation.** 2–5s startup latency per invocation (node.js cold-start + CLAUDE.md discovery). `--bare` mode reduces this but doesn't eliminate it. No streaming. Process-level isolation only — each CLI call is a fresh process. OAuth auth means it's tied to a single consumer plan. Cannot specify model per call (only the subscription's default Sonnet). Multiple concurrent `claude -p` processes all share the same OAuth session budget.
+
+4. **Agent SDK requires API key.** `@anthropic-ai/claude-agent-sdk` (npm) and `claude-agent-sdk` (Python) require `ANTHROPIC_API_KEY`. OAuth from a Max plan is explicitly disallowed. The SDK is governed by Commercial Terms of Service, not Consumer Terms. This is actually *good* — it's the right tool, just requires an API key account.
+
+5. **API rate limits are adequate.** Tier 1 (entry, $5 deposit): 50 RPM for Haiku/Sonnet/Opus. For 500 messages/day (~0.35/min average, ~8/min peak), Tier 1 is sufficient. Peak 60/hour = 1/min — well within 50 RPM. Tier 2 ($40 deposit) raises to 1,000 RPM if needed.
+
+6. **Model selection is fully supported via API.** Direct API calls or Agent SDK with `ANTHROPIC_API_KEY` can specify any model per request: Haiku 4.5 for classification, Sonnet 4.6 for standard replies, Opus 4.6 for complex escalations.
+
+7. **Cost comparison (USD, direct API, batch API disabled — autoresponder needs real-time):**
+   - Haiku classifier: ~500 tokens/call × 500/day = 250K tokens/day = 7.75M/month → $7.75/month input
+   - Sonnet reply (800 tokens avg): 400 messages/day (80%) → ~9.6M tokens input/month + ~6M output → $29 input + $90 output = ~$119/month
+   - Opus complex (1,500 tokens): 100 msgs/day (20%) → ~4.5M input + ~1.5M output → ~$22 + ~$37 = ~$59/month
+   - **Total API cost at 50 tenants × 10 msg/day: ~$186 USD/month** (~$300 AUD)
+   - At 30 tenants: ~$112 USD/month. At 100 tenants: ~$370 USD/month.
+   - With prompt caching for system prompts (10% hit cost): saves ~30% on input tokens if KB is cached.
+   - DR-136 estimate of $2–8/tenant/month confirmed: 50 tenants = $186/50 = $3.72/tenant/month.
+   - Max $200/month subscription cannot legally serve this use case and has no model routing flexibility.
+
+8. **Port forwarding architecture (CF Tunnel):** Valid and NixOS-supported. CF Tunnel (`cloudflared`) exposes a local Node.js service to the internet without opening inbound ports. Webhook payloads from Twilio/email arrive at CF → CF Worker validates HMAC → forwards to local service via tunnel → service calls Anthropic API directly. This architecture is already in DR-141. Works whether the machine is on a home connection or VPS.
+
+9. **Claude Pro ($20/month):** Same consumer ToS prohibition. Even lower limits. Not viable.
+
+**Decision:** Confirmed DR-136. Use Anthropic API directly with `ANTHROPIC_API_KEY` (not OAuth/Max subscription). Haiku classifier → Sonnet (OpenRouter) / Opus (Anthropic direct) routing. The Agent SDK (`@anthropic-ai/claude-agent-sdk`) is suitable for orchestration but the simple reply-generation loop does not need it — a direct `@anthropic-ai/sdk` call with model selection is simpler and has less overhead for a high-frequency webhook handler.
+
+**Status:** Accepted — supersedes the Max-subscription hypothesis. DR-136 confirmed valid.
+**Impl:** `docs/architecture-autoresponder-service.md` Section 6 (LLM routing). API key setup in Claude Console once ReplyMate project directory is created.
+
+---
+
+### DR-160: AI phone answering bolt-on — vendor landscape, AU support, and recommended approach (2026-04-02)
+
+**Context:** ContactReplyAI.com (DR-143) plans SMS/email/WhatsApp/web-chat autoresponse for AU/US/UK tradies. Research task: evaluate white-label AI phone answering services as a bolt-on add-on — which vendors, what margins, what approach.
+
+**Findings:**
+
+#### Vendor landscape
+
+| Vendor | Model | Cost to us | AU numbers | White-label | API | Notes |
+|--------|-------|-----------|-----------|-------------|-----|-------|
+| My AI Front Desk | Per-receptionist SaaS | $54.99 USD/receptionist/mo wholesale | Yes (via Twilio import) | Yes — full white-label, custom domain | Zapier/webhook, Stripe rebilling | Best turn-key reseller option; retail $250–$500/mo; ~$0.12/min overage |
+| Synthflow | Agency/enterprise SaaS | $1,400 USD/mo (6,000 min, 80 concurrency); $0.15/min overage | Yes — AU numbers available directly at $1.50/mo | Yes — custom domain, sub-accounts | REST API + webhooks | Too expensive at launch; better for scale (500K+ calls/mo case study) |
+| Retell AI | Pay-as-you-go infra | $0.07–$0.31 USD/min all-in | US/UK native; AU via Twilio BYOC (SIP 403 bug reported Feb 2026, needs country-whitelist config) | No native white-label; developer API only | Full REST + WebSocket API | Best voice quality at price; dev-heavy; no no-code white-label |
+| Vapi.ai | Pay-as-you-go infra | $0.05/min platform + $0.02–$0.28 third-party components = $0.07–$0.33/min effective | AU via Twilio BYOC (import existing number) | No native white-label; third-party wrappers exist (Voicerr $399/mo, Vapify, VoiceAIWrapper) | Full REST + WebSocket API | More dev flexibility than Retell; higher latency under load; white-label requires extra layer |
+| Bland.ai | Pay-as-you-go + subscription | $0.11–$0.14/min (Build $299/mo, Scale $499/mo) | Unknown — developer-focused, US-centric | Enterprise white-label available; self-serve unclear | REST API | FTC lawsuit filed Aug 2025 against company — HIGH RISK; avoid |
+| Goodcall | Per-agent SaaS | $59/$99/$199 USD/mo (Starter/Growth/Scale) | Unknown | No public white-label program found | Zapier + integrations | No reseller program; business-direct only |
+| Air.ai | High-ticket license | $25K–$100K USD upfront + $0.11/min | Unknown | White-label dashboard available | Unknown | FTC lawsuit filed Aug 2025 — AVOID entirely |
+| ElevenLabs Conv. AI | Per-minute usage | $0.10 USD/min (LLM costs extra, currently absorbed) | Via BYOC telephony | No white-label; voice/TTS API only | REST API | Not a phone answering system — TTS/STT layer only; use as voice layer if building own |
+| PlayHT | DEFUNCT | — | — | — | — | API shut down Dec 2025 (acquired by Meta Jul 2025) |
+| Johnni.ai | AU-specific SaaS | Custom pricing (undisclosed) | AU-native (based in SA) | Yes — white-label reseller program available | Unknown | AU-only; trained on Aussie accents + trade jargon; ServiceM8/Simpro/ServiceTitan native integrations; best AU product quality |
+
+#### Latency benchmarks (lower = better)
+- Synthflow: ~420ms average (fastest among no-code platforms)
+- Retell: ~700–800ms
+- Vapi: variable; 950ms+ under load
+- Twilio ConversationRelay + OpenAI Realtime API: sub-200ms achievable (developer DIY path)
+
+#### Build-it-yourself cost stack (Twilio + AI)
+- Twilio AU inbound: $0.01 USD/min
+- Twilio ConversationRelay: $0.07 USD/min
+- ElevenLabs voices: ~$0.10 USD/min
+- LLM (Haiku/Sonnet): $0.003–$0.08 USD/min
+- **Total DIY: ~$0.18–$0.26 USD/min (~$0.28–$0.41 AUD/min)**
+- Twilio AU local number: $3.00 USD/mo; toll-free: $16.00 USD/mo
+- ConversationRelay is Twilio's own real-time voice-to-AI bridge (not Vapi/Retell); native to Twilio; simplest architecture if already using Twilio for SMS
+
+#### Margin analysis (My AI Front Desk reseller path)
+- Wholesale: $54.99 USD/receptionist/mo (~$88 AUD)
+- Retail target for tradies: $129–$199 AUD/mo as bolt-on
+- Gross margin: ~$41–$111 AUD/receptionist/mo (47%–55%)
+- 100 customers at $149 AUD = $14,900 AUD/mo revenue, $5,500 AUD cost = $9,400 AUD gross margin
+
+#### AU market: existing competitors
+- Johnni.ai (AU-built, trade-specific, premium pricing ~$300 AUD/mo + $800 setup)
+- AppyTradies.com.au (AU-focused AI phone agent for tradies)
+- Sophiie.ai (~$300 AUD/mo + setup)
+- HiThere AI, ExpertEase AI, TransferToAI (AU-focused)
+- Market is early-stage; pricing $200–$500 AUD/mo range; no dominant player
+
+**Decision:** Three viable paths ranked:
+
+1. **Recommended (Phase 1): Resell My AI Front Desk white-label** — $54.99 USD wholesale, instant launch, no dev work, sub-5-minute setup per customer. Charge $149 AUD/mo as bolt-on (~55% gross margin). Suitable for 0–200 customers. Limitation: not AU-optimised, uses US accent by default (configurable), AU number requires Twilio import.
+
+2. **Recommended (Phase 2 / AU-optimised): Partnership or OEM with Johnni.ai** — AU-native, tradie-trained, ServiceM8/Simpro native. Explore reseller/OEM arrangement directly. If they won't do OEM, use as a referral/affiliate channel and take 20–30% recurring fee. No build cost, better product-market fit for AU tradies.
+
+3. **Build path (Phase 3 / differentiation): Twilio ConversationRelay + ElevenLabs + Claude** — Full control, custom Aussie voice, deep integration with ContactReplyAI dashboard. Cost ~$0.28–$0.41 AUD/min. At typical tradie call volume (30 calls/mo × 3 min avg = 90 min): ~$25–37 AUD/mo infra cost. Charge $99–$149 AUD/mo bolt-on = 60–74% gross margin. Timeline: 4–6 weeks dev. Only pursue if Johnni.ai partnership fails or we need deeper integration.
+
+**Explicitly avoid:**
+- Air.ai — FTC lawsuit, predatory pricing
+- Bland.ai — FTC investigation, pricing opacity
+- Synthflow agency — $1,400/mo minimum is not viable until 100+ customers on the bolt-on
+- Vapi/Retell direct — developer-only; no reseller wrapper without extra build cost
+
+**Status:** Accepted — research complete, no action taken yet. Path 1 (MAIFD resell) is lowest-effort first step. Path 2 (Johnni.ai partnership) requires BD outreach. Path 3 is 4–6 weeks engineering.
+**Impl:** ContactReplyAI.com product planning. Create `~/code/ReplyMate/` when ready to build.
+
+### DR-161: Legal compliance — AI autoresponder emergency/safety advice liability (2026-04-02)
+
+**Context:** ReplyMate (DR-143) AI autoresponder will respond to inbound customer messages on behalf of licensed tradies (plumbers, electricians, pest control). When customers describe emergencies (flooding, gas leaks, electrical hazards), the AI may give safety advice such as "turn off the mains water" or "leave the house if you smell gas." Needed full liability analysis across AU, US, UK for: giving correct advice, giving wrong advice, NOT giving advice, professional licensing implications, Good Samaritan applicability to AI, and insurance requirements.
+
+**Decision:** Three-tier advice framework:
+1. **Tier 1 (SAFE):** General safety warnings sourced from emergency services — "call 000/911/999", "keep children/pets away", "if you smell gas, leave immediately", "don't use switches near gas." Always give with standard disclaimer.
+2. **Tier 2 (CAUTIOUS):** Infrastructure interaction — "turn off mains water", "switch off circuit breaker." Give with enhanced disclaimer including "if unsure, don't proceed" and water-proximity warnings for electrical.
+3. **Tier 3 (NEVER):** Specific equipment instructions, fault diagnosis, gas infrastructure interaction beyond "evacuate + call emergency." These constitute professional practice territory.
+
+Key findings:
+- **Gas leak non-response is the highest-risk scenario.** Failing to warn when the system detected "gas" in the message creates negligent omission liability under the undertaking doctrine (Restatement 2d Torts §323 US; Civil Liability Acts AU). The AI MUST always respond to gas/fire/electrocution keywords with emergency number + evacuation advice.
+- **ACL s18 (AU) is strict liability** — misleading conduct requires no intent or negligence. If AI advice is wrong for the specific situation (e.g., "mains tap near water meter" but property is different), liability attaches even if advice is generally correct. ACCC v Google [2022] HCA 27 confirms algorithmic outputs can be misleading conduct.
+- **Good Samaritan protections do not apply** — commercial context, AI system (not "person"), and paid service all exclude these protections in all three jurisdictions.
+- **Professional licensing risk is LOW for Tier 1/2** — telling someone where their water tap is does not constitute plumbing work. Electrical is the grey area (directing panel interaction in some US states with broad licensing definitions).
+- **Agency law exposure:** AI acts with apparent authority of the licensed business. Both ReplyMate and the business can be named in claims. Service agreement must allocate responsibility clearly.
+- **Insurance required:** Tech E&O + PI, AUD $5,000–$10,000/year, policy must explicitly cover AI-generated advice.
+
+Implementation requirements:
+- Safety responses must be **templated, not free-form LLM generation** — keyword-triggered, jurisdiction-appropriate, legally reviewed
+- Every safety response must include: emergency number, AI identification, disclaimer, escalation path to human, "if in doubt, don't" principle
+- All advice must be logged (timestamp, customer ID, exact text, trigger context) for liability defence
+- Business owner must approve advice categories and retain ability to disable instantly
+- Quarterly review of advice templates against WorkSafe (AU), OSHA/NFPA (US), HSE (UK) current guidance
+
+**Status:** Accepted — defines the safety advice framework for ReplyMate. Implementation requires templated response system in the reply generation pipeline.
+**Impl:** This conversation. Framework to be implemented in ReplyMate reply generation module when project directory is created.
+
+---
+
+### DR-162: SMS interception architecture for ReplyMate — cloud number model, not on-device interception (2026-04-02)
+
+**Context:** ReplyMate (DR-131–DR-143) needs to intercept incoming SMS to tradie phone numbers, generate AI replies, and send from the tradie's number. Researched PWA, Android native, iOS native, cross-platform frameworks, and alternative approaches.
+
+**Findings:**
+
+1. **PWA: hard no.** No Web API exists for reading incoming SMS on either Android or iOS. The Web OTP API reads one-time codes from formatted SMS for autofill only — cannot read arbitrary messages, cannot trigger sends. Not on any standards roadmap.
+
+2. **Android (native / React Native / Flutter): technically possible, Play Store approval is the gate.**
+   - An app can register as the **default SMS handler** (API 19 / KitKat+). When default, it receives `SMS_DELIVER` broadcast and can intercept, suppress, reply, and read full SMS content.
+   - Required manifest components: `SmsReceiver` (SMS_DELIVER + BROADCAST_SMS), `MmsReceiver` (WAP_PUSH_DELIVER + BROADCAST_WAP_PUSH), `ComposeSmsActivity` (ACTION_SENDTO for sms:/smsto:/mms:/mmsto: schemes), `HeadlessSmsSendService` (SEND_RESPOND_VIA_MESSAGE). Permissions: RECEIVE_SMS, READ_SMS, SEND_SMS, WRITE_SMS.
+   - App must fully implement a working SMS/MMS client — it cannot just intercept without providing compose/send/notification UI.
+   - **Google Play policy (current):** SMS permissions restricted to default handlers only. Must request default handler status before requesting READ_SMS. Manual review + Permission Declaration Form required. Policy tightened in 2019, has not loosened since. Rejection rate high for apps without full client implementation.
+   - React Native and Flutter support this via native modules, but cross-platform framework does not change the policy requirements.
+
+3. **Android — Notification Listener workaround: works but fragile.**
+   - `NotificationListenerService` lets any app (with user granting notification access in Settings) receive all notification events including SMS content. Does not require default SMS handler status or Play Store SMS permission declaration.
+   - Can read message body from notification text. Can trigger reply via notification `RemoteInput` quick-reply button.
+   - **Limitations:** Notification content may be truncated. Unreliable on Xiaomi/Samsung/Huawei (aggressive battery management kills background services). The reply appears from the correct carrier number via the existing default SMS app's RemoteInput, but the service can be killed at any time. Not reliable enough for a commercial autoresponder.
+
+4. **iOS: effectively impossible.**
+   - No iOS API allows a third-party app to read arbitrary incoming SMS/MMS/iMessage content.
+   - **ILMessageFilterExtension** (iOS 11+, expanded in iOS 26): receives sender + full message body of SMS/MMS from *unknown senders only*, and can classify them (allow/filter/junk). It cannot trigger a reply. During the classification callback it cannot write to a shared container or make outbound network calls — only a deferred network lookup for classification purposes is permitted. iOS 26 expanded coverage to RCS but with the same constraints.
+   - **Known contacts:** Filter extension is NOT invoked for messages from existing contacts — unknown senders only. Tradie customers are typically unknown senders so the filter does see them, but cannot reply.
+   - iMessage: No API. Completely closed.
+   - Bottom line: iOS provides zero path to read-and-reply automation on native SMS.
+
+5. **RCS / Google Messages: no third-party access.** Google's RBM API is for A2P brand messaging, not consumer SMS interception. The hidden RCS API in Google Messages is on a restricted allowlist (Samsung wearables only). Not accessible to third parties.
+
+6. **Existing products that do this:**
+   - **SMS Auto Reply / LemiApps, AutoResponder.ai:** Use NotificationListenerService + notification RemoteInput. Android only. Basic keyword matching, no AI.
+   - **Goodcall / Hatch / AgentZap / Johnni.ai:** Do NOT intercept on-device SMS. They use a **cloud number model** — a cloud number hits their server, AI responds, replies come from the cloud number. Call forwarding is used for voice.
+   - **Sideline / Hushed:** Second number apps assigning a new cloud number. SMS routes via SMPP/SIP. Tradie's personal carrier number is untouched.
+
+7. **Architecture options:**
+   - **Option A (Cloud number, recommended):** Tradie ports their business number to Twilio (or similar CPaaS), or gets a new Twilio number. All SMS: Twilio → webhook → ReplyMate API → AI reply → Twilio sends from that number. No on-device app required for the core flow. A companion app shows reply history and approval UI. This is how every serious product in this space works.
+   - **Option B (Android default SMS handler):** Technically possible on Android. Requires full SMS client + Play Store manual review + tradie keeping app as default indefinitely. Excludes iOS. Operationally fragile. Much higher build cost.
+   - **Option C (Notification listener, Android only):** Lower barrier but battery-kill risk, truncation risk, iOS excluded. Suitable only as supplementary fallback.
+
+8. **Number porting:** Twilio supports full number porting (electronic LOA, no PDF required). Both SMS and Voice transfer. Webhooks fire on incoming SMS. Tradie keeps their existing number — customers text the same number as always. This eliminates the "new number" objection.
+
+9. **"Trust graduation" UX:** The approve-before-send → auto-send-after-timer → fully-automatic progression exists in enterprise CS tooling (Zendesk AI co-pilot, Intercom "co-pilot") but not in any known tradie-focused SMS product. Requires: push notification per pending reply, in-app preview/approve/edit/reject UI, server-side timer that fires the Twilio send if no action is taken, and an audit log of auto-sent replies. This is a genuine ReplyMate differentiator.
+
+**Decision:** ReplyMate must use the **cloud number model (Option A)**. On-device SMS interception is not viable as the primary architecture: iOS is a complete blocker (no API exists), Android Play Store approval for SMS permissions is non-trivial and requires building a full SMS client, and the notification listener approach is too unreliable for a commercial product. Cloud number + Twilio (with optional number porting) is the only architecture that works on both Android and iOS, avoids Play Store SMS review for the core functionality, and is already proven at scale.
+
+For Android users who cannot port their number, a notification-listener companion app is a possible supplementary fallback only.
+
+**Status:** Accepted
+**Impl:** Future `~/code/ReplyMate/` directory. Cloud number onboarding + Twilio webhook → AI reply → send flow defined in `docs/architecture-autoresponder-service.md`.

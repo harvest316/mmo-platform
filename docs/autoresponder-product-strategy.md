@@ -513,8 +513,8 @@ At 1,000 customers: $99,000/month MRR, $69,300/month gross profit.
 
 ### 9.2 AI Safety Guardrails (Non-Negotiable)
 
-1. **The AI never confirms pricing.** It says: "Pricing depends on the specific job. [Owner] can give you an exact quote."
-2. **The AI never confirms bookings.** It says: "Let me check [owner]'s availability and get back to you."
+1. **The AI never confirms pricing.** It says: "Pricing depends on the specific job. [Owner] can give you an exact quote." (or Owner can provide an indicative price list)
+2. **The AI never confirms bookings (unless we have access to the client's booking system).** It says: "Let me check [owner]'s availability and get back to you."
 3. **The AI never gives technical advice.** It says: "That's a great question for [owner] to answer when they call you."
 4. **The AI always escalates emergencies.** Gas leaks, flooding, electrical fires -- the AI says "This sounds urgent. I'm alerting [owner] right now. If you're in immediate danger, call 000/911/999."
 5. **The AI identifies itself as AI when directly asked.** "I'm an AI assistant for [business]. [Owner] will review this conversation and follow up personally." This is both ethical and legally required in some jurisdictions.
