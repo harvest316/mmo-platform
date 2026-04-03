@@ -29,14 +29,53 @@ check_pattern() {
   fi
 }
 
+# ── Known PII (project-specific) ──
 check_pattern 'paulh@|corpseo\.com' 'Personal email'
 check_pattern 'Suite 255.*Barratt|Hurstville NSW 2220' 'Personal address'
 check_pattern '0424.?225.?495' 'Personal phone'
 check_pattern 'Paul Harvey' 'Real name (use PERSONA_NAME env var)'
+
+# ── Phone numbers (AU/international) ──
+check_pattern '\+61[0-9 ]{9,12}' 'Australian phone number (+61)'
+check_pattern '\b04[0-9]{2}[- ]?[0-9]{3}[- ]?[0-9]{3}\b' 'Australian mobile (04xx)'
+check_pattern '\b\(0[2-9]\)[- ]?[0-9]{4}[- ]?[0-9]{4}\b' 'Australian landline'
+
+# ── Credit card numbers ──
+check_pattern '\b4[0-9]{15}\b' 'Visa card number'
+check_pattern '\b5[1-5][0-9]{14}\b' 'Mastercard number'
+check_pattern '\b3[47][0-9]{13}\b' 'Amex card number'
+
+# ── Australian identifiers ──
+check_pattern '\b[0-9]{2} [0-9]{3} [0-9]{3} [0-9]{3}\b' 'ABN (Australian Business Number)'
+check_pattern '\b[0-9]{3} [0-9]{3} [0-9]{3}\b' 'Possible TFN (Tax File Number)'
+
+# ── API keys and tokens ──
 check_pattern 'sk_live_|sk_test_' 'Stripe secret key'
 check_pattern 'ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}' 'GitHub token'
 check_pattern 'AKIA[A-Z0-9]{16}' 'AWS access key'
+check_pattern 'sk-ant-[A-Za-z0-9-]{20,}' 'Anthropic API key'
+check_pattern 'sk-or-[A-Za-z0-9-]{20,}' 'OpenRouter API key'
+check_pattern 're_[A-Za-z0-9_]{20,}' 'Resend API key'
 check_pattern 'password\s*[:=]\s*["\x27][^"\x27]{6,}' 'Hardcoded password'
+
+# ── Dynamic: check if any .env/.env.secrets VALUES appear in the diff ──
+for envfile in .env .env.secrets; do
+  if [ -f "$envfile" ]; then
+    while IFS='=' read -r key value; do
+      # Skip comments, empty lines, short values (<12 chars — too many false positives)
+      case "$key" in \#*|"") continue ;; esac
+      value=$(echo "$value" | sed 's/^["'\''"]//;s/["'\''"]$//')
+      if [ ${#value} -ge 12 ]; then
+        matches=$(echo "$DIFF" | grep -inF "^\+" | grep -F "$value" | grep -v "^+++\|\.env\|\.env\.secrets\|check-pii" | head -3)
+        if [ -n "$matches" ]; then
+          echo "  ⚠ Value from ${envfile} (${key}) found in staged diff:"
+          echo "$matches" | sed 's/^/    /'
+          FOUND=1
+        fi
+      fi
+    done < "$envfile"
+  fi
+done
 
 if [ "$FOUND" = "1" ]; then
   echo ""
