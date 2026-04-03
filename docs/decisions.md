@@ -2311,3 +2311,42 @@ For Android users who cannot port their number, a notification-listener companio
 
 **Status:** Accepted
 **Impl:** Future `~/code/ReplyMate/` directory. Cloud number onboarding + Twilio webhook → AI reply → send flow defined in `docs/architecture-autoresponder-service.md`.
+
+### DR-163: AgentSystem — standalone cross-project fix dispatcher replacing custom agent system (2026-04-03)
+
+**Context:** The 333Method had a custom 6-agent system (~350KB, 24 files) that was never fully activated due to 35-71% failure rates across all agents. Meanwhile, the orchestrator's detection batches (`triage_errors`, `code_review`, `monitor_health`, `oversee`) already create `triage_fix` and `code_review_fix` tasks in `tel.agent_tasks` — but nobody consumes them.
+
+**Decision:** Create `~/code/AgentSystem/` as a standalone workspace project that picks up pending fix tasks and applies them via `claude -p`. This replaces the 350KB custom agent system with ~300 lines of dispatcher + result handler. Key design choices:
+- Standalone project (not 333Method internal) — serves all workspace projects
+- Shared PostgreSQL `tel` schema — no new tables, uses existing `agent_tasks` and `agent_outcomes`
+- One task per 15-min cycle (conservative) — increase to 2-3 if backlog grows
+- No `subagent_type` for automated fixes — `claude -p` pipe mode doesn't support it; prompt provides specialisation
+- Feature branches only — fixes don't go directly to main
+- Agency Agents (`subagent_type`) continue for interactive sessions (Tier 3 AFK, Tier C periodic audits)
+- Old agent code archived to `333Method/src/agents/_archived/` (Phase 3)
+
+**Trade-offs:**
+- (+) 100x less code to maintain (300 lines vs 16,000+)
+- (+) Reuses 100% of existing orchestrator infrastructure
+- (+) Cross-project from day one
+- (+) No OpenRouter cost — runs on Claude Max subscription
+- (-) Slower feedback loop than old system's immediate invocation (15 min vs <2 min)
+- (-) Cannot use `subagent_type` specialisation in pipe mode
+
+**Status:** Accepted — Phase 1 implementation complete
+**Impl:** `~/code/AgentSystem/` (dispatcher.js, result-handler.js, prompts/FIX-DISPATCH.md). Plan: `~/.claude/plans/whimsical-dancing-puddle.md`
+
+### DR-164: Cap free fixes at one per prospect — touch 2 = teaser only (2026-04-03)
+
+**Context:** The freefix outreach sequence (DR-128) originally offered two free fixes: touch 1 (worst weakness) and touch 2 (second weakness, "same deal — on me"). The paid audit report scores 10 factors. Giving away actionable fixes for the top 2 factors — the most impactful findings — undermines the report's perceived value and risks depressing conversion from the review acquisition campaign (DR-119), where we need recipients to feel the report was worth reviewing for.
+
+**Decision:** One free fix only. Touch 1 gives the free fix (weakness #1). Touch 2 mentions weakness #2 as a teaser ("that's the kind of thing the full report covers") but does NOT offer to fix it free. This preserves 9/10 report factors as paid value while still proving breadth of issues found.
+
+Touch 2 template language changed from "same deal — on me" / "no charge" to:
+- "That's the kind of thing the full report covers — your [weakness2] alongside everything else"
+- "There are more like this. The full breakdown maps them all out."
+
+Applied across all 8 English markets (AU, US, CA, GB, NZ, IE, ZA, IN) in both email and SMS templates.
+
+**Status:** Accepted, implemented
+**Impl:** `333Method/data/templates/*/freefix-followup-email.json` and `freefix-followup-sms.json` (step 2 templates)
