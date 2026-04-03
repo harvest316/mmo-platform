@@ -2336,6 +2336,24 @@ For Android users who cannot port their number, a notification-listener companio
 **Status:** Accepted — Phase 1 implementation complete
 **Impl:** `~/code/AgentSystem/` (dispatcher.js, result-handler.js, prompts/FIX-DISPATCH.md). Plan: `~/.claude/plans/whimsical-dancing-puddle.md`
 
+### DR-165: AgentSystem security findings — execSync shell injection, prompt injection, path traversal (2026-04-03)
+
+**Context:** Full security review of `~/code/AgentSystem/` (dispatcher.js, result-handler.js, utils/, prompts/FIX-DISPATCH.md). The system invokes `claude -p` via `execSync` with shell-interpolated strings derived from database-sourced task context, creating multiple injection vectors.
+
+**Key findings:**
+- CRITICAL: `execSync` with interpolated `claudeBin` and `model` strings — shell injection via `HOME` or `CLAUDE_FIX_MODEL` env vars (dispatcher.js:52,169)
+- HIGH: All `context_json` string fields (`error_message`, `summary`, `suggested_fix`, `file_path`, etc.) are interpolated verbatim into the prompt Markdown — prompt injection can override `## Forbidden Actions` instructions and direct Claude to exfiltrate files or SSH keys
+- HIGH: `ctx.file_path` used as a string-match for project routing and injected into the prompt with no canonicalization — path traversal risk to files outside project directory
+- MEDIUM: Temp prompt file uses `Date.now()` suffix, orphaned on SIGKILL; unbounded `context_json` size; `LOGS_DIR` env var controls log write path; subprocess inherits all 333Method secrets (Twilio, Resend, ZenRows) via `...process.env`
+- LOW: bare `'claude'` fallback in PATH resolution; no upper bound on `MAX_TASKS_PER_CYCLE`
+
+**Decision:** Implement fixes in priority order. P0 (fix immediately): replace all `execSync` with `execFileSync` + argv array + `input:` option — this kills CRITICAL-1, CRITICAL-2, and MEDIUM-2 in one refactor. P1: add XML delimiters around injected context in prompt template, per-field truncation (≤2000 chars), and `file_path` canonicalization against project root. P2: strip non-AgentSystem secrets from subprocess env, validate `LOGS_DIR`.
+
+**Status:** Findings accepted, remediation pending
+**Impl:** `~/code/AgentSystem/src/dispatcher.js`, `~/code/AgentSystem/prompts/FIX-DISPATCH.md`
+
+---
+
 ### DR-164: Cap free fixes at one per prospect — touch 2 = teaser only (2026-04-03)
 
 **Context:** The freefix outreach sequence (DR-128) originally offered two free fixes: touch 1 (worst weakness) and touch 2 (second weakness, "same deal — on me"). The paid audit report scores 10 factors. Giving away actionable fixes for the top 2 factors — the most impactful findings — undermines the report's perceived value and risks depressing conversion from the review acquisition campaign (DR-119), where we need recipients to feel the report was worth reviewing for.

@@ -1,25 +1,15 @@
 /**
  * Cross-project opt-out suppression system — unit tests
  *
- * Tests the shared suppression list at mmo-platform/db/suppression.db.
- * All tests use in-memory databases for isolation and speed.
- *
- * Coverage:
- *   - addSuppression: basic insert, dedup, merge, validation
- *   - isSuppressed: email, phone, edge cases
- *   - isEmailSuppressed / isPhoneSuppressed: typed checks
- *   - getSuppressionsAfter: sync polling
- *   - checkBeforeSend: outreach guard
- *   - removeSuppression: re-subscribe / UNSTOP
- *   - batchImport: bulk operations
- *   - Cross-channel: phone suppression does not block email and vice versa
- *   - Case insensitivity: email matching
- *   - Normalisation: whitespace, formatting
+ * Tests the PG-backed suppression list (msgs.suppression_list).
+ * Uses a dedicated test_msgs schema for isolation — no production data touched.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import pg from 'pg';
 import {
   openDb,
+  setPool,
   normaliseEmail,
   normalisePhone,
   addSuppression,
@@ -34,18 +24,63 @@ import {
   batchImport,
 } from '../../src/suppression.js';
 
-// ── Test helpers ────────────────────────────────────────────────────────────
+// ── Test PG pool in isolated schema ────────────────────────────────────────
 
-let db;
+let pool;
 
-beforeEach(() => {
-  db = openDb(':memory:');
+beforeAll(async () => {
+  pool = new pg.Pool({
+    connectionString: 'postgresql://jason@/mmo?host=/run/postgresql',
+    max: 2,
+  });
+
+  // Create isolated test schema + table
+  await pool.query('CREATE SCHEMA IF NOT EXISTS test_msgs');
+  await pool.query('CREATE EXTENSION IF NOT EXISTS citext SCHEMA test_msgs');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS test_msgs.suppression_list (
+      id           SERIAL PRIMARY KEY,
+      email        citext,
+      phone        TEXT,
+      source       TEXT NOT NULL,
+      opted_out_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reason       TEXT,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_test_supp_email
+    ON test_msgs.suppression_list (email) WHERE email IS NOT NULL
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_test_supp_phone
+    ON test_msgs.suppression_list (phone) WHERE phone IS NOT NULL
+  `);
+
+  // Inject the pool into the suppression module with test schema search path
+  const testPool = new pg.Pool({
+    connectionString: 'postgresql://jason@/mmo?host=/run/postgresql',
+    max: 2,
+  });
+  testPool.on('connect', async (client) => {
+    await client.query('SET search_path TO test_msgs, public');
+  });
+  // Prime a connection so search_path is set
+  const client = await testPool.connect();
+  await client.query('SET search_path TO test_msgs, public');
+  client.release();
+
+  setPool(testPool);
 });
 
-afterEach(() => {
-  if (db && db.open) {
-    db.close();
-  }
+beforeEach(async () => {
+  await pool.query('TRUNCATE test_msgs.suppression_list RESTART IDENTITY CASCADE');
+});
+
+afterAll(async () => {
+  await pool.query('DROP SCHEMA IF EXISTS test_msgs CASCADE');
+  await pool.end();
 });
 
 // ── Normalisation ───────────────────────────────────────────────────────────
@@ -95,177 +130,175 @@ describe('normalisePhone', () => {
 // ── addSuppression ──────────────────────────────────────────────────────────
 
 describe('addSuppression', () => {
-  it('inserts a new email suppression', () => {
-    const result = addSuppression({
+  it('inserts a new email suppression', async () => {
+    const result = await addSuppression({
       email: 'owner@example.com',
       phone: null,
       source: '333method',
       reason: 'stop_keyword',
-    }, db);
+    });
 
     expect(result.id).toBeGreaterThan(0);
     expect(result.merged).toBe(false);
-    expect(countSuppressions(db)).toBe(1);
+    expect(await countSuppressions()).toBe(1);
   });
 
-  it('inserts a new phone suppression', () => {
-    const result = addSuppression({
+  it('inserts a new phone suppression', async () => {
+    const result = await addSuppression({
       email: null,
       phone: '+61400000001',
       source: '2step',
       reason: 'unsubscribe',
-    }, db);
+    });
 
     expect(result.id).toBeGreaterThan(0);
     expect(result.merged).toBe(false);
-    expect(countSuppressions(db)).toBe(1);
+    expect(await countSuppressions()).toBe(1);
   });
 
-  it('inserts with both email and phone', () => {
-    const result = addSuppression({
+  it('inserts with both email and phone', async () => {
+    const result = await addSuppression({
       email: 'owner@example.com',
       phone: '+61400000001',
       source: '333method',
       reason: 'bounce',
-    }, db);
+    });
 
     expect(result.id).toBeGreaterThan(0);
     expect(result.merged).toBe(false);
   });
 
-  it('deduplicates on email — merges into existing row', () => {
-    addSuppression({
+  it('deduplicates on email — merges into existing row', async () => {
+    await addSuppression({
       email: 'owner@example.com',
       phone: null,
       source: '333method',
       reason: 'stop_keyword',
-    }, db);
+    });
 
-    const result = addSuppression({
+    const result = await addSuppression({
       email: 'owner@example.com',
       phone: '+61400000001',
       source: '2step',
       reason: 'unsubscribe',
-    }, db);
+    });
 
     expect(result.merged).toBe(true);
-    expect(countSuppressions(db)).toBe(1);
+    expect(await countSuppressions()).toBe(1);
 
-    // The merged row should now have the phone too
-    const all = getAllSuppressions(db);
+    const all = await getAllSuppressions();
     expect(all[0].phone).toBe('+61400000001');
     expect(all[0].email).toBe('owner@example.com');
-    expect(all[0].source).toBe('2step'); // updated to latest source
+    expect(all[0].source).toBe('2step');
   });
 
-  it('deduplicates on phone — merges into existing row', () => {
-    addSuppression({
+  it('deduplicates on phone — merges into existing row', async () => {
+    await addSuppression({
       email: null,
       phone: '+61400000001',
       source: '333method',
       reason: 'stop_keyword',
-    }, db);
+    });
 
-    const result = addSuppression({
+    const result = await addSuppression({
       email: 'owner@example.com',
       phone: '+61400000001',
       source: '2step',
       reason: 'complaint',
-    }, db);
+    });
 
     expect(result.merged).toBe(true);
-    expect(countSuppressions(db)).toBe(1);
+    expect(await countSuppressions()).toBe(1);
 
-    // The merged row should now have the email too
-    const all = getAllSuppressions(db);
+    const all = await getAllSuppressions();
     expect(all[0].email).toBe('owner@example.com');
     expect(all[0].phone).toBe('+61400000001');
   });
 
-  it('email dedup is case-insensitive', () => {
-    addSuppression({
+  it('email dedup is case-insensitive', async () => {
+    await addSuppression({
       email: 'OWNER@EXAMPLE.COM',
       phone: null,
       source: '333method',
-    }, db);
+    });
 
-    const result = addSuppression({
+    const result = await addSuppression({
       email: 'owner@example.com',
       phone: null,
       source: '2step',
-    }, db);
+    });
 
     expect(result.merged).toBe(true);
-    expect(countSuppressions(db)).toBe(1);
+    expect(await countSuppressions()).toBe(1);
   });
 
-  it('throws if neither email nor phone provided', () => {
-    expect(() => addSuppression({
+  it('throws if neither email nor phone provided', async () => {
+    await expect(addSuppression({
       email: null,
       phone: null,
       source: '333method',
-    }, db)).toThrow('at least one of email or phone');
+    })).rejects.toThrow('at least one of email or phone');
   });
 
-  it('throws if source is missing', () => {
-    expect(() => addSuppression({
+  it('throws if source is missing', async () => {
+    await expect(addSuppression({
       email: 'test@example.com',
       phone: null,
       source: null,
-    }, db)).toThrow('source string');
+    })).rejects.toThrow('source string');
   });
 
-  it('throws if source is empty string', () => {
-    expect(() => addSuppression({
+  it('throws if source is empty string', async () => {
+    await expect(addSuppression({
       email: 'test@example.com',
       phone: null,
       source: '',
-    }, db)).toThrow('source string');
+    })).rejects.toThrow('source string');
   });
 
-  it('normalises email before insert', () => {
-    addSuppression({
+  it('normalises email before insert', async () => {
+    await addSuppression({
       email: '  Owner@Example.COM  ',
       phone: null,
       source: '333method',
-    }, db);
+    });
 
-    const all = getAllSuppressions(db);
+    const all = await getAllSuppressions();
     expect(all[0].email).toBe('owner@example.com');
   });
 
-  it('normalises phone before insert', () => {
-    addSuppression({
+  it('normalises phone before insert', async () => {
+    await addSuppression({
       email: null,
       phone: '+61 400 000 001',
       source: '2step',
-    }, db);
+    });
 
-    const all = getAllSuppressions(db);
+    const all = await getAllSuppressions();
     expect(all[0].phone).toBe('+61400000001');
   });
 
-  it('uses custom opted_out_at when provided', () => {
-    const ts = '2026-01-15 08:30:00';
-    addSuppression({
+  it('uses custom opted_out_at when provided', async () => {
+    const ts = '2026-01-15T08:30:00.000Z';
+    await addSuppression({
       email: 'test@example.com',
       phone: null,
       source: '333method',
       opted_out_at: ts,
-    }, db);
+    });
 
-    const all = getAllSuppressions(db);
-    expect(all[0].opted_out_at).toBe(ts);
+    const all = await getAllSuppressions();
+    expect(new Date(all[0].opted_out_at).toISOString()).toBe(ts);
   });
 
-  it('reason defaults to null when not provided', () => {
-    addSuppression({
+  it('reason defaults to null when not provided', async () => {
+    await addSuppression({
       email: 'test@example.com',
       phone: null,
       source: '333method',
-    }, db);
+    });
 
-    const all = getAllSuppressions(db);
+    const all = await getAllSuppressions();
     expect(all[0].reason).toBeNull();
   });
 });
@@ -273,285 +306,276 @@ describe('addSuppression', () => {
 // ── isSuppressed ────────────────────────────────────────────────────────────
 
 describe('isSuppressed', () => {
-  beforeEach(() => {
-    addSuppression({
+  beforeEach(async () => {
+    await addSuppression({
       email: 'blocked@example.com',
       phone: '+61400000001',
       source: '333method',
       reason: 'stop_keyword',
-    }, db);
+    });
   });
 
-  it('returns true for suppressed email', () => {
-    expect(isSuppressed('blocked@example.com', db)).toBe(true);
+  it('returns true for suppressed email', async () => {
+    expect(await isSuppressed('blocked@example.com')).toBe(true);
   });
 
-  it('returns true for suppressed phone', () => {
-    expect(isSuppressed('+61400000001', db)).toBe(true);
+  it('returns true for suppressed phone', async () => {
+    expect(await isSuppressed('+61400000001')).toBe(true);
   });
 
-  it('returns false for non-suppressed email', () => {
-    expect(isSuppressed('clean@example.com', db)).toBe(false);
+  it('returns false for non-suppressed email', async () => {
+    expect(await isSuppressed('clean@example.com')).toBe(false);
   });
 
-  it('returns false for non-suppressed phone', () => {
-    expect(isSuppressed('+61400000002', db)).toBe(false);
+  it('returns false for non-suppressed phone', async () => {
+    expect(await isSuppressed('+61400000002')).toBe(false);
   });
 
-  it('returns false for null/undefined/empty', () => {
-    expect(isSuppressed(null, db)).toBe(false);
-    expect(isSuppressed(undefined, db)).toBe(false);
-    expect(isSuppressed('', db)).toBe(false);
-    expect(isSuppressed('   ', db)).toBe(false);
+  it('returns false for null/undefined/empty', async () => {
+    expect(await isSuppressed(null)).toBe(false);
+    expect(await isSuppressed(undefined)).toBe(false);
+    expect(await isSuppressed('')).toBe(false);
+    expect(await isSuppressed('   ')).toBe(false);
   });
 
-  it('email check is case-insensitive', () => {
-    expect(isSuppressed('BLOCKED@EXAMPLE.COM', db)).toBe(true);
-    expect(isSuppressed('Blocked@Example.Com', db)).toBe(true);
+  it('email check is case-insensitive', async () => {
+    expect(await isSuppressed('BLOCKED@EXAMPLE.COM')).toBe(true);
+    expect(await isSuppressed('Blocked@Example.Com')).toBe(true);
   });
 
-  it('phone check normalises formatting', () => {
-    expect(isSuppressed('+61 400 000 001', db)).toBe(true);
+  it('phone check normalises formatting', async () => {
+    expect(await isSuppressed('+61 400 000 001')).toBe(true);
   });
 });
 
 // ── isEmailSuppressed / isPhoneSuppressed ───────────────────────────────────
 
 describe('isEmailSuppressed', () => {
-  beforeEach(() => {
-    addSuppression({
+  beforeEach(async () => {
+    await addSuppression({
       email: 'blocked@example.com',
       phone: null,
       source: '333method',
-    }, db);
+    });
   });
 
-  it('returns true for suppressed email', () => {
-    expect(isEmailSuppressed('blocked@example.com', db)).toBe(true);
+  it('returns true for suppressed email', async () => {
+    expect(await isEmailSuppressed('blocked@example.com')).toBe(true);
   });
 
-  it('is case-insensitive', () => {
-    expect(isEmailSuppressed('BLOCKED@EXAMPLE.COM', db)).toBe(true);
+  it('is case-insensitive', async () => {
+    expect(await isEmailSuppressed('BLOCKED@EXAMPLE.COM')).toBe(true);
   });
 
-  it('returns false for non-suppressed email', () => {
-    expect(isEmailSuppressed('clean@example.com', db)).toBe(false);
+  it('returns false for non-suppressed email', async () => {
+    expect(await isEmailSuppressed('clean@example.com')).toBe(false);
   });
 
-  it('returns false for null/empty', () => {
-    expect(isEmailSuppressed(null, db)).toBe(false);
-    expect(isEmailSuppressed('', db)).toBe(false);
+  it('returns false for null/empty', async () => {
+    expect(await isEmailSuppressed(null)).toBe(false);
+    expect(await isEmailSuppressed('')).toBe(false);
   });
 });
 
 describe('isPhoneSuppressed', () => {
-  beforeEach(() => {
-    addSuppression({
+  beforeEach(async () => {
+    await addSuppression({
       email: null,
       phone: '+61400000001',
       source: '2step',
-    }, db);
+    });
   });
 
-  it('returns true for suppressed phone', () => {
-    expect(isPhoneSuppressed('+61400000001', db)).toBe(true);
+  it('returns true for suppressed phone', async () => {
+    expect(await isPhoneSuppressed('+61400000001')).toBe(true);
   });
 
-  it('returns false for non-suppressed phone', () => {
-    expect(isPhoneSuppressed('+61400000002', db)).toBe(false);
+  it('returns false for non-suppressed phone', async () => {
+    expect(await isPhoneSuppressed('+61400000002')).toBe(false);
   });
 
-  it('returns false for null/empty', () => {
-    expect(isPhoneSuppressed(null, db)).toBe(false);
-    expect(isPhoneSuppressed('', db)).toBe(false);
+  it('returns false for null/empty', async () => {
+    expect(await isPhoneSuppressed(null)).toBe(false);
+    expect(await isPhoneSuppressed('')).toBe(false);
   });
 });
 
 // ── Cross-channel suppression ───────────────────────────────────────────────
 
 describe('cross-channel suppression', () => {
-  it('email-only suppression does not block phone check for different contact', () => {
-    addSuppression({
+  it('email-only suppression does not block phone check for different contact', async () => {
+    await addSuppression({
       email: 'blocked@example.com',
       phone: null,
       source: '333method',
-    }, db);
+    });
 
-    // A different phone number should not be blocked
-    expect(isPhoneSuppressed('+61400000099', db)).toBe(false);
+    expect(await isPhoneSuppressed('+61400000099')).toBe(false);
   });
 
-  it('phone-only suppression does not block email check for different contact', () => {
-    addSuppression({
+  it('phone-only suppression does not block email check for different contact', async () => {
+    await addSuppression({
       email: null,
       phone: '+61400000001',
       source: '2step',
-    }, db);
+    });
 
-    // A different email should not be blocked
-    expect(isEmailSuppressed('other@example.com', db)).toBe(false);
+    expect(await isEmailSuppressed('other@example.com')).toBe(false);
   });
 
-  it('suppression with both email and phone blocks both independently', () => {
-    addSuppression({
+  it('suppression with both email and phone blocks both independently', async () => {
+    await addSuppression({
       email: 'blocked@example.com',
       phone: '+61400000001',
       source: '333method',
-    }, db);
+    });
 
-    expect(isEmailSuppressed('blocked@example.com', db)).toBe(true);
-    expect(isPhoneSuppressed('+61400000001', db)).toBe(true);
+    expect(await isEmailSuppressed('blocked@example.com')).toBe(true);
+    expect(await isPhoneSuppressed('+61400000001')).toBe(true);
   });
 
-  it('merged suppression blocks by either identifier', () => {
-    // First: add by phone only
-    addSuppression({
+  it('merged suppression blocks by either identifier', async () => {
+    await addSuppression({
       email: null,
       phone: '+61400000001',
       source: '333method',
-    }, db);
+    });
 
-    // Then: merge in the email via same phone
-    addSuppression({
+    await addSuppression({
       email: 'blocked@example.com',
       phone: '+61400000001',
       source: '2step',
-    }, db);
+    });
 
-    // Now both should be blocked
-    expect(isEmailSuppressed('blocked@example.com', db)).toBe(true);
-    expect(isPhoneSuppressed('+61400000001', db)).toBe(true);
-    expect(countSuppressions(db)).toBe(1); // still one row
+    expect(await isEmailSuppressed('blocked@example.com')).toBe(true);
+    expect(await isPhoneSuppressed('+61400000001')).toBe(true);
+    expect(await countSuppressions()).toBe(1);
   });
 });
 
 // ── Cross-project suppression ───────────────────────────────────────────────
 
 describe('cross-project suppression', () => {
-  it('333Method opt-out blocks 2Step outreach to same email', () => {
-    addSuppression({
+  it('333Method opt-out blocks 2Step outreach to same email', async () => {
+    await addSuppression({
       email: 'owner@business.com',
       phone: null,
       source: '333method',
       reason: 'unsubscribe',
-    }, db);
+    });
 
-    // Simulating 2Step check before send
-    const check = checkBeforeSend({ email: 'owner@business.com', phone: null }, db);
+    const check = await checkBeforeSend({ email: 'owner@business.com', phone: null });
     expect(check.blocked).toBe(true);
     expect(check.matchedOn).toBe('email');
   });
 
-  it('2Step opt-out blocks 333Method outreach to same phone', () => {
-    addSuppression({
+  it('2Step opt-out blocks 333Method outreach to same phone', async () => {
+    await addSuppression({
       email: null,
       phone: '+61400000001',
       source: '2step',
       reason: 'stop_keyword',
-    }, db);
+    });
 
-    // Simulating 333Method check before send
-    const check = checkBeforeSend({ email: null, phone: '+61400000001' }, db);
+    const check = await checkBeforeSend({ email: null, phone: '+61400000001' });
     expect(check.blocked).toBe(true);
     expect(check.matchedOn).toBe('phone');
   });
 
-  it('suppression from any project blocks all projects', () => {
-    addSuppression({
+  it('suppression from any project blocks all projects', async () => {
+    await addSuppression({
       email: 'owner@business.com',
       phone: '+61400000001',
       source: '333method',
-    }, db);
+    });
 
-    // Both "projects" see the suppression
-    expect(isSuppressed('owner@business.com', db)).toBe(true);
-    expect(isSuppressed('+61400000001', db)).toBe(true);
+    expect(await isSuppressed('owner@business.com')).toBe(true);
+    expect(await isSuppressed('+61400000001')).toBe(true);
 
-    // checkBeforeSend works for any project checking
-    expect(checkBeforeSend({ email: 'owner@business.com' }, db).blocked).toBe(true);
-    expect(checkBeforeSend({ phone: '+61400000001' }, db).blocked).toBe(true);
+    expect((await checkBeforeSend({ email: 'owner@business.com' })).blocked).toBe(true);
+    expect((await checkBeforeSend({ phone: '+61400000001' })).blocked).toBe(true);
   });
 });
 
 // ── getSuppressionsAfter (sync polling) ─────────────────────────────────────
 
 describe('getSuppressionsAfter', () => {
-  it('returns entries after the given timestamp', () => {
-    addSuppression({
+  it('returns entries after the given timestamp', async () => {
+    await addSuppression({
       email: 'old@example.com',
       phone: null,
       source: '333method',
-      opted_out_at: '2026-01-01 00:00:00',
-    }, db);
+      opted_out_at: '2026-01-01T00:00:00.000Z',
+    });
 
-    addSuppression({
+    await addSuppression({
       email: 'new@example.com',
       phone: null,
       source: '2step',
-      opted_out_at: '2026-03-26 12:00:00',
-    }, db);
+      opted_out_at: '2026-03-26T12:00:00.000Z',
+    });
 
-    const results = getSuppressionsAfter('2026-03-01 00:00:00', db);
+    const results = await getSuppressionsAfter('2026-03-01T00:00:00.000Z');
     expect(results).toHaveLength(1);
     expect(results[0].email).toBe('new@example.com');
   });
 
-  it('returns empty array when no entries match', () => {
-    addSuppression({
+  it('returns empty array when no entries match', async () => {
+    await addSuppression({
       email: 'test@example.com',
       phone: null,
       source: '333method',
-      opted_out_at: '2026-01-01 00:00:00',
-    }, db);
+      opted_out_at: '2026-01-01T00:00:00.000Z',
+    });
 
-    const results = getSuppressionsAfter('2026-12-31 00:00:00', db);
+    const results = await getSuppressionsAfter('2026-12-31T00:00:00.000Z');
     expect(results).toHaveLength(0);
   });
 
-  it('returns all entries when timestamp is very old', () => {
-    addSuppression({ email: 'a@example.com', phone: null, source: '333method', opted_out_at: '2026-01-01 00:00:00' }, db);
-    addSuppression({ email: 'b@example.com', phone: null, source: '2step', opted_out_at: '2026-02-01 00:00:00' }, db);
-    addSuppression({ email: 'c@example.com', phone: null, source: '333method', opted_out_at: '2026-03-01 00:00:00' }, db);
+  it('returns all entries when timestamp is very old', async () => {
+    await addSuppression({ email: 'a@example.com', phone: null, source: '333method', opted_out_at: '2026-01-01T00:00:00.000Z' });
+    await addSuppression({ email: 'b@example.com', phone: null, source: '2step', opted_out_at: '2026-02-01T00:00:00.000Z' });
+    await addSuppression({ email: 'c@example.com', phone: null, source: '333method', opted_out_at: '2026-03-01T00:00:00.000Z' });
 
-    const results = getSuppressionsAfter('2020-01-01 00:00:00', db);
+    const results = await getSuppressionsAfter('2020-01-01T00:00:00.000Z');
     expect(results).toHaveLength(3);
   });
 
-  it('results are ordered by opted_out_at ascending', () => {
-    addSuppression({ email: 'c@example.com', phone: null, source: '333method', opted_out_at: '2026-03-01 00:00:00' }, db);
-    addSuppression({ email: 'a@example.com', phone: null, source: '333method', opted_out_at: '2026-01-01 00:00:00' }, db);
-    addSuppression({ email: 'b@example.com', phone: null, source: '2step', opted_out_at: '2026-02-01 00:00:00' }, db);
+  it('results are ordered by opted_out_at ascending', async () => {
+    await addSuppression({ email: 'c@example.com', phone: null, source: '333method', opted_out_at: '2026-03-01T00:00:00.000Z' });
+    await addSuppression({ email: 'a@example.com', phone: null, source: '333method', opted_out_at: '2026-01-01T00:00:00.000Z' });
+    await addSuppression({ email: 'b@example.com', phone: null, source: '2step', opted_out_at: '2026-02-01T00:00:00.000Z' });
 
-    const results = getSuppressionsAfter('2020-01-01 00:00:00', db);
+    const results = await getSuppressionsAfter('2020-01-01T00:00:00.000Z');
     expect(results[0].email).toBe('a@example.com');
     expect(results[1].email).toBe('b@example.com');
     expect(results[2].email).toBe('c@example.com');
   });
 
-  it('throws if timestamp is null or missing', () => {
-    expect(() => getSuppressionsAfter(null, db)).toThrow('ISO timestamp');
-    expect(() => getSuppressionsAfter(undefined, db)).toThrow('ISO timestamp');
+  it('throws if timestamp is null or missing', async () => {
+    await expect(getSuppressionsAfter(null)).rejects.toThrow('ISO timestamp');
+    await expect(getSuppressionsAfter(undefined)).rejects.toThrow('ISO timestamp');
   });
 
-  it('includes all expected fields in results', () => {
-    addSuppression({
+  it('includes all expected fields in results', async () => {
+    await addSuppression({
       email: 'test@example.com',
       phone: '+61400000001',
       source: '333method',
       reason: 'bounce',
-      opted_out_at: '2026-03-26 12:00:00',
-    }, db);
+      opted_out_at: '2026-03-26T12:00:00.000Z',
+    });
 
-    const results = getSuppressionsAfter('2026-01-01 00:00:00', db);
+    const results = await getSuppressionsAfter('2026-01-01T00:00:00.000Z');
     expect(results).toHaveLength(1);
 
     const row = results[0];
     expect(row).toHaveProperty('id');
-    expect(row).toHaveProperty('email', 'test@example.com');
-    expect(row).toHaveProperty('phone', '+61400000001');
-    expect(row).toHaveProperty('source', '333method');
-    expect(row).toHaveProperty('opted_out_at', '2026-03-26 12:00:00');
-    expect(row).toHaveProperty('reason', 'bounce');
+    expect(row.email).toBe('test@example.com');
+    expect(row.phone).toBe('+61400000001');
+    expect(row.source).toBe('333method');
+    expect(row.reason).toBe('bounce');
+    expect(row).toHaveProperty('opted_out_at');
     expect(row).toHaveProperty('created_at');
     expect(row).toHaveProperty('updated_at');
   });
@@ -560,62 +584,60 @@ describe('getSuppressionsAfter', () => {
 // ── checkBeforeSend ─────────────────────────────────────────────────────────
 
 describe('checkBeforeSend', () => {
-  it('returns blocked=false when email and phone are clean', () => {
-    const result = checkBeforeSend({ email: 'clean@example.com', phone: '+61400000099' }, db);
+  it('returns blocked=false when email and phone are clean', async () => {
+    const result = await checkBeforeSend({ email: 'clean@example.com', phone: '+61400000099' });
     expect(result.blocked).toBe(false);
     expect(result.reason).toBeUndefined();
     expect(result.matchedOn).toBeUndefined();
   });
 
-  it('returns blocked=true with matchedOn=email when email is suppressed', () => {
-    addSuppression({ email: 'blocked@example.com', phone: null, source: '333method', reason: 'stop_keyword' }, db);
+  it('returns blocked=true with matchedOn=email when email is suppressed', async () => {
+    await addSuppression({ email: 'blocked@example.com', phone: null, source: '333method', reason: 'stop_keyword' });
 
-    const result = checkBeforeSend({ email: 'blocked@example.com', phone: '+61400000099' }, db);
+    const result = await checkBeforeSend({ email: 'blocked@example.com', phone: '+61400000099' });
     expect(result.blocked).toBe(true);
     expect(result.matchedOn).toBe('email');
     expect(result.reason).toBe('suppressed_stop_keyword');
   });
 
-  it('returns blocked=true with matchedOn=phone when phone is suppressed', () => {
-    addSuppression({ email: null, phone: '+61400000001', source: '2step', reason: 'complaint' }, db);
+  it('returns blocked=true with matchedOn=phone when phone is suppressed', async () => {
+    await addSuppression({ email: null, phone: '+61400000001', source: '2step', reason: 'complaint' });
 
-    const result = checkBeforeSend({ email: 'clean@example.com', phone: '+61400000001' }, db);
+    const result = await checkBeforeSend({ email: 'clean@example.com', phone: '+61400000001' });
     expect(result.blocked).toBe(true);
     expect(result.matchedOn).toBe('phone');
     expect(result.reason).toBe('suppressed_complaint');
   });
 
-  it('returns blocked=false when neither email nor phone provided', () => {
-    const result = checkBeforeSend({ email: null, phone: null }, db);
+  it('returns blocked=false when neither email nor phone provided', async () => {
+    const result = await checkBeforeSend({ email: null, phone: null });
     expect(result.blocked).toBe(false);
   });
 
-  it('email match takes priority over phone match', () => {
-    // Add suppression with both
-    addSuppression({
+  it('email match takes priority over phone match', async () => {
+    await addSuppression({
       email: 'blocked@example.com',
       phone: '+61400000001',
       source: '333method',
       reason: 'bounce',
-    }, db);
+    });
 
-    // When both match, email is checked first
-    const result = checkBeforeSend({ email: 'blocked@example.com', phone: '+61400000001' }, db);
+    const result = await checkBeforeSend({ email: 'blocked@example.com', phone: '+61400000001' });
     expect(result.blocked).toBe(true);
     expect(result.matchedOn).toBe('email');
   });
 
-  it('includes reason with suppressed_ prefix', () => {
-    addSuppression({ email: 'test@example.com', phone: null, source: '333method', reason: 'unsubscribe' }, db);
+  it('includes reason with suppressed_ prefix', async () => {
+    await addSuppression({ email: 'test@example.com', phone: null, source: '333method', reason: 'unsubscribe' });
 
-    const result = checkBeforeSend({ email: 'test@example.com' }, db);
+    const result = await checkBeforeSend({ email: 'test@example.com' });
     expect(result.reason).toBe('suppressed_unsubscribe');
   });
 
-  it('uses opt_out as default reason when reason is null', () => {
-    addSuppression({ email: 'test@example.com', phone: null, source: '333method' }, db);
+  it('uses opt_out as default reason when reason is null', async () => {
+    await addSuppression({ email: 'test@example.com', phone: null, source: '333method' });
 
-    const result = checkBeforeSend({ email: 'test@example.com' }, db);
+    const result = await checkBeforeSend({ email: 'test@example.com' });
     expect(result.reason).toBe('suppressed_opt_out');
   });
 });
@@ -623,116 +645,112 @@ describe('checkBeforeSend', () => {
 // ── removeSuppression ───────────────────────────────────────────────────────
 
 describe('removeSuppression', () => {
-  it('removes a suppressed email', () => {
-    addSuppression({ email: 'blocked@example.com', phone: null, source: '333method' }, db);
-    expect(isSuppressed('blocked@example.com', db)).toBe(true);
+  it('removes a suppressed email', async () => {
+    await addSuppression({ email: 'blocked@example.com', phone: null, source: '333method' });
+    expect(await isSuppressed('blocked@example.com')).toBe(true);
 
-    const removed = removeSuppression('blocked@example.com', db);
+    const removed = await removeSuppression('blocked@example.com');
     expect(removed).toBe(true);
-    expect(isSuppressed('blocked@example.com', db)).toBe(false);
+    expect(await isSuppressed('blocked@example.com')).toBe(false);
   });
 
-  it('removes a suppressed phone', () => {
-    addSuppression({ email: null, phone: '+61400000001', source: '2step' }, db);
-    expect(isSuppressed('+61400000001', db)).toBe(true);
+  it('removes a suppressed phone', async () => {
+    await addSuppression({ email: null, phone: '+61400000001', source: '2step' });
+    expect(await isSuppressed('+61400000001')).toBe(true);
 
-    const removed = removeSuppression('+61400000001', db);
+    const removed = await removeSuppression('+61400000001');
     expect(removed).toBe(true);
-    expect(isSuppressed('+61400000001', db)).toBe(false);
+    expect(await isSuppressed('+61400000001')).toBe(false);
   });
 
-  it('returns false when nothing to remove', () => {
-    const removed = removeSuppression('nonexistent@example.com', db);
+  it('returns false when nothing to remove', async () => {
+    const removed = await removeSuppression('nonexistent@example.com');
     expect(removed).toBe(false);
   });
 
-  it('returns false for null/empty', () => {
-    expect(removeSuppression(null, db)).toBe(false);
-    expect(removeSuppression('', db)).toBe(false);
+  it('returns false for null/empty', async () => {
+    expect(await removeSuppression(null)).toBe(false);
+    expect(await removeSuppression('')).toBe(false);
   });
 
-  it('removal for all projects — cross-project UNSTOP', () => {
-    // 333Method adds suppression
-    addSuppression({ email: 'blocked@example.com', phone: null, source: '333method' }, db);
+  it('removal for all projects — cross-project UNSTOP', async () => {
+    await addSuppression({ email: 'blocked@example.com', phone: null, source: '333method' });
 
-    // 2Step checks — blocked
-    expect(checkBeforeSend({ email: 'blocked@example.com' }, db).blocked).toBe(true);
+    expect((await checkBeforeSend({ email: 'blocked@example.com' })).blocked).toBe(true);
 
-    // User sends UNSTOP — any project can remove
-    removeSuppression('blocked@example.com', db);
+    await removeSuppression('blocked@example.com');
 
-    // Now both projects see it cleared
-    expect(checkBeforeSend({ email: 'blocked@example.com' }, db).blocked).toBe(false);
-    expect(isSuppressed('blocked@example.com', db)).toBe(false);
+    expect((await checkBeforeSend({ email: 'blocked@example.com' })).blocked).toBe(false);
+    expect(await isSuppressed('blocked@example.com')).toBe(false);
   });
 });
 
 // ── batchImport ─────────────────────────────────────────────────────────────
 
 describe('batchImport', () => {
-  it('imports multiple entries', () => {
+  it('imports multiple entries', async () => {
     const entries = [
       { email: 'a@example.com', phone: null, source: '333method', reason: 'stop_keyword' },
       { email: 'b@example.com', phone: '+61400000002', source: '2step', reason: 'bounce' },
       { email: 'c@example.com', phone: null, source: 'manual', reason: 'manual' },
     ];
 
-    const result = batchImport(entries, db);
+    const result = await batchImport(entries);
     expect(result.imported).toBe(3);
     expect(result.merged).toBe(0);
     expect(result.errors).toBe(0);
-    expect(countSuppressions(db)).toBe(3);
+    expect(await countSuppressions()).toBe(3);
   });
 
-  it('merges duplicates within the batch', () => {
+  it('merges duplicates within the batch', async () => {
     const entries = [
       { email: 'a@example.com', phone: null, source: '333method' },
-      { email: 'a@example.com', phone: '+61400000001', source: '2step' }, // same email -> merge
+      { email: 'a@example.com', phone: '+61400000001', source: '2step' },
     ];
 
-    const result = batchImport(entries, db);
+    const result = await batchImport(entries);
     expect(result.imported).toBe(1);
     expect(result.merged).toBe(1);
     expect(result.errors).toBe(0);
-    expect(countSuppressions(db)).toBe(1);
+    expect(await countSuppressions()).toBe(1);
   });
 
-  it('counts errors for invalid entries', () => {
+  it('counts errors for invalid entries', async () => {
     const entries = [
       { email: 'valid@example.com', phone: null, source: '333method' },
-      { email: null, phone: null, source: '333method' }, // invalid: no email or phone
+      { email: null, phone: null, source: '333method' },
       { email: 'also-valid@example.com', phone: null, source: '2step' },
     ];
 
-    const result = batchImport(entries, db);
+    const result = await batchImport(entries);
     expect(result.imported).toBe(2);
     expect(result.errors).toBe(1);
   });
 
-  it('is atomic — all or nothing on success', () => {
+  it('is atomic — all or nothing on success', async () => {
     const entries = [
       { email: 'a@example.com', phone: null, source: '333method' },
       { email: 'b@example.com', phone: null, source: '2step' },
     ];
 
-    batchImport(entries, db);
-    expect(countSuppressions(db)).toBe(2);
+    await batchImport(entries);
+    expect(await countSuppressions()).toBe(2);
   });
 });
 
 // ── getAllSuppressions ───────────────────────────────────────────────────────
 
 describe('getAllSuppressions', () => {
-  it('returns empty array when no suppressions', () => {
-    const all = getAllSuppressions(db);
+  it('returns empty array when no suppressions', async () => {
+    const all = await getAllSuppressions();
     expect(all).toHaveLength(0);
   });
 
-  it('returns all entries', () => {
-    addSuppression({ email: 'a@example.com', phone: null, source: '333method' }, db);
-    addSuppression({ email: 'b@example.com', phone: null, source: '2step' }, db);
+  it('returns all entries', async () => {
+    await addSuppression({ email: 'a@example.com', phone: null, source: '333method' });
+    await addSuppression({ email: 'b@example.com', phone: null, source: '2step' });
 
-    const all = getAllSuppressions(db);
+    const all = await getAllSuppressions();
     expect(all).toHaveLength(2);
   });
 });
@@ -740,126 +758,89 @@ describe('getAllSuppressions', () => {
 // ── countSuppressions ───────────────────────────────────────────────────────
 
 describe('countSuppressions', () => {
-  it('returns 0 for empty database', () => {
-    expect(countSuppressions(db)).toBe(0);
+  it('returns 0 for empty database', async () => {
+    expect(await countSuppressions()).toBe(0);
   });
 
-  it('returns correct count', () => {
-    addSuppression({ email: 'a@example.com', phone: null, source: '333method' }, db);
-    addSuppression({ email: 'b@example.com', phone: null, source: '2step' }, db);
-    expect(countSuppressions(db)).toBe(2);
+  it('returns correct count', async () => {
+    await addSuppression({ email: 'a@example.com', phone: null, source: '333method' });
+    await addSuppression({ email: 'b@example.com', phone: null, source: '2step' });
+    expect(await countSuppressions()).toBe(2);
   });
 
-  it('does not double-count merged entries', () => {
-    addSuppression({ email: 'a@example.com', phone: null, source: '333method' }, db);
-    addSuppression({ email: 'a@example.com', phone: '+61400000001', source: '2step' }, db);
-    expect(countSuppressions(db)).toBe(1);
+  it('does not double-count merged entries', async () => {
+    await addSuppression({ email: 'a@example.com', phone: null, source: '333method' });
+    await addSuppression({ email: 'a@example.com', phone: '+61400000001', source: '2step' });
+    expect(await countSuppressions()).toBe(1);
   });
 });
 
-// ── openDb ──────────────────────────────────────────────────────────────────
+// ── openDb (legacy compat) ──────────────────────────────────────────────────
 
 describe('openDb', () => {
-  it('creates schema with suppression_list table', () => {
-    const testDb = openDb(':memory:');
-    const tables = testDb.prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='suppression_list'"
-    ).all();
-    expect(tables).toHaveLength(1);
-    testDb.close();
-  });
-
-  it('has WAL journal mode', () => {
-    const testDb = openDb(':memory:');
-    const mode = testDb.pragma('journal_mode', { simple: true });
-    // :memory: databases use 'memory' mode, but WAL is set for file-based
-    expect(['wal', 'memory']).toContain(mode);
-    testDb.close();
-  });
-
-  it('is idempotent — can be called multiple times on same path', () => {
-    const testDb1 = openDb(':memory:');
-    // Calling exec again should not fail (IF NOT EXISTS)
-    expect(() => {
-      testDb1.exec(`CREATE TABLE IF NOT EXISTS suppression_list (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT COLLATE NOCASE,
-        phone TEXT,
-        source TEXT NOT NULL,
-        opted_out_at TEXT NOT NULL DEFAULT (datetime('now')),
-        reason TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )`);
-    }).not.toThrow();
-    testDb1.close();
+  it('returns an object with a no-op close()', () => {
+    const handle = openDb();
+    expect(handle).toBeDefined();
+    expect(typeof handle.close).toBe('function');
+    handle.close(); // should not throw
   });
 });
 
 // ── Full lifecycle ──────────────────────────────────────────────────────────
 
 describe('full opt-out lifecycle', () => {
-  it('add -> check -> remove -> check', () => {
-    // 1. Add suppression from 333Method
-    addSuppression({
+  it('add -> check -> remove -> check', async () => {
+    await addSuppression({
       email: 'owner@business.com',
       phone: '+61400000001',
       source: '333method',
       reason: 'stop_keyword',
-    }, db);
+    });
 
-    // 2. Both projects see suppression
-    expect(checkBeforeSend({ email: 'owner@business.com' }, db).blocked).toBe(true);
-    expect(checkBeforeSend({ phone: '+61400000001' }, db).blocked).toBe(true);
-    expect(countSuppressions(db)).toBe(1);
+    expect((await checkBeforeSend({ email: 'owner@business.com' })).blocked).toBe(true);
+    expect((await checkBeforeSend({ phone: '+61400000001' })).blocked).toBe(true);
+    expect(await countSuppressions()).toBe(1);
 
-    // 3. Prospect sends UNSTOP — remove by phone
-    removeSuppression('+61400000001', db);
+    await removeSuppression('+61400000001');
 
-    // 4. Both projects see it cleared
-    expect(checkBeforeSend({ email: 'owner@business.com' }, db).blocked).toBe(false);
-    expect(checkBeforeSend({ phone: '+61400000001' }, db).blocked).toBe(false);
-    expect(countSuppressions(db)).toBe(0);
+    expect((await checkBeforeSend({ email: 'owner@business.com' })).blocked).toBe(false);
+    expect((await checkBeforeSend({ phone: '+61400000001' })).blocked).toBe(false);
+    expect(await countSuppressions()).toBe(0);
   });
 
-  it('multiple suppressions — partial removal', () => {
-    addSuppression({ email: 'a@example.com', phone: null, source: '333method' }, db);
-    addSuppression({ email: 'b@example.com', phone: null, source: '2step' }, db);
-    addSuppression({ email: 'c@example.com', phone: null, source: '333method' }, db);
+  it('multiple suppressions — partial removal', async () => {
+    await addSuppression({ email: 'a@example.com', phone: null, source: '333method' });
+    await addSuppression({ email: 'b@example.com', phone: null, source: '2step' });
+    await addSuppression({ email: 'c@example.com', phone: null, source: '333method' });
 
-    expect(countSuppressions(db)).toBe(3);
+    expect(await countSuppressions()).toBe(3);
 
-    // Remove only one
-    removeSuppression('b@example.com', db);
+    await removeSuppression('b@example.com');
 
-    expect(countSuppressions(db)).toBe(2);
-    expect(isSuppressed('a@example.com', db)).toBe(true);
-    expect(isSuppressed('b@example.com', db)).toBe(false);
-    expect(isSuppressed('c@example.com', db)).toBe(true);
+    expect(await countSuppressions()).toBe(2);
+    expect(await isSuppressed('a@example.com')).toBe(true);
+    expect(await isSuppressed('b@example.com')).toBe(false);
+    expect(await isSuppressed('c@example.com')).toBe(true);
   });
 
-  it('sync polling after batch operations', () => {
-    // Import a batch with historical timestamps
-    batchImport([
-      { email: 'old1@example.com', phone: null, source: '333method', opted_out_at: '2026-01-01 00:00:00' },
-      { email: 'old2@example.com', phone: null, source: '333method', opted_out_at: '2026-02-01 00:00:00' },
-    ], db);
+  it('sync polling after batch operations', async () => {
+    await batchImport([
+      { email: 'old1@example.com', phone: null, source: '333method', opted_out_at: '2026-01-01T00:00:00.000Z' },
+      { email: 'old2@example.com', phone: null, source: '333method', opted_out_at: '2026-02-01T00:00:00.000Z' },
+    ]);
 
-    // Add a new one "now"
-    addSuppression({
+    await addSuppression({
       email: 'new@example.com',
       phone: null,
       source: '2step',
-      opted_out_at: '2026-03-26 15:00:00',
-    }, db);
+      opted_out_at: '2026-03-26T15:00:00.000Z',
+    });
 
-    // Poll for entries after March 1
-    const since = getSuppressionsAfter('2026-03-01 00:00:00', db);
+    const since = await getSuppressionsAfter('2026-03-01T00:00:00.000Z');
     expect(since).toHaveLength(1);
     expect(since[0].email).toBe('new@example.com');
 
-    // Poll for entries after Jan 15 — should get 2
-    const sinceMid = getSuppressionsAfter('2026-01-15 00:00:00', db);
+    const sinceMid = await getSuppressionsAfter('2026-01-15T00:00:00.000Z');
     expect(sinceMid).toHaveLength(2);
   });
 });
@@ -867,46 +848,39 @@ describe('full opt-out lifecycle', () => {
 // ── Edge cases ──────────────────────────────────────────────────────────────
 
 describe('edge cases', () => {
-  it('handles international phone formats', () => {
-    addSuppression({ email: null, phone: '+44 20 7946 0958', source: '333method' }, db);
-    expect(isPhoneSuppressed('+442079460958', db)).toBe(true);
-    expect(isSuppressed('+44 20 7946 0958', db)).toBe(true);
+  it('handles international phone formats', async () => {
+    await addSuppression({ email: null, phone: '+44 20 7946 0958', source: '333method' });
+    expect(await isPhoneSuppressed('+442079460958')).toBe(true);
+    expect(await isSuppressed('+44 20 7946 0958')).toBe(true);
   });
 
-  it('handles very long email addresses', () => {
+  it('handles very long email addresses', async () => {
     const longEmail = 'a'.repeat(200) + '@example.com';
-    addSuppression({ email: longEmail, phone: null, source: '333method' }, db);
-    expect(isEmailSuppressed(longEmail, db)).toBe(true);
+    await addSuppression({ email: longEmail, phone: null, source: '333method' });
+    expect(await isEmailSuppressed(longEmail)).toBe(true);
   });
 
-  it('handles email with special characters', () => {
+  it('handles email with special characters', async () => {
     const specialEmail = 'owner+tag@sub.example.co.uk';
-    addSuppression({ email: specialEmail, phone: null, source: '2step' }, db);
-    expect(isEmailSuppressed(specialEmail, db)).toBe(true);
+    await addSuppression({ email: specialEmail, phone: null, source: '2step' });
+    expect(await isEmailSuppressed(specialEmail)).toBe(true);
   });
 
-  it('does not treat email addresses as phone numbers', () => {
-    // isSuppressed auto-detects type — emails should not be treated as phones
-    addSuppression({ email: 'test@example.com', phone: null, source: '333method' }, db);
-    expect(isSuppressed('test@example.com', db)).toBe(true);
+  it('does not treat email addresses as phone numbers', async () => {
+    await addSuppression({ email: 'test@example.com', phone: null, source: '333method' });
+    expect(await isSuppressed('test@example.com')).toBe(true);
   });
 
-  it('concurrent adds for same contact merge correctly', () => {
-    // Simulates two projects processing opt-out for same person at ~same time
-    addSuppression({ email: 'owner@biz.com', phone: null, source: '333method', reason: 'bounce' }, db);
-    addSuppression({ email: null, phone: '+61400000001', source: '2step', reason: 'stop_keyword' }, db);
+  it('concurrent adds for same contact merge correctly', async () => {
+    await addSuppression({ email: 'owner@biz.com', phone: null, source: '333method', reason: 'bounce' });
+    await addSuppression({ email: null, phone: '+61400000001', source: '2step', reason: 'stop_keyword' });
 
-    // These are two different contacts (no shared identifier to merge on)
-    expect(countSuppressions(db)).toBe(2);
+    expect(await countSuppressions()).toBe(2);
 
-    // Now add one that links them — the phone row gets consolidated into the email row
-    addSuppression({ email: 'owner@biz.com', phone: '+61400000001', source: '333method', reason: 'manual' }, db);
+    await addSuppression({ email: 'owner@biz.com', phone: '+61400000001', source: '333method', reason: 'manual' });
 
-    // Consolidated into one row: the email match absorbed the phone row
-    expect(countSuppressions(db)).toBe(1);
-    // The merged row has both identifiers
-    const check = checkBeforeSend({ email: 'owner@biz.com' }, db);
-    expect(check.blocked).toBe(true);
-    expect(checkBeforeSend({ phone: '+61400000001' }, db).blocked).toBe(true);
+    expect(await countSuppressions()).toBe(1);
+    expect((await checkBeforeSend({ email: 'owner@biz.com' })).blocked).toBe(true);
+    expect((await checkBeforeSend({ phone: '+61400000001' })).blocked).toBe(true);
   });
 });
