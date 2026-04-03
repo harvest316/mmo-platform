@@ -2091,3 +2091,12 @@ Key learnings:
 
 **Status:** Implemented (333Method + 2Step + auditandfix-website)
 **Impl:** 333Method — `.env.example`, `.env.secrets.example`, `src/api/`, `src/cli/`, `src/cron/`, `src/payment/`, `src/reports/`, `scripts/`, `docs/`, `tests/`, `__quarantined_tests__/`. 2Step — `.env`, `.env.example`, `scripts/backfill-poster-urls.js`, `scripts/reposter.js`, `src/stages/sync-video-views.js`, `src/stages/video-demo-requests.js`, `tests/e2e/stages/unsubscribe.e2e.test.js`. auditandfix-website — `.env.example`, `site/.env.example`, `site/.htaccess.example`, `site/api.php`, `site/includes/config.php`, `site/includes/account/db.php`, `workers/auditandfix-api/wrangler.toml`, `CLAUDE.md`. User must update live `.env`, `.env.secrets`, and Hostinger `.htaccess` on NixOS host.
+
+### DR-155: Template persona/brand tokenisation (2026-04-02)
+
+**Context:** All 41 template JSON files under `333Method/data/templates/` hardcoded "Marcus Webb", "Marcus", "Audit&Fix", "Audit & Fix", and "AuditFix". This made persona/brand changes require touching every template file.
+
+**Decision:** Replace all hardcoded persona/brand strings with template tokens: `Marcus Webb` → `[persona_name]`, standalone `Marcus` → `[persona_first_name]`, all Audit&Fix variants → `[brand_name]`. Both template renderers (`populateTemplate` in `template-proposals.js` and `followup-generator.js`) inject values from `PERSONA_NAME`, `PERSONA_FIRST_NAME`, and `BRAND_NAME` env vars (empty string fallback). Follows same pattern as DR-147 (`BRAND_DOMAIN`/`BRAND_URL`).
+
+**Status:** Implemented
+**Impl:** 333Method — `data/templates/` (41 JSON files), `src/utils/template-proposals.js`, `src/stages/followup-generator.js`. Requires `PERSONA_NAME`, `PERSONA_FIRST_NAME`, `BRAND_NAME` in `.env`.
