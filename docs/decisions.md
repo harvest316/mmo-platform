@@ -2020,3 +2020,14 @@ Compliance boundary: free fix must be genuinely delivered (not claimed). Do not 
 
 **Status:** Implemented
 **Impl:** 18 files in `333Method/src/` (cron, reports, inbound, payment, cli, utils, proposal-generator-v2), `333Method/.env.example`
+
+### DR-149: Security hardening — sandbox secret + hashed session tokens (2026-04-02)
+
+**Context:** Two vulnerabilities in auditandfix-website: (1) `?sandbox=1` query param allowed anyone to force PayPal sandbox mode and skip CF Worker purchase forwarding — no secret required. (2) Session tokens stored in cleartext in `customer_sessions.token` column — DB compromise would leak valid session tokens.
+
+**Decision:**
+1. Sandbox mode now requires `?sandbox=<secret>` where the value must match `E2E_SANDBOX_KEY` env var (compared via `hash_equals`). Also removed `$input['sandbox']` from the API `isSandbox()` function which allowed POST body to force sandbox mode.
+2. Session tokens are now SHA-256 hashed before storage. Raw token stays in the PHP session (server-side); only the hash hits the DB. Validation hashes the session token before DB lookup. Logout deletes by hash. Existing sessions will be invalidated (acceptable — portal is pre-launch).
+
+**Status:** Implemented
+**Impl:** `auditandfix-website/site/includes/config.php`, `auditandfix-website/site/api.php`, `auditandfix-website/site/includes/account/auth.php`
