@@ -2368,3 +2368,18 @@ Applied across all 8 English markets (AU, US, CA, GB, NZ, IE, ZA, IN) in both em
 
 **Status:** Accepted, implemented
 **Impl:** `333Method/data/templates/*/freefix-followup-email.json` and `freefix-followup-sms.json` (step 2 templates)
+
+### DR-166: Consolidate website tests into auditandfix-website + test/prod data isolation (2026-04-03)
+
+**Context:** The auditandfix.com website (PHP + CF Worker) was extracted to a private repo but tests were left behind in mmo-platform (Playwright E2E) and 333Method (Worker unit tests, i18n). Two tests in 333Method were already broken — import paths pointed to non-existent `workers/` and `auditandfix.com/lang/` directories. Additionally, PayPal sandbox credentials were hardcoded in test files, and `?sandbox=1` didn't align with the server-side `hash_equals(E2E_SANDBOX_KEY, ...)` check.
+
+**Decision:** Tests belong with the code they test. Moved 8 test files to `auditandfix-website/tests/`. Tests that exercise 333Method client code (poll-free-scans, archiveScans, email drip) stay in 333Method. scan-email-nurture.test.js stays in 333Method because it deeply mocks 333Method's `db.js` and imports `free-score-api.js`.
+
+Data isolation policy:
+- Worker unit tests: in-memory mock KV (zero network)
+- E2E tests: `?sandbox=${E2E_SANDBOX_KEY}` routes to test Worker (separate KV namespaces)
+- PayPal: sandbox credentials from env only, no hardcoded fallbacks
+- Database: throwaway SQLite in `/tmp/` or `:memory:`, never production PG
+
+**Status:** Accepted, implemented
+**Impl:** `auditandfix-website/tests/`, `auditandfix-website/tests/README.md` (isolation policy), `auditandfix-website/tests/.env.example`
