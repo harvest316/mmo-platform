@@ -6,6 +6,21 @@ if [ "${SKIP_HOOKS}" = "1" ] || [ "${SKIP_SIMPLE_GIT_HOOKS}" = "1" ]; then
   exit 0
 fi
 
+# ── Shared checks (all repos) ──────────────────────────────────────────────────
+
+# Unit tests — auto-run if test:unit script is defined in package.json.
+# Only test:unit (not bare `test`) to avoid slow E2E/integration suites.
+if [ -f "package.json" ] && node -e "const s=require('./package.json').scripts||{}; process.exit(s['test:unit']?0:1)" 2>/dev/null; then
+  echo "[pre-push] Running unit tests (test:unit)..."
+  npm run test:unit || exit 1
+fi
+
+# Dependency audit — only if package-lock.json is present (npm project)
+if [ -f "package-lock.json" ] && command -v npx > /dev/null 2>&1; then
+  npx --no-install better-npm-audit audit --level moderate 2>/dev/null || \
+  npx better-npm-audit audit --level moderate || exit 1
+fi
+
 # ── Repo-specific hooks ────────────────────────────────────────────────────────
 if [ -f ".hooks/pre-push" ]; then
   sh ".hooks/pre-push" || exit 1

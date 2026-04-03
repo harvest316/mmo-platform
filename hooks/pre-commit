@@ -9,17 +9,28 @@ if [ "${SKIP_HOOKS}" = "1" ] || [ "${SKIP_SIMPLE_GIT_HOOKS}" = "1" ]; then
   exit 0
 fi
 
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # ── Shared checks (all repos) ──────────────────────────────────────────────────
 
-# PII scanner — the canonical copy lives alongside this hook
-HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+# PII scanner
 if [ -f "${HOOK_DIR}/../scripts/check-pii.sh" ]; then
   sh "${HOOK_DIR}/../scripts/check-pii.sh" || exit 1
 fi
 
+# Lint — auto-detect lint-staged if configured in package.json
+if [ -f "package.json" ] && grep -q '"lint-staged"' package.json; then
+  npx --no-install lint-staged || exit 1
+fi
+
+# AI code review — language-agnostic, reads CLAUDE.md for repo context
+if [ -f "${HOOK_DIR}/../scripts/ai-review.sh" ]; then
+  sh "${HOOK_DIR}/../scripts/ai-review.sh" || exit 1
+fi
+
 # ── Repo-specific hooks ────────────────────────────────────────────────────────
 # Place repo-specific hooks in .hooks/pre-commit (committed to the repo).
-# Examples: lint-staged, ai-review, check-required-files.
+# Use this only for checks that don't generalise across repos.
 
 if [ -f ".hooks/pre-commit" ]; then
   sh ".hooks/pre-commit" || exit 1
