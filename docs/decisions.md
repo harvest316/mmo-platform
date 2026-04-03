@@ -1160,7 +1160,7 @@ Rejected alternatives:
 
 **Context:** Inbound VoD requests from the landing page are stored in CF Worker KV. Need a pipeline stage to poll for new requests, create site records, and callback when videos are ready. Must integrate with the existing pipeline stages (reviews -> enrich -> video) without disruption.
 
-**Decision:** New `video-demo-requests` stage runs as the FIRST pipeline stage (before reviews). Two-phase design: Phase A polls `GET /video-demos/pending` and inserts sites with `source='demo_request'` and `status='found'`; Phase B finds sites where video is ready and calls `DELETE /video-demos/{kv_key}` to complete the callback. Self-migrating columns (`source`, `demo_kv_key`, `manual_fulfillment`) via try/catch ALTER TABLE. Skips silently when `AUDITANDFIX_WORKER_URL`/`AUDITANDFIX_WORKER_SECRET` are not set.
+**Decision:** New `video-demo-requests` stage runs as the FIRST pipeline stage (before reviews). Two-phase design: Phase A polls `GET /video-demos/pending` and inserts sites with `source='demo_request'` and `status='found'`; Phase B finds sites where video is ready and calls `DELETE /video-demos/{kv_key}` to complete the callback. Self-migrating columns (`source`, `demo_kv_key`, `manual_fulfillment`) via try/catch ALTER TABLE. Skips silently when `API_WORKER_URL`/`API_WORKER_SECRET` are not set.
 
 **Status:** Accepted
 **Impl:** `2Step/src/stages/video-demo-requests.js`, registered in `2Step/src/stages/pipeline-service.js`
@@ -2071,7 +2071,7 @@ Key learnings:
 
 **Decision:** Extract `mmo-platform/auditandfix.com/` + `333Method/workers/auditandfix-api/` into `harvest316/auditandfix-website` (private). Replace ~260 hardcoded `auditandfix.com` domain refs across 3 public repos with `BRAND_DOMAIN`/`BRAND_URL` env vars. Template JSONs use `[brand_url_short]` token injected at render time. Scrub git history with `git filter-repo` for leaked secrets (.htaccess with PayPal creds, worker secret) and PII (personal email, phone, address).
 
-**Status:** Implemented. Repos public as of 2026-04-02. Remaining: brand name cleanup (Marcus Webb, Audit&Fix refs), env var rename (AUDITANDFIX_* → generic), fallback removal.
+**Status:** Implemented. Repos public as of 2026-04-02. Remaining: brand name cleanup (Marcus Webb, Audit&Fix refs), fallback removal. Env var rename done (DR-154).
 **Impl:** `auditandfix-website/` (private repo). `333Method/src/utils/template-proposals.js`, `333Method/src/stages/followup-generator.js` (token injection).
 
 ### DR-153: distributed-infra master → main rename (2026-04-02)
@@ -2082,3 +2082,12 @@ Key learnings:
 
 **Status:** Implemented
 **Impl:** `distributed-infra` — local branch renamed, GitHub default branch updated.
+
+### DR-154: Rename AUDITANDFIX_* env vars to generic names (2026-04-02)
+
+**Context:** Part of DR-152 brand decoupling. `AUDITANDFIX_*` env var names in 333Method source, tests, config, and docs leak the brand name in public repos and couple the pipeline to a single product.
+
+**Decision:** Rename all `AUDITANDFIX_*` env vars to generic equivalents: `AUDITANDFIX_WORKER_URL` → `API_WORKER_URL`, `AUDITANDFIX_WORKER_SECRET` → `API_WORKER_SECRET`, `AUDITANDFIX_WORKER_SANDBOX_URL` → `API_WORKER_SANDBOX_URL`, `AUDITANDFIX_SENDER_EMAIL` → `SENDER_EMAIL`, `AUDITANDFIX_URL`/`AUDITANDFIX_BASE_URL` → `BRAND_URL`, `AUDITANDFIX_ORIGIN_IP` → `ORIGIN_IP`, `AUDITANDFIX_E2E` → `E2E_ENABLED`, `AUDITANDFIX_REPORTS_DIR` → `REPORTS_DIR`, `E2E_AUDITANDFIX_URL` → `E2E_BRAND_URL`. Also cleaned up redundant fallback chains created by the rename (e.g. `BRAND_URL || BRAND_URL`). 34 files, 166 replacements.
+
+**Status:** Implemented (333Method + 2Step + auditandfix-website)
+**Impl:** 333Method — `.env.example`, `.env.secrets.example`, `src/api/`, `src/cli/`, `src/cron/`, `src/payment/`, `src/reports/`, `scripts/`, `docs/`, `tests/`, `__quarantined_tests__/`. 2Step — `.env`, `.env.example`, `scripts/backfill-poster-urls.js`, `scripts/reposter.js`, `src/stages/sync-video-views.js`, `src/stages/video-demo-requests.js`, `tests/e2e/stages/unsubscribe.e2e.test.js`. auditandfix-website — `.env.example`, `site/.env.example`, `site/.htaccess.example`, `site/api.php`, `site/includes/config.php`, `site/includes/account/db.php`, `workers/auditandfix-api/wrangler.toml`, `CLAUDE.md`. User must update live `.env`, `.env.secrets`, and Hostinger `.htaccess` on NixOS host.
