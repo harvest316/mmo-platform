@@ -1,0 +1,26 @@
+#!/bin/sh
+# Shared pre-commit hook for all mmo-platform workspace projects.
+# Installed via: git config --global core.hooksPath ~/code/mmo-platform/hooks
+#
+# Runs shared checks first, then delegates to repo-specific hooks if present.
+# Bypass: SKIP_HOOKS=1 git commit ...
+
+if [ "${SKIP_HOOKS}" = "1" ] || [ "${SKIP_SIMPLE_GIT_HOOKS}" = "1" ]; then
+  exit 0
+fi
+
+# ── Shared checks (all repos) ──────────────────────────────────────────────────
+
+# PII scanner — the canonical copy lives alongside this hook
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "${HOOK_DIR}/../scripts/check-pii.sh" ]; then
+  sh "${HOOK_DIR}/../scripts/check-pii.sh" || exit 1
+fi
+
+# ── Repo-specific hooks ────────────────────────────────────────────────────────
+# Place repo-specific hooks in .hooks/pre-commit (committed to the repo).
+# Examples: lint-staged, ai-review, check-required-files.
+
+if [ -f ".hooks/pre-commit" ]; then
+  sh ".hooks/pre-commit" || exit 1
+fi

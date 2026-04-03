@@ -1,0 +1,12 @@
+#!/bin/sh
+# Shared pre-push hook for all mmo-platform workspace projects.
+# Bypass: SKIP_HOOKS=1 git push ...
+
+if [ "${SKIP_HOOKS}" = "1" ] || [ "${SKIP_SIMPLE_GIT_HOOKS}" = "1" ]; then
+  exit 0
+fi
+
+# ── Repo-specific hooks ────────────────────────────────────────────────────────
+if [ -f ".hooks/pre-push" ]; then
+  sh ".hooks/pre-push" || exit 1
+fi
