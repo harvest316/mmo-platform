@@ -256,27 +256,26 @@ When we have 50+ tenants and booking friction is validated as a churn driver:
 
 ## 6. LLM Architecture
 
-### The Core Decision: Claude Max Subscription vs API
+### The Core Decision: Anthropic API Direct
 
-The existing ecosystem uses Claude Max subscription via `claude -p` CLI for high-quality tasks and OpenRouter API for high-volume/cheap tasks. This is a proven pattern (DR-059, DR-080).
+The autoresponder is a multi-tenant commercial service. Claude Max subscription (`claude -p` CLI) explicitly violates Anthropic's Terms of Service for commercial multi-tenant use (DR-159 — confirmed 2026-04-02). Anthropic API direct is the only compliant path.
 
-For the autoresponder service, the calculation is different:
+| Factor | Anthropic API (direct) | OpenRouter API |
+|--------|----------------------|----------------|
+| Model quality | Opus/Sonnet/Haiku (full range) | Same models via routing |
+| Cost at 100 tenants | ~$200-600/mo (with classifier routing) | ~$180-500/mo |
+| Cost at 1000 tenants | ~$2k-6k/mo | ~$1.8k-5k/mo |
+| Latency | 1-3s (streaming) | 2-5s (routing overhead) |
+| Rate limits | 4000 RPM (Tier 4) | Varies by model |
+| Multi-tenant isolation | Request-level headers | Request-level |
+| Reliability | 99.9% SLA | 99.5% (multi-provider) |
+| ToS compliance | Full — API keys are for commercial use | Full |
 
-| Factor | Claude Max (`claude -p`) | Anthropic API (direct) | OpenRouter API |
-|--------|------------------------|----------------------|----------------|
-| Model quality | Opus (best) | Opus (same) | Opus (same, via routing) |
-| Cost at 100 tenants | $200/mo flat | ~$500-2000/mo (usage-based) | ~$400-1600/mo |
-| Cost at 1000 tenants | $200/mo flat | ~$5k-20k/mo | ~$4k-16k/mo |
-| Latency | 5-15s (CLI startup overhead) | 1-3s (API direct) | 2-5s (routing overhead) |
-| Rate limits | CLI throughput ~2-3 concurrent | 4000 RPM (Tier 4) | Varies by model |
-| Multi-tenant isolation | Process-level only | Request-level headers | Request-level |
-| Reliability | CLI process can hang | 99.9% SLA | 99.5% (multi-provider) |
+### Decision: Anthropic API primary, OpenRouter overflow
 
-### Decision: Hybrid architecture
+**Primary: Anthropic API (direct) for all customer-facing replies.** Request-level tenant isolation, streaming support for sub-60-second response times, proper error handling, Messages API with system prompts that include tenant-specific knowledge bases. API keys obtained from console.anthropic.com — standard commercial usage.
 
-**Primary (quality path): Anthropic API (direct) for customer-facing replies.** Rationale: the 5-10 minute reply window is generous enough for API latency, but `claude -p` CLI startup overhead (2-5s per invocation) plus lack of streaming makes it unsuitable for a service processing multiple tenants concurrently. The Anthropic API gives us request-level tenant isolation, proper error handling, and the ability to use the Messages API with system prompts that include tenant-specific knowledge bases.
-
-**Fallback: OpenRouter for overflow and cost management.** If Anthropic API rate limits are hit or costs spike, route to `anthropic/claude-sonnet-4` via OpenRouter. Sonnet is adequate for most autoresponder replies (simple questions, booking requests, business hours enquiries). Opus reserved for complex conversations (complaints, technical questions, negotiations).
+**Overflow: OpenRouter** if Anthropic rate limits are hit or during cost spikes. Route to `anthropic/claude-sonnet-4-5` via OpenRouter. Same model, slightly higher latency.
 
 **Cost management architecture:**
 
@@ -284,16 +283,24 @@ For the autoresponder service, the calculation is different:
 Inbound message arrives
     |
     v
-[Complexity classifier] -- Haiku, ~$0.001/call
+[Complexity classifier] -- Haiku, ~$0.001/call, <500ms
     |
-    +-- Simple (hours, location, pricing FAQ) --> Sonnet via OpenRouter ($0.003-0.01/reply)
+    +-- Simple (hours, location, pricing FAQ) -----> Sonnet (~80% of calls)
+    |   ~$0.003-0.01/reply, target <15s total
     |
-    +-- Complex (complaints, multi-turn, negotiation) --> Opus via Anthropic API ($0.02-0.08/reply)
+    +-- Complex (complaints, multi-turn, negotiate) -> Opus (~20% of calls)
+    |   ~$0.02-0.08/reply, target <30s total
     |
-    +-- Booking request --> Structured extraction only (Haiku) --> Dashboard notification
+    +-- Safety keyword detected (gas/fire/flood) ---> Templated response (Tier 1/2/3)
+    |   ~$0/reply (no LLM), <1s, per DR-161
+    |
+    +-- Booking request --------------------------> Haiku extraction + dashboard notification
+        ~$0.001/call, <5s
 ```
 
-Estimated cost per tenant at 200 messages/month: $2-8/month in LLM costs. At a $99/month subscription, this is an 87-98% gross margin on the LLM component.
+Sub-60-second total response time is achievable: Haiku classifier (0.5s) + Sonnet streaming (5-15s) = ~15s p50, ~45s p95. Opus path hits 20-45s streaming. Combined p95 < 60s for all calls.
+
+Estimated cost per tenant at 200 messages/month: ~$2-4/month with Haiku→Sonnet routing (vs $8-15 without classifier). At a $99 AUD/month subscription, LLM component is 2-4% of revenue.
 
 ### Multi-Tenant Prompt Architecture
 
