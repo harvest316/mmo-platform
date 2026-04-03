@@ -2393,3 +2393,30 @@ Data isolation policy:
 **Status:** Accepted, implemented
 **Impl:** `src/proposal-generator-templates.js:generateBulkProposals()`, `src/proposal-generator-v2.js:generateBulkProposals()`, DB backfill via psql
 
+### DR-168: GDPR company proof decoupled from email — site-level HTML check is primary (2026-04-03)
+
+**Context:** `verifyCompanyEmail()` required an email address to even start — sites with no emails or only free-email addresses would skip the GDPR check entirely and stay `gdpr_verified = NULL`. Any presence of company proof in the HTML (Ltd, company number, VAT number, registered office, Companies House, etc.) is sufficient to confirm a corporate subscriber under PECR, regardless of whether we have their email address.
+
+**Decision:** Add `verifyCompanySite()` that runs the HTML-only proof check (individual indicators, company types, registration keywords) unconditionally for all GDPR-required countries. Email domain check runs as a fallback only when HTML is inconclusive and emails are available. Both functions remain exported; `verifyCompanyEmail()` delegates HTML checks to `verifyCompanySite()`.
+
+**Status:** Accepted, implemented
+**Impl:** `src/utils/gdpr-verification.js`, `src/stages/enrich.js`
+
+### DR-169: GDPR corporate-subscriber gate applies to email and SMS only — not forms or social (2026-04-03)
+
+**Context:** PECR Regulation 6 restricts unsolicited "electronic mail" to individual subscribers. "Electronic mail" is defined to include email and SMS/MMS. Contact forms (posting to a publicly-listed contact point), LinkedIn DMs, and X messages are not covered by PECR Reg 6 — the corporate subscriber rule does not apply. The outreach gate was incorrectly blocking all channels for unverified GDPR-country sites; 319 form/social messages were incorrectly backfilled to `gdpr_blocked` by the DR-167 migration.
+
+**Decision:** Add `contact_method IN ('email', 'sms')` condition to the GDPR gate in both the SQL outreach query and the pre-send compliance check. Restored 319 incorrectly blocked form/linkedin/x messages to `approved`. 538 email+SMS messages correctly remain blocked.
+
+**Status:** Accepted, implemented
+**Impl:** `src/stages/outreach.js` (SQL gate + `checkComplianceBeforeSend()`)
+
+### DR-170: Block proposal generation for unimplemented channels (x, linkedin) (2026-04-03)
+
+**Context:** LinkedIn and X (Twitter) outreach have no send path — no templates, no sending function, no orchestrator integration. The proposal generator was creating `pending` messages for social contacts scraped during enrichment, which accumulated silently (1,929 orphan proposals). These can never be delivered and waste space and attention.
+
+**Decision:** Add `UNIMPLEMENTED_CHANNELS = new Set(['x', 'linkedin'])` to the proposal generator. Contacts on those channels are skipped before template lookup. Cancelled 1,929 existing orphan proposals with `cancelled_reason='no_send_path_implemented'`. Hardcoded (not env-based) because this is a technical capability gap, not a configurable business rule.
+
+**Status:** Accepted, implemented
+**Impl:** `src/proposal-generator-templates.js`
+
