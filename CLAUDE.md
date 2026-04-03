@@ -89,6 +89,19 @@ When working on tasks, consider using these specialized agents via `subagent_typ
 
 Full catalog: `docs/agency-agents-reference.md`
 
+## Plan Implementation
+
+When a plan is approved via ExitPlanMode, immediately decompose it into agent-delegated tasks. Do not pause for confirmation — the plan approval IS the confirmation. For each task:
+
+1. Choose the appropriate `subagent_type` and model based on the task nature (see agent list above + full catalog)
+2. Launch independent tasks in parallel (single message, multiple Agent tool calls)
+3. For sequential dependencies, wait for the prior agent to complete before launching the next
+4. After each agent completes, mark the corresponding todo item complete
+5. After writing significant code (>50 lines), run a Code Reviewer agent before committing
+6. Commit after each logical phase, not at the end
+
+If no agent type fits the task, do it directly in the main context. The goal is focused context per task (token efficiency) and parallel execution where possible.
+
 ## Website Deployment
 
 The brand website and CF Worker have been moved to a **private repo**: `~/code/auditandfix-website/` (harvest316/auditandfix-website). See that repo's CLAUDE.md for deploy instructions.
