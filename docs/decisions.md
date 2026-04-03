@@ -2049,3 +2049,36 @@ Compliance boundary: free fix must be genuinely delivered (not claimed). Do not 
 
 **Status:** Implemented
 **Impl:** `auditandfix-website/site/includes/config.php`, `auditandfix-website/site/api.php`, `auditandfix-website/site/includes/account/auth.php`
+
+### DR-151: Radicle mirror — GitHub Actions → seed.radicle.garden (2026-04-02)
+
+**Context:** Wanted sovereign P2P git hosting alongside GitHub. Radicle 1.7.1 (heartwood) repos identified by RID, replicated via seed nodes. GitHub remains primary for CI; Radicle gets a copy of every push.
+
+**Decision:** GitHub Actions workflow (`mirror-radicle.yml`) on each push to main: installs rad CLI, creates CI identity from deterministic `RAD_KEYGEN_SEED`, restores COB bundle (delegate identity + sigrefs + k7's HEAD ref) into local radicle storage, starts ephemeral radicle-node, pushes via `git-remote-rad` to `rad://{RID}/{CI_NID}`, then announces to iris seed.
+
+Key learnings:
+- CI's DID must be added as a delegate (`rad id update --delegate`) or push is refused
+- COB bundle must include `refs/namespaces/{k7_NID}/refs/heads/main` — git bundle drops refs whose SHA equals the prerequisite SHA, so use `^HEAD^` (parent) not `^HEAD`
+- Checkout objects must be fetched into radicle storage BEFORE the bundle (prerequisite satisfaction)
+- `rad://NID@RID` format is fetch-only; push requires `rad://RID/NID`
+
+**Status:** Implemented (4 public repos). distributed-infra excluded (private).
+**Impl:** `.github/workflows/mirror-radicle.yml` in mmo-platform, 333Method, 2Step, AdManager. Secrets: `RAD_KEYGEN_SEED` (shared), `RAD_RID` (per-repo), `RAD_COB_BUNDLE` (per-repo).
+
+### DR-152: Extract auditandfix.com to private repo (2026-04-02)
+
+**Context:** Making pipeline repos public. Server-side PHP + CF Worker code alongside the production domain name gives attackers a roadmap. Security audit found: `?sandbox=1` bypass, cleartext session tokens, hardcoded PayPal plan IDs, R2 bucket URL, Twilio number, and PII in git history.
+
+**Decision:** Extract `mmo-platform/auditandfix.com/` + `333Method/workers/auditandfix-api/` into `harvest316/auditandfix-website` (private). Replace ~260 hardcoded `auditandfix.com` domain refs across 3 public repos with `BRAND_DOMAIN`/`BRAND_URL` env vars. Template JSONs use `[brand_url_short]` token injected at render time. Scrub git history with `git filter-repo` for leaked secrets (.htaccess with PayPal creds, worker secret) and PII (personal email, phone, address).
+
+**Status:** Implemented. Repos public as of 2026-04-02. Remaining: brand name cleanup (Marcus Webb, Audit&Fix refs), env var rename (AUDITANDFIX_* → generic), fallback removal.
+**Impl:** `auditandfix-website/` (private repo). `333Method/src/utils/template-proposals.js`, `333Method/src/stages/followup-generator.js` (token injection).
+
+### DR-153: distributed-infra master → main rename (2026-04-02)
+
+**Context:** All other repos use `main`. distributed-infra was the only one on `master`.
+
+**Decision:** Rename local branch, push `main` to GitHub, set as default, delete remote `master`. Mirror workflow already removed (repo is private, not on Radicle).
+
+**Status:** Implemented
+**Impl:** `distributed-infra` — local branch renamed, GitHub default branch updated.
