@@ -2118,3 +2118,12 @@ Key learnings:
 
 **Status:** Implemented
 **Impl:** 30 files across `scripts/`, `src/`, `tests/`, `dashboard-v2/`, `__quarantined_tests__/`, `.env.example`. Key files: `scripts/claude-store.js`, `src/proposal-generator-v2.js`, `src/inbound/autoresponder.js`, `src/payment/paypal.js`, `src/reports/scan-email-templates.js`, `src/cron/send-scan-email-sequence.js`, `src/reports/audit-report-generator.js`, `src/reports/purchase-confirmation.js`, `src/reports/report-delivery.js`. Requires `PERSONA_NAME`, `PERSONA_FIRST_NAME`, `BRAND_NAME` in `.env`.
+
+### DR-158: Clean remaining brand references from docs and config across public repos (2026-04-02)
+
+**Context:** After the source code debranding (DR-145 through DR-157), low-priority brand references remained in docs, markdown files, prompts, config files, E2E tests, and test fixtures across mmo-platform, 333Method, and 2Step. These included hardcoded `auditandfix.com` URLs, `Audit&Fix` / `Audit & Fix` brand names, and file path references to `auditandfix.com/` directories.
+
+**Decision:** Replace remaining references with generic alternatives: `BRAND_URL`/`BRAND_DOMAIN`/`BRAND_NAME` for tokenised references, "the production site" / "the brand" / "the website repo" for prose references. Historical records left intact: decisions.md entries, SQL migration comments, db/schema.sql comments, business plan content (legal entity name), and legal documents body text (privacy policy, terms of service). Test fixtures changed from real brand values to `Test Brand` / `example.com`. Prompt files use `[BRAND_NAME]` / `BRAND_DOMAIN` placeholders. Citation monitor script uses `BRAND_DOMAIN` / `BRAND_NAME` env vars instead of hardcoded strings. AdManager was already fully clean from DR-146.
+
+**Status:** Implemented
+**Impl:** mmo-platform (8 files: CLAUDE.md, TODO.md, .gitignore, docs/TODO.md, docs/agency-agents-reference.md, docs/architecture-autoresponder-service.md, docs/autoresponder-product-strategy.md, scripts/citation-monitor.sh), 333Method (34 files across docs/, prompts/, config/, tests/, __quarantined_tests__/, .github/, dashboard-v2/, src/utils/), 2Step (3 files: docs/TODO.md, docs/architecture.md, docs/pricing-research.md)
