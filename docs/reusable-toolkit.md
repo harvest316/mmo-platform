@@ -18,9 +18,39 @@ Components, patterns, and scripts worth extracting for future projects.
 - Hardcoded passwords
 - **Dynamic .env leak detection** — reads actual values from `.env` / `.env.secrets` and flags if any appear in staged code
 
-**Setup:** Add to `simple-git-hooks` pre-commit chain or symlink into `.git/hooks/pre-commit`. Bypass with `SKIP_PII_CHECK=1`.
+**Setup:** Runs automatically via global git hooks (see below). Bypass with `SKIP_PII_CHECK=1`.
 
-**Location:** `mmo-platform/scripts/check-pii.sh` (symlinked into 333Method, 2Step, AdManager)
+**Location:** `mmo-platform/scripts/check-pii.sh`
+
+---
+
+## Global Git Hook System (`core.hooksPath`)
+
+**What:** Centralised pre-commit and pre-push hooks covering all repos in the workspace, without per-repo setup. Runs shared checks first, then delegates to optional per-repo `.hooks/` files.
+
+**Install (one-time per dev machine):**
+```sh
+git config --global core.hooksPath ~/code/mmo-platform/hooks
+```
+
+**What the global hooks do:**
+
+*pre-commit:*
+- PII scanner (blocks on secrets/PII in staged diff)
+- Lint auto-detect: runs `lint-staged` if configured in `package.json`
+- AI code review: sends staged diff to Claude Haiku, blocks on BLOCK verdict
+
+*pre-push:*
+- Unit test auto-detect: runs `npm run test:unit` if defined in `package.json`
+- Dependency audit: runs `better-npm-audit --level moderate` if `package-lock.json` present
+
+**Per-repo hooks** (`.hooks/pre-commit`, `.hooks/pre-push`): committed to the repo. Used only for checks that don't generalise (e.g. `check-required-files.sh`). PII, linting, AI review, tests are NOT duplicated here.
+
+**Bypass:** `SKIP_HOOKS=1 git commit/push` or `SKIP_AI_REVIEW=1` for review only.
+
+**Dependency audit exceptions:** create `.nsprc` in the repo root (JSON with advisory IDs as keys, expiry date as value).
+
+**Location:** `mmo-platform/hooks/`, `mmo-platform/scripts/ai-review.sh`, `mmo-platform/scripts/check-pii.sh`
 
 ---
 
