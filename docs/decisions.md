@@ -2021,6 +2021,24 @@ Compliance boundary: free fix must be genuinely delivered (not claimed). Do not 
 **Status:** Implemented
 **Impl:** 18 files in `333Method/src/` (cron, reports, inbound, payment, cli, utils, proposal-generator-v2), `333Method/.env.example`
 
+### DR-150: Docker → microvm.nix for VPS service isolation (2026-04-02)
+
+**Context:** The distributed agent system plan (Part 7) used Docker containers with iptables-based network isolation and a docker-socket-proxy for security. Docker containers share the host kernel — a container escape vulnerability gives access to all other containers and the host. The ClawHavoc supply chain attack (February 2026) demonstrated real-world container escape risks.
+
+**Decision:** Replace all Docker containers on the VPS with NixOS microVMs via `microvm.nix` (github.com/astro/microvm.nix), using `cloud-hypervisor` as the hypervisor. Each service gets its own Linux kernel. Network isolation uses host bridges (`br-internal`, `br-agent`) instead of Docker networks. `docker-socket-proxy` is removed entirely (no Docker daemon). sops-nix becomes the sole secrets management path (Docker Secrets removed). Accept 10-15% CPU/memory overhead for VM-boundary isolation.
+
+**Trade-offs:**
+- (+) Separate kernel per service — container escape class of vulnerabilities eliminated
+- (+) Bridge-level network isolation — no shared kernel iptables to misconfigure
+- (+) No Docker daemon — entire Docker API attack surface removed
+- (+) NixOS-native management — `nixos-rebuild switch` manages VMs declaratively with atomic rollback
+- (-) 10-15% more RAM per service (~50-100 MB kernel overhead per VM)
+- (-) Slightly slower startup (VM boot vs container start — seconds, not minutes)
+- (-) Windows worker nodes still need Docker (microvm.nix requires NixOS host)
+
+**Status:** Plan updated. Implementation pending VPS provisioning.
+**Impl:** `mmo-platform/docs/plans/distributed-agent-system.md` (Parts 7, 9, 13, 14, K, M, O, 21 updated). `333Method-infra/modules/containers.nix` → `modules/microvms.nix` + `microvms/*.nix` (migration pending).
+
 ### DR-149: Security hardening — sandbox secret + hashed session tokens (2026-04-02)
 
 **Context:** Two vulnerabilities in auditandfix-website: (1) `?sandbox=1` query param allowed anyone to force PayPal sandbox mode and skip CF Worker purchase forwarding — no secret required. (2) Session tokens stored in cleartext in `customer_sessions.token` column — DB compromise would leak valid session tokens.

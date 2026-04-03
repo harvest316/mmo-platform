@@ -1,7 +1,7 @@
 # Distributed Agent System Design
 
 **Generated:** 2026-02-15
-**Updated:** 2026-03-30 — Part 26 added: AdManager VPS migration plan (NixOS systemd service, vendor size, deploy steps). | Part 25 added: Radicle source control migration + Woodpecker CI + Renovate Bot plan. | 2026-03-17 — Part L updated: AgentFlow extraction cancelled; old 6-agent system replaced by Agency Agents (orchestrator batches + Tier C interactive sessions). Part L migration table revised. | 2026-03-14 — Added Part 23 (Tool Integrations: Agency Agents, PromptFoo, MiroFish, Impeccable, OpenViking, Heretic). Added Part 24 (Software Inventory: FOSS status, licensing, audits). CAI commercial license flagged. Redis → Valkey. Better Stack → Grafana Loki. OpenViking deferred. | 2026-03-13 — Moved from 333Method to mmo-platform (cross-project concern). Merged Claude Max update. Phase 0 + Part 20 marked obsolete. Added Part 22 (Multi-Project Architecture).
+**Updated:** 2026-04-02 — **Docker → microvm.nix migration (DR-150).** All containerised services replaced with NixOS microVMs (cloud-hypervisor). 10-15% CPU/memory overhead accepted for full VM-boundary isolation (separate kernel per service). docker-socket-proxy removed; sops-nix is now the sole secrets path. | 2026-03-30 — Part 26 added: AdManager VPS migration plan (NixOS systemd service, vendor size, deploy steps). | Part 25 added: Radicle source control migration + Woodpecker CI + Renovate Bot plan. | 2026-03-17 — Part L updated: AgentFlow extraction cancelled; old 6-agent system replaced by Agency Agents (orchestrator batches + Tier C interactive sessions). Part L migration table revised. | 2026-03-14 — Added Part 23 (Tool Integrations: Agency Agents, PromptFoo, MiroFish, Impeccable, OpenViking, Heretic). Added Part 24 (Software Inventory: FOSS status, licensing, audits). CAI commercial license flagged. Redis → Valkey. Better Stack → Grafana Loki. OpenViking deferred. | 2026-03-13 — Moved from 333Method to mmo-platform (cross-project concern). Merged Claude Max update. Phase 0 + Part 20 marked obsolete. Added Part 22 (Multi-Project Architecture).
 **Status:** Planning Document
 **Source:** Agent Task Output
 
@@ -1662,7 +1662,7 @@ MCP communication uses **WebSocket + JSON-RPC 2.0** for:
 - **Code + dependencies:** ~500 MB (node_modules)
 - **Screenshots:** 66K sites × ~100 KB cropped = 6.6 GB (grows 5-10 GB/year)
 - **Logs:** 7-day rotation, ~500 MB total
-- **Docker images:** ~2 GB (Node, Playwright, dependencies)
+- **MicroVM images:** ~3-4 GB (NixOS base per VM, Node, Playwright, dependencies; shared `/nix/store` deduplicates across VMs)
 
 #### Recommended VPS Specifications
 
@@ -1680,7 +1680,7 @@ MCP communication uses **WebSocket + JSON-RPC 2.0** for:
 - **Storage:** 50 GB SSD
   - OS + code: 5 GB
   - Screenshots: 10 GB (current + buffer)
-  - Docker images: 5 GB
+  - MicroVM images: 6 GB (NixOS base + shared nix store)
   - Logs + backups: 5 GB
   - Growth buffer: 25 GB
 - **Bandwidth:** 2-3 TB/month (SERP scraping, API calls)
@@ -1704,7 +1704,7 @@ MCP communication uses **WebSocket + JSON-RPC 2.0** for:
   - Agents: 2 cores
 - **Storage:** 100 GB SSD each
   - Screenshots: 60 GB (distributed across nodes)
-  - Docker + code: 20 GB
+  - MicroVM images + code: 22 GB
   - Buffer: 20 GB
 
 **Total Multi-Node Cost:**
@@ -1888,19 +1888,15 @@ AgentFlow (Standalone npm Package)
 **VPS Option (Self-Hosted):**
 
 - Hetzner VPS (8 GB RAM, 4 vCPU): $16.50/month
-- Install PostgreSQL + Redis via Docker
+- Install PostgreSQL + Valkey via microvm.nix (DR-150)
 - Total: $16.50/month (vs $54/month cloud-managed)
 
-**Docker Compose Setup:**
+**microvm.nix Setup** (replaces Docker Compose — see Part 7):
 
-```yaml
-services:
-  postgres:
-    image: postgres:15
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-  redis:
-    image: redis:7-alpine
+```nix
+# modules/microvms.nix — see Part 7 for full config
+microvm.vms.postgresql.config = { ... };  # NixOS VM with services.postgresql
+microvm.vms.valkey.config = { ... };      # NixOS VM with services.redis (Valkey)
   agentflow-worker:
     image: agentflow/worker:latest
     depends_on: [postgres, redis]
@@ -2152,14 +2148,14 @@ See full AgentFlow separation plan in background task output for detailed implem
 3. Set up Hetzner 3-node cluster (6h)
    - 1× CX21 (Monitor/Triage/Architect)
    - 2× CCX33 (Developer/QA/Security)
-4. Deploy Docker containers across nodes (8h)
+4. Deploy microVMs across nodes via `nixos-rebuild` (8h)
 5. Test multi-machine task distribution (6h)
 
 **Deliverables:**
 
 - Updated BaseAgent with distributed claiming
 - 3-node Hetzner VPS cluster ($109/month)
-- Docker deployment configuration
+- microvm.nix deployment configuration per node
 
 ### Phase 6: Production Hardening (Weeks 19-20)
 
@@ -2206,14 +2202,14 @@ See full AgentFlow separation plan in background task output for detailed implem
 
 **Added:** 2026-02-19
 
-The OpenClaw container (Claude Code running on the VPS) requires broad access to configure the
-system. The Audit Sidecar Pattern makes this safe: every syscall is captured at kernel level and
-streamed to a remote sink OpenClaw cannot reach, creating a tamper-proof audit trail. A
+The IronClaw microVM (running on the VPS) requires broad access to configure the
+system. The Audit Sidecar Pattern makes this safe: every syscall is captured at host kernel level and
+streamed to a remote sink IronClaw cannot reach, creating a tamper-proof audit trail. A
 third-party LLM independently reviews this log daily.
 
-Everything below depends on this foundation. Deploy FIRST, before the OpenClaw container starts.
+Everything below depends on this foundation. Deploy FIRST, before the IronClaw microVM starts.
 
-### Host-Level Components (Not in Docker)
+### Host-Level Components (Outside MicroVMs)
 
 **1. auditd rules** — captures all syscalls from OpenClaw's UID (9000):
 
@@ -2235,11 +2231,11 @@ Everything below depends on this foundation. Deploy FIRST, before the OpenClaw c
 audit repo:
 
 ```bash
-# /opt/audit/git-watcher.sh — runs as root, outside Docker
+# /opt/audit/git-watcher.sh — runs as root on host, outside all microVMs
 inotifywait -m -r -e modify,create,delete,move /etc /opt/333method | while read event; do
   cd /opt/audit-repo
   git add -A && git commit -m "auto: $event"
-  git push origin main  # SSH key exists only on host, not in openclaw container
+  git push origin main  # SSH key exists only on host, not in any microVM
 done
 ```
 
@@ -2252,86 +2248,76 @@ iptables -I OUTPUT -m owner --uid-owner 9000 -d <GITHUB_IP_RANGE> -j REJECT
 
 ---
 
-## Part 7: Containerized VPS Services (Docker Architecture)
+## Part 7: MicroVM VPS Services (microvm.nix Architecture)
 
-All services run in Docker containers on Hetzner CX41 (8 GB RAM, 4 vCPU, 160 GB SSD).
+> **2026-04-02 — Docker replaced by microvm.nix (DR-150).** Each service runs in its own NixOS microVM with a dedicated kernel, managed declaratively via the `microvm.nix` NixOS module. Hypervisor: `cloud-hypervisor` (default; firecracker and QEMU also supported). The 10-15% CPU/memory overhead vs containers is accepted for full VM-boundary isolation — a container escape compromises a shared kernel; a microVM escape requires a hypervisor break, which is orders of magnitude harder.
 
-### Three Isolated Networks
+All services run as NixOS microVMs on Hetzner CX41 (8 GB RAM, 4 vCPU, 160 GB SSD).
 
-- `333method-internal` — PostgreSQL, Redis, pipeline, cron, dashboard (`internal: true`, no internet egress)
-- `333method-openclaw-net` — OpenClaw only (isolated from internal services and secrets)
-- `333method-proxy-net` — docker-socket-proxy only (bridges both networks, read-only)
+### Two Isolated Bridges (replaces Docker networks)
+
+- `br-internal` (10.0.1.0/24) — PostgreSQL, Valkey, pipeline, cron, dashboard, mcp-gateway, backup. No default route (no internet egress). Each microVM has a TAP device on this bridge.
+- `br-agent` (10.0.2.0/24) — IronClaw only. **No routing to `br-internal`** — enforced at the bridge level (no shared kernel iptables to misconfigure). The mcp-gateway VM has a TAP on both bridges (see below).
+
+No `docker-socket-proxy` — there is no Docker daemon, no Docker socket, no container API surface at all.
 
 ### Service Summary
 
-| Service               | Image                         | Networks         | Ports       | Secrets Mounted                       |
-| --------------------- | ----------------------------- | ---------------- | ----------- | ------------------------------------- |
-| `postgresql`          | postgres:16-alpine            | internal         | none        | postgres_password                     |
-| `redis`               | redis:7-alpine                | internal         | none        | redis_password                        |
-| `dashboard`           | python:3.12-slim              | internal         | 8501→8501\* | none                                  |
-| `pipeline`            | node:20-alpine                | internal         | none        | openrouter, anthropic, resend, twilio |
-| `cron`                | node:20-alpine                | internal         | none        | openrouter, anthropic                 |
-| `docker-socket-proxy` | tecnativa/docker-socket-proxy | openclaw + proxy | none        | none                                  |
-| `openclaw`            | claude-code                   | openclaw         | none        | **NONE**                              |
-| `backup`              | restic/restic                 | internal         | none        | backblaze_b2                          |
+| Service        | NixOS microVM config            | Bridge       | Host Ports  | Secrets (sops-nix)                    |
+| -------------- | ------------------------------- | ------------ | ----------- | ------------------------------------- |
+| `postgresql`   | `microvms/postgresql.nix`       | br-internal  | none        | postgres_password                     |
+| `valkey`       | `microvms/valkey.nix`           | br-internal  | none        | redis_password                        |
+| `dashboard`    | `microvms/dashboard.nix`        | br-internal  | 8501→8501\* | none                                  |
+| `pipeline`     | `microvms/pipeline.nix`         | br-internal  | none        | openrouter, anthropic, resend, twilio |
+| `cron`         | `microvms/cron.nix`             | br-internal  | none        | openrouter, anthropic                 |
+| `mcp-gateway`  | `microvms/mcp-gateway.nix`      | both bridges | none        | openclaw_pg_password                  |
+| `ironclaw`     | `microvms/ironclaw.nix`         | br-agent     | none        | **NONE**                              |
+| `backup`       | `microvms/backup.nix`           | br-internal  | none        | backblaze_b2                          |
 
-\*Port 8501 restricted to WireGuard subnet via iptables
+\*Port 8501 restricted to WireGuard subnet via iptables on the host
 
 ### Critical Security Constraints
 
-- `SECRETS: 0` on docker-socket-proxy — OpenClaw cannot enumerate/read Docker Secrets via API
-- `POST: 0` on docker-socket-proxy — OpenClaw cannot create/modify containers via Docker API
-- `EXEC: 0` on docker-socket-proxy — OpenClaw cannot exec into other containers
-- OpenClaw container has **no `/run/secrets` mount** (no `secrets:` stanza in service definition)
-- OpenClaw is **NOT** on `333method-internal` — cannot reach PostgreSQL or Redis at all
+- **Separate kernels** — each microVM runs its own Linux kernel. A vulnerability in one VM's kernel does not affect any other VM. This is the primary security improvement over Docker.
+- **No Docker daemon** — no container API, no socket proxy, no `EXEC`/`POST`/`SECRETS` attack surface. The entire class of Docker escape vulnerabilities is eliminated.
+- **Bridge-level network isolation** — IronClaw's `br-agent` has no route to `br-internal`. This is enforced by the absence of a bridge link, not by iptables rules on a shared kernel.
+- **No secrets in agent VM** — IronClaw's microVM has no sops-nix secret declarations; `/run/secrets` does not exist inside the VM.
+- **virtiofs for shared filesystems** — read-only source mounts use virtiofs (host→VM), scoped per-VM. No volume sharing between VMs.
 
-### MCP Server Configuration for OpenClaw
+### MCP Server Configuration for IronClaw
 
-OpenClaw's Claude Code instance uses MCP servers for structured tool access. Each server is
-constrained to the same isolation boundaries as the volume and network rules above. All MCP
-stdio processes inside OpenClaw's container inherit UID 9000 — their syscalls are captured by
-auditd automatically.
+IronClaw's MCP servers provide structured tool access, constrained by the microVM's virtiofs mounts and network bridge. All MCP stdio processes inside the IronClaw VM inherit UID 9000 — their syscalls are captured by auditd on the host automatically.
 
-**New service: `mcp-gateway`** — a narrow bridge container (mirrors the docker-socket-proxy
-pattern) that hosts network-dependent MCP servers over HTTP/SSE. OpenClaw reaches it over
-`333method-openclaw-net`; it reaches PostgreSQL over `333method-internal` with the
-`openclaw_readonly` role (sanitized views only).
-
-Updated service table (full):
-
-| Service               | Image                         | Networks            | Ports       | Secrets Mounted                       |
-| --------------------- | ----------------------------- | ------------------- | ----------- | ------------------------------------- |
-| `postgresql`          | postgres:16-alpine            | internal            | none        | postgres_password                     |
-| `redis`               | redis:7-alpine                | internal            | none        | redis_password                        |
-| `dashboard`           | python:3.12-slim              | internal            | 8501→8501\* | none                                  |
-| `pipeline`            | node:20-alpine                | internal            | none        | openrouter, anthropic, resend, twilio |
-| `cron`                | node:20-alpine                | internal            | none        | openrouter, anthropic                 |
-| `docker-socket-proxy` | tecnativa/docker-socket-proxy | openclaw + proxy    | none        | none                                  |
-| `mcp-gateway`         | node:20-alpine                | openclaw + internal | none        | openclaw_pg_password                  |
-| `openclaw`            | claude-code                   | openclaw            | none        | **NONE**                              |
-| `backup`              | restic/restic                 | internal            | none        | backblaze_b2                          |
-
-\*Port 8501 restricted to WireGuard subnet via iptables
+**`mcp-gateway` microVM** — bridges `br-agent` and `br-internal`. This is the only VM attached to both bridges. It hosts network-dependent MCP servers over HTTP/SSE, connecting to PostgreSQL on `br-internal` with the `openclaw_readonly` role (sanitized views only).
 
 ```nix
-# modules/containers.nix — mcp-gateway addition
-mcp-gateway = {
-  image = "node:20-alpine";
-  volumes = [ "/opt/333method:/app:ro" "/run/secrets:/run/secrets:ro" ];
-  environment = {
-    DATABASE_URL_READONLY = "postgresql://openclaw_readonly:...@postgresql:5432/method333";
-    FETCH_ALLOWLIST = "nixos.org,wiki.nixos.org,man7.org,netbird.io,docs.docker.com";
-    MCP_PORT = "3000";
+# microvms/mcp-gateway.nix
+{ config, pkgs, ... }: {
+  microvm = {
+    hypervisor = "cloud-hypervisor";
+    mem = 256;
+    vcpu = 1;
+    interfaces = [
+      { type = "tap"; id = "vm-gw-int"; mac = "02:00:00:00:01:07"; }  # br-internal
+      { type = "tap"; id = "vm-gw-agt"; mac = "02:00:00:00:02:07"; }  # br-agent
+    ];
+    shares = [{
+      tag = "app";
+      source = "/opt/333method";
+      mountPoint = "/app";
+      proto = "virtiofs";
+    }];
   };
-  extraOptions = [
-    "--network=333method-openclaw-net"
-    "--network=333method-internal"   # only service besides socket-proxy that bridges networks
-  ];
-  cmd = [ "node" "/app/scripts/mcp-gateway.js" ];
-};
+  # Node.js gateway process
+  environment.etc."mcp-gateway-env".text = ''
+    DATABASE_URL_READONLY=postgresql://openclaw_readonly:...@10.0.1.2:5432/method333
+    FETCH_ALLOWLIST=nixos.org,wiki.nixos.org,man7.org,netbird.io
+    MCP_PORT=3000
+  '';
+}
 ```
 
-**OpenClaw's `~/.claude.json` MCP config** (built into the `claude-code` Docker image):
+**IronClaw's `~/.claude.json` MCP config** (baked into the IronClaw microVM image):
 
 ```json
 {
@@ -2351,31 +2337,29 @@ mcp-gateway = {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"]
     },
-    "docker": {
-      "command": "npx",
-      "args": ["-y", "mcp-server-docker"],
-      "env": { "DOCKER_HOST": "tcp://docker-socket-proxy:2375" }
-    },
     "gateway": {
-      "url": "http://mcp-gateway:3000/sse",
+      "url": "http://10.0.2.1:3000/sse",
       "type": "sse"
     }
   }
 }
 ```
 
-`filesystem` and `memory` run as stdio subprocesses inside the OpenClaw container — their file
-operations are captured by auditd. `docker` also runs stdio, inheriting the socket proxy's
-`POST:0 / SECRETS:0 / EXEC:0` restrictions. `gateway` connects via HTTP/SSE to the
-`mcp-gateway` sidecar which applies its own database-role and domain-allowlist restrictions.
+`filesystem` and `memory` run as stdio subprocesses inside the IronClaw VM — their file
+operations are captured by auditd on the host. `gateway` connects via HTTP/SSE to the
+`mcp-gateway` VM (the only service reachable on `br-agent`) which applies its own
+database-role and domain-allowlist restrictions.
 
-**What OpenClaw canNOT do via MCP (by design):**
+**No `docker` MCP server** — there is no Docker daemon, so the `mcp-server-docker` tool is
+removed entirely. VM status can be queried via the gateway if needed (host exposes
+`microvm.nix` status via a simple HTTP endpoint on `br-agent`).
 
-- Access `/run/secrets`, `.env`, `logs/`, `screenshots/`, `db/sites.db` — not in any filesystem mount
-- Reach Papertrail or GitHub audit repos — iptables UID-9000 block applies to all subprocess
-  connections, MCP or otherwise
-- Read Docker Secrets via the gateway API — `SECRETS:0` enforced at the proxy before the request
-  reaches any MCP logic
+**What IronClaw canNOT do via MCP (by design):**
+
+- Access `/run/secrets`, `.env`, `logs/`, `screenshots/`, `db/sites.db` — not in any virtiofs mount
+- Reach Papertrail or GitHub audit repos — iptables UID-9000 block applies to all processes
+  inside the VM, MCP or otherwise
+- Access any other microVM's filesystem — separate kernels, no shared mount namespace
 - Query raw `sites`, `outreaches`, or `conversations` tables — `openclaw_readonly` role can only
   access the three sanitized views (migration 064)
 
@@ -2406,44 +2390,25 @@ iptables -A INPUT -p tcp --dport 8501 -j DROP
 
 ## Part 9: Secrets Management (OpenClaw-Blind)
 
-### Docker Secrets + `scripts/load-secrets-to-env.js` Adapter
+### ~~Docker Secrets~~ → sops-nix Only (2026-04-02)
 
-Docker Secrets mount as files at `/run/secrets/<name>` with 0400 permissions. auditd logs file
-paths on open, NOT file contents — so secrets never appear in audit logs. OpenClaw's container
-has no `secrets:` stanza, so it has zero access.
+> **Docker Secrets removed.** With no Docker daemon, `docker secret create` is no longer available. sops-nix is the sole secrets management path. The `scripts/load-secrets-to-env.js` adapter continues to read `/run/secrets/*` — the file format is identical whether populated by Docker Secrets or sops-nix.
 
-**Secrets created once by human operator via SSH (not by OpenClaw):**
+### sops-nix Secrets Management
 
-```bash
-docker secret create postgres_password   <(echo -n "$POSTGRES_PASSWORD")
-docker secret create redis_password      <(echo -n "$REDIS_PASSWORD")
-docker secret create openrouter_api_key  <(echo -n "$OPENROUTER_API_KEY")
-docker secret create anthropic_api_key   <(echo -n "$ANTHROPIC_API_KEY")
-docker secret create resend_api_key      <(echo -n "$RESEND_API_KEY")
-docker secret create twilio_credentials  <(echo -n "$SID:$TOKEN:$PHONE")
-docker secret create backblaze_b2_creds  <(echo -n "$B2_ID:$B2_KEY:$B2_BUCKET")
-docker secret create netbird_setup_key   <(echo -n "$NETBIRD_KEY")
-```
+Secrets are committed to git **encrypted** (age), decryptable only by the server's SSH host key:
 
-**New file `scripts/load-secrets-to-env.js`** — runs at container startup, reads
-`/run/secrets/*` files, populates `process.env`. Falls back to `.env` silently in dev mode.
-Never logs secret values — only logs which keys were loaded.
-
-### OpenClaw Template Contract
-
-OpenClaw writes config files using `{{PLACEHOLDER}}` syntax only. A `validateNoSecrets()` guard
-in `src/agents/openclaw-bootstrap.js` throws if content matches real-secret patterns (API key
-regex, long base64 strings). A separate privileged init service (not Docker, not OpenClaw)
-substitutes real values into templates at deploy time.
-
-### On NixOS: sops-nix (Preferred Over Docker Secrets)
-
-For NixOS deployments, use `sops-nix` + `age` encryption instead:
-
-- Secrets committed to git **encrypted**, decryptable only by the server's SSH host key
-- `nixos-rebuild switch` decrypts and places at `/run/secrets/<name>` (0400 perms)
-- OpenClaw has no access: not in the `sops` group, container has no `/run/secrets` mount
+- `nixos-rebuild switch` decrypts and places at `/run/secrets/<name>` (0400 perms) on the **host**
+- Each microVM that needs secrets gets them via a virtiofs share of specific `/run/secrets/<name>` files — never the entire directory
+- IronClaw's microVM has **no secrets share** — `/run/secrets` does not exist inside the VM
 - Cloning to new server = update `.sops.yaml` with new server's age public key
+
+### IronClaw Template Contract
+
+IronClaw writes config files using `{{PLACEHOLDER}}` syntax only. A `validateNoSecrets()` guard
+in `src/agents/openclaw-bootstrap.js` throws if content matches real-secret patterns (API key
+regex, long base64 strings). A separate privileged init service on the host (not IronClaw)
+substitutes real values into templates at deploy time.
 
 ```bash
 # Convert server SSH host key to age key (run once on production server):
@@ -2470,7 +2435,7 @@ The sops-nix + age pipeline is **live** in `333Method-infra/`:
 | `.env.agents`          | Agent system tuning parameters                              | ✅ example only             |
 | `.env.secrets.example` | Documents what secrets exist, with `CHANGE_ME` placeholders | ✅ safe to commit           |
 
-Production values live in `333Method-infra/secrets/production.yaml` (SOPS-encrypted). The `scripts/load-secrets-to-env.js` loader reads `/run/secrets/*` files at container startup and injects into `process.env`.
+Production values live in `333Method-infra/secrets/production.yaml` (SOPS-encrypted). The `scripts/load-secrets-to-env.js` loader reads `/run/secrets/*` files at microVM startup and injects into `process.env`.
 
 **Workflow for adding a new secret:**
 
@@ -2607,7 +2572,7 @@ Seeds `cron_jobs` row for `auditLogReview`, schedule: 1 day, initially disabled 
 ### GitHub MCP Integration (Out-of-Band Alert Channel)
 
 The `audit-log-review.js` cron job uses the **GitHub MCP server** (running in the `pipeline` or
-`cron` container — never in OpenClaw's container) to create issues in the private audit repo when
+`cron` VM — never in IronClaw's VM) to create issues in the private audit repo when
 `risk_level >= 4`. This provides an alert channel that works even if the Streamlit dashboard is
 unreachable:
 
@@ -2647,7 +2612,7 @@ giving the human reviewer a one-click path from GitHub notification → audit di
 ```bash
 # Audit Log Review
 PAPERTRAIL_API_TOKEN=             # Papertrail API token for log fetching
-PAPERTRAIL_OPENCLAW_SYSTEM_ID=    # Filter to openclaw container logs only
+PAPERTRAIL_IRONCLAW_SYSTEM_ID=    # Filter to ironclaw microVM logs only
 AUDIT_REVIEW_MODEL=openai/gpt-4o  # Non-Anthropic for independence (or x-ai/grok-2)
 
 # Audit GitHub repo (for out-of-band issue alerts on risk_level >= 4)
@@ -2704,9 +2669,13 @@ Infrastructure-as-code lives in a separate private git repo (not the app repo):
   .sops.yaml                        # sops encryption config (git-tracked)
   disko.nix                         # disk partition layout (for nixos-anywhere)
   modules/
-    containers.nix                  # virtualisation.oci-containers for all services
+    microvms.nix                    # microvm.nix VM definitions for all services (replaces containers.nix)
+    microvms/                       # per-VM NixOS configurations
+      postgresql.nix valkey.nix ironclaw.nix mcp-gateway.nix
+      pipeline.nix cron.nix dashboard.nix backup.nix
+      prometheus.nix grafana.nix loki.nix
     monitoring.nix                  # auditd, rsyslog→Papertrail, git-watcher, NetBird
-    security.nix                    # SSH hardening, firewall, iptables, OpenClaw isolation
+    security.nix                    # SSH hardening, firewall, iptables, IronClaw isolation
     backup.nix                      # restic + Backblaze B2 systemd timer
     secrets.nix                     # sops-nix secret declarations
   hosts/
@@ -2729,15 +2698,17 @@ Infrastructure-as-code lives in a separate private git repo (not the app repo):
     disko.inputs.nixpkgs.follows = "nixpkgs";
     sops-nix.url     = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+    microvm.url      = "github:astro/microvm.nix";
+    microvm.inputs.nixpkgs.follows = "nixpkgs";
   };
-  outputs = { self, nixpkgs, disko, sops-nix }: {
+  outputs = { self, nixpkgs, disko, sops-nix, microvm }: {
     nixosConfigurations.production = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
         disko.nixosModules.disko
         sops-nix.nixosModules.sops
         ./hosts/production/configuration.nix
-        ./modules/containers.nix
+        ./modules/microvms.nix
         ./modules/monitoring.nix
         ./modules/security.nix
         ./modules/backup.nix
@@ -2748,32 +2719,58 @@ Infrastructure-as-code lives in a separate private git repo (not the app repo):
 }
 ```
 
-### `virtualisation.oci-containers` (NixOS Native) vs Docker Compose
+### `microvm.nix` Module (Replaces Docker / oci-containers)
 
-**Use `virtualisation.oci-containers`, not Docker Compose.** Each container becomes a systemd
-unit with atomic rollbacks. `compose2nix` converts an existing `docker-compose.yml` automatically.
-Docker Compose is redundant on NixOS.
+> **2026-04-02 — Docker removed entirely.** `virtualisation.docker.enable` is `false`. No Docker daemon, no `oci-containers`, no `docker-compose.yml`. Each service is a NixOS microVM managed declaratively.
+
+**Use `microvm.vms`, not `virtualisation.oci-containers`.** Each microVM becomes a systemd unit (`microvm@<name>.service`) with its own kernel, managed by `cloud-hypervisor`. NixOS atomic rollbacks apply to the host config including all VM definitions.
 
 ```nix
-# modules/containers.nix (excerpt)
-virtualisation.docker.enable = true;
-virtualisation.oci-containers.backend = "docker";
-virtualisation.oci-containers.containers = {
-  postgresql = {
-    image = "postgres:16-alpine";
-    volumes = [ "postgres_data:/var/lib/postgresql/data" "/run/secrets:/run/secrets:ro" ];
-    environment = { POSTGRES_DB = "method333"; POSTGRES_PASSWORD_FILE = "/run/secrets/postgres_password"; };
-    extraOptions = [ "--network=333method-internal" ];
+# modules/microvms.nix (excerpt)
+{ inputs, ... }: {
+  imports = [ inputs.microvm.nixosModules.host ];
+
+  # Host bridges — no routing between them
+  networking.bridges.br-internal.interfaces = [];
+  networking.bridges.br-agent.interfaces = [];
+  networking.interfaces.br-internal.ipv4.addresses = [{ address = "10.0.1.1"; prefixLength = 24; }];
+  networking.interfaces.br-agent.ipv4.addresses = [{ address = "10.0.2.1"; prefixLength = 24; }];
+
+  microvm.vms = {
+    postgresql = {
+      config = { pkgs, ... }: {
+        microvm = {
+          hypervisor = "cloud-hypervisor";
+          mem = 512; vcpu = 1;
+          interfaces = [{ type = "tap"; id = "vm-pg"; mac = "02:00:00:00:01:01"; }];
+          volumes = [{ image = "postgres-data.img"; mountPoint = "/var/lib/postgresql/data"; size = 20480; }];
+        };
+        networking.interfaces.eth0.ipv4.addresses = [{ address = "10.0.1.2"; prefixLength = 24; }];
+        services.postgresql = { enable = true; settings.listen_addresses = "*"; };
+        networking.firewall.allowedTCPPorts = [ 5432 ];
+      };
+    };
+    ironclaw = {
+      config = { pkgs, ... }: {
+        microvm = {
+          hypervisor = "cloud-hypervisor";
+          mem = 1024; vcpu = 2;
+          interfaces = [{ type = "tap"; id = "vm-iron"; mac = "02:00:00:00:02:01"; }];
+          shares = [
+            { tag = "workspace"; source = "/opt/333method-ironclaw-workspace"; mountPoint = "/workspace"; proto = "virtiofs"; }
+            { tag = "src"; source = "/opt/333method/src"; mountPoint = "/app/src"; proto = "virtiofs"; }  # read-only at guest
+            { tag = "docs"; source = "/opt/333method/docs"; mountPoint = "/app/docs"; proto = "virtiofs"; }
+          ];
+          # NO secrets share — /run/secrets does not exist in this VM
+        };
+        networking.interfaces.eth0.ipv4.addresses = [{ address = "10.0.2.2"; prefixLength = 24; }];
+        users.users.ironclaw = { uid = 9000; group = "ironclaw"; isSystemUser = true; };
+        users.groups.ironclaw.gid = 9000;
+      };
+    };
+    # ... valkey, dashboard, pipeline, cron, mcp-gateway, backup
   };
-  openclaw = {
-    image = "claude-code:latest";
-    volumes = [ "/opt/333method-openclaw-workspace:/workspace" ];
-    environment.DOCKER_HOST = "tcp://docker-socket-proxy:2375";
-    extraOptions = [ "--network=333method-openclaw-net" "--user=9000:9000" ];
-    # NO /run/secrets mount
-  };
-  # ... redis, dashboard, pipeline, cron, docker-socket-proxy, backup
-};
+}
 ```
 
 ### Audit Sidecar as NixOS Module (`modules/monitoring.nix`)
@@ -2857,17 +2854,16 @@ state — the declarative NixOS flake is always the source of truth.
 
 ## Part 13: Fine-Grained Access Control (Files + Database Tables)
 
-### Baseline: OpenClaw Is Already Fully Isolated
+### Baseline: IronClaw Is Already Fully Isolated
 
-With the network architecture in Part 7, OpenClaw has **zero** access by default to:
+With the microVM architecture in Part 7, IronClaw has **zero** access by default to:
 
-- PostgreSQL / Redis (different Docker network)
-- `postgres_data`, `redis_data`, `app_data`, `screenshot_data` volumes (not mounted)
-- `/run/secrets` (no `secrets:` stanza in openclaw service)
-- Other containers' filesystems (`EXEC: 0` on docker-socket-proxy)
-- `db/sites.db` SQLite file (not mounted in openclaw container)
+- PostgreSQL / Valkey (different bridge network — `br-agent` has no route to `br-internal`)
+- Other VMs' filesystems (separate kernels — no shared mount namespace, no `exec` concept)
+- `/run/secrets` (no sops-nix secret declarations in IronClaw's VM config, no virtiofs share)
+- `db/sites.db` SQLite file (not shared via virtiofs)
 
-Network-level denial is the strongest possible control. Table-level grants are moot by default.
+VM-boundary isolation is stronger than container namespace isolation — there is no shared kernel to escape through. Table-level grants are moot by default.
 
 ### If OpenClaw Needs Partial DB Access (Monitoring/Debugging)
 
@@ -2915,25 +2911,28 @@ CREATE POLICY openclaw_own_tasks ON agent_tasks
 Route OpenClaw's DB connection through pgBouncer with `LOG_QUERIES=1` — every SQL query
 appears in the audit trail via rsyslog → Papertrail.
 
-### File Access Control: Volume Mount Restrictions
+### File Access Control: virtiofs Share Restrictions
 
 ```nix
-# modules/containers.nix — openclaw volumes
-openclaw.volumes = [
-  "/opt/333method-openclaw-workspace:/workspace"   # read/write workspace
-  "/opt/333method/src:/app/src:ro"                 # source code, read-only
-  "/opt/333method/tests:/app/tests:ro"             # tests, read-only
-  "/opt/333method/docs:/app/docs:ro"               # docs, read-only
-  # NOT MOUNTED: db/, .env, logs/, screenshots/, /run/secrets/
+# microvms/ironclaw.nix — virtiofs shares (guest-side mounts)
+microvm.shares = [
+  { tag = "workspace"; source = "/opt/333method-ironclaw-workspace"; mountPoint = "/workspace"; proto = "virtiofs"; }
+  { tag = "src";       source = "/opt/333method/src";                mountPoint = "/app/src";   proto = "virtiofs"; }
+  { tag = "tests";     source = "/opt/333method/tests";              mountPoint = "/app/tests"; proto = "virtiofs"; }
+  { tag = "docs";      source = "/opt/333method/docs";               mountPoint = "/app/docs";  proto = "virtiofs"; }
+  # NOT SHARED: db/, .env, logs/, screenshots/, /run/secrets/
 ];
+# Guest mounts src/tests/docs as read-only via fstab inside the VM
 ```
 
-### AppArmor Profile (Defence-in-Depth)
+### AppArmor Profile (Defence-in-Depth — Less Critical with MicroVMs)
+
+> With microvm.nix, AppArmor is defence-in-depth rather than a primary control. The VM boundary already prevents access to host paths not exposed via virtiofs. AppArmor on the **host** scopes the `cloud-hypervisor` process itself:
 
 ```nix
-security.apparmor.policies."docker-openclaw".profile = ''
+security.apparmor.policies."microvm-ironclaw".profile = ''
   #include <abstractions/base>
-  /opt/333method-openclaw-workspace/** rwk,
+  /opt/333method-ironclaw-workspace/** rwk,
   /opt/333method/src/**  r,
   /opt/333method/tests/** r,
   /opt/333method/docs/**  r,
@@ -2947,23 +2946,23 @@ security.apparmor.policies."docker-openclaw".profile = ''
 
 ### Access Control Summary
 
-| Resource                               | OpenClaw Access        | Mechanism                      |
-| -------------------------------------- | ---------------------- | ------------------------------ |
-| PostgreSQL (any table)                 | ❌                     | Different Docker network       |
-| Redis                                  | ❌                     | Different Docker network       |
-| `sites`, `outreaches`, `conversations` | ❌                     | Network isolation              |
-| `openrouter_credit_log`                | ❌                     | Network isolation              |
-| `/run/secrets`                         | ❌                     | No secrets mount in container  |
-| `db/sites.db`                          | ❌                     | Not mounted                    |
-| `screenshots/`, `logs/`, `.env`        | ❌                     | Not mounted + AppArmor deny    |
-| Docker exec into other containers      | ❌                     | `EXEC: 0` on socket proxy      |
-| Docker Secrets API                     | ❌                     | `SECRETS: 0` on socket proxy   |
-| App source code (`src/`)               | ✅ read-only           | Explicit `:ro` mount           |
-| App tests / docs                       | ✅ read-only           | Explicit `:ro` mount           |
-| Its own workspace                      | ✅ read/write          | `/workspace` mount             |
-| Agent task queue (if enabled)          | ✅ via sanitized view  | `openclaw_v_agent_tasks` + RLS |
-| Pipeline status (if enabled)           | ✅ via aggregated view | `openclaw_v_pipeline_status`   |
-| Docker container status                | ✅ read-only           | docker-socket-proxy            |
+| Resource                               | IronClaw Access        | Mechanism                                     |
+| -------------------------------------- | ---------------------- | --------------------------------------------- |
+| PostgreSQL (any table)                 | ❌                     | Different bridge (`br-agent` ≠ `br-internal`) |
+| Valkey                                 | ❌                     | Different bridge                              |
+| `sites`, `outreaches`, `conversations` | ❌                     | Bridge isolation + no virtiofs share           |
+| `openrouter_credit_log`                | ❌                     | Bridge isolation                              |
+| `/run/secrets`                         | ❌                     | No sops-nix declarations, no virtiofs share   |
+| `db/sites.db`                          | ❌                     | Not shared via virtiofs                       |
+| `screenshots/`, `logs/`, `.env`        | ❌                     | Not shared + host AppArmor deny               |
+| Other VMs' filesystems                 | ❌                     | Separate kernels (no shared namespace)        |
+| Any Docker/container API               | ❌                     | No Docker daemon exists                       |
+| App source code (`src/`)               | ✅ read-only           | virtiofs share, guest-side ro mount           |
+| App tests / docs                       | ✅ read-only           | virtiofs share, guest-side ro mount           |
+| Its own workspace                      | ✅ read/write          | virtiofs `/workspace` share                   |
+| Agent task queue (if enabled)          | ✅ via sanitized view  | mcp-gateway → `openclaw_v_agent_tasks` + RLS  |
+| Pipeline status (if enabled)           | ✅ via aggregated view | mcp-gateway → `openclaw_v_pipeline_status`    |
+| MicroVM status                         | ✅ read-only           | mcp-gateway status endpoint on `br-agent`     |
 
 ### New Migration: `db/migrations/064-openclaw-readonly-views.sql`
 
@@ -2976,95 +2975,96 @@ creation is handled during initial server setup, outside the app migration syste
 
 **Added:** 2026-02-19
 
-MCP servers are the structured tool layer that gives OpenClaw (and the main pipeline/cron
-containers) access to exactly what they need — no more. The key security principle: **MCP servers
-inherit the same isolation boundaries as Docker volumes and networks**. A filesystem MCP server
+MCP servers are the structured tool layer that gives IronClaw (and the main pipeline/cron
+VMs) access to exactly what they need — no more. The key security principle: **MCP servers
+inherit the same isolation boundaries as microVM virtiofs shares and bridge networks**. A filesystem MCP server
 that isn't given a path cannot expose that path. A postgres MCP using `openclaw_readonly` can
-only see the sanitized views. iptables UID-9000 rules block MCP subprocess network calls to
-audit sinks the same as any other network call from that UID.
+only see the sanitized views. Bridge isolation blocks MCP subprocess network calls to
+audit sinks the same as any other network call from that VM.
 
-### MCP Servers by Container
+### MCP Servers by MicroVM
 
-#### OpenClaw Container (claude-code image)
+#### IronClaw MicroVM (br-agent)
 
 | MCP Server   | Package                                   | Transport | Purpose                                                            |
 | ------------ | ----------------------------------------- | --------- | ------------------------------------------------------------------ |
 | `filesystem` | `@modelcontextprotocol/server-filesystem` | stdio     | Scoped file R/W: `/workspace` (rw), `src/tests/docs` (ro)          |
 | `memory`     | `@modelcontextprotocol/server-memory`     | stdio     | Persistent KV across task runs                                     |
-| `docker`     | `mcp-server-docker`                       | stdio     | Container inspect via socket-proxy (`POST:0 / SECRETS:0 / EXEC:0`) |
-| `gateway`    | custom (`scripts/mcp-gateway.js`)         | HTTP/SSE  | Proxied postgres + fetch (see mcp-gateway container)               |
+| `gateway`    | custom (`scripts/mcp-gateway.js`)         | HTTP/SSE  | Proxied postgres + fetch (see mcp-gateway VM)                      |
 
-All stdio servers run as UID 9000 — every file open, network connect, and exec is captured by
-auditd. The gateway SSE transport also goes through UID-9000 network path, captured by the
-`connect` syscall audit rule.
+All stdio servers run as UID 9000 inside the VM — every file open, network connect, and exec
+is captured by host auditd via the cloud-hypervisor process. The gateway SSE transport crosses
+the `br-agent` bridge to the mcp-gateway VM.
 
-#### mcp-gateway Container (node:20-alpine, bridges openclaw-net → internal)
+**No `docker` MCP server** — there is no Docker daemon anywhere in the system.
 
-| Tool Exposed     | Source                             | Restriction                                                                                                 |
-| ---------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `postgres/query` | PostgreSQL via `openclaw_readonly` | Sanitized views only; RLS limits to own tasks                                                               |
-| `fetch`          | HTTP egress                        | Domain allowlist: nixos.org, man7.org, netbird.io/docs, docs.docker.com, redis.io/docs, postgresql.org/docs |
+#### mcp-gateway MicroVM (bridges br-agent ↔ br-internal)
 
-The gateway is the **only non-proxy service** that bridges `333method-openclaw-net` and
-`333method-internal`. Like docker-socket-proxy, it applies restrictions before forwarding —
-OpenClaw cannot bypass them even if it sends raw SQL, because the gateway uses a read-only
-role connection that the database enforces independently.
+| Tool Exposed     | Source                             | Restriction                                                                               |
+| ---------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `postgres/query` | PostgreSQL via `openclaw_readonly` | Sanitized views only; RLS limits to own tasks                                             |
+| `fetch`          | HTTP egress                        | Domain allowlist: nixos.org, man7.org, netbird.io/docs, redis.io/docs, postgresql.org/docs |
+| `vm-status`      | Host microvm status API            | Read-only list of running VMs and their health                                             |
 
-#### pipeline / cron Containers (internal network only)
+The gateway VM is the **only service** attached to both `br-agent` and `br-internal`. It applies
+restrictions before forwarding — IronClaw cannot bypass them even if it sends raw SQL, because
+the gateway uses a read-only role connection that the database enforces independently.
+
+#### pipeline / cron MicroVMs (br-internal only)
 
 | MCP Server | Package                               | Purpose                                                                         |
 | ---------- | ------------------------------------- | ------------------------------------------------------------------------------- |
 | `github`   | `@modelcontextprotocol/server-github` | Create audit issues in 333Method-audit repo when risk_level ≥ 4                 |
-| `fetch`    | `@modelcontextprotocol/server-fetch`  | Papertrail Search API for audit log fetching (unrestricted — internal net only) |
+| `fetch`    | `@modelcontextprotocol/server-fetch`  | Papertrail Search API for audit log fetching (unrestricted — internal bridge)   |
 
-These containers are on `333method-internal` with no connection to `333method-openclaw-net`.
-OpenClaw cannot reach them or their MCP servers.
+These VMs are on `br-internal` with no connection to `br-agent`.
+IronClaw cannot reach them or their MCP servers.
 
 ### Security Constraint Table
 
-| Resource                                                 | OpenClaw MCP Access | Mechanism                                                  |
-| -------------------------------------------------------- | ------------------- | ---------------------------------------------------------- |
-| `/workspace/**`                                          | ✅ read/write       | filesystem MCP — explicitly listed                         |
-| `src/`, `tests/`, `docs/`                                | ✅ read-only        | filesystem MCP — `:readonly` flag                          |
-| `db/sites.db`, `.env`, `logs/`, `screenshots/`           | ❌                  | Not listed in any filesystem MCP mount                     |
-| `/run/secrets/**`                                        | ❌                  | AppArmor deny + not mounted in container                   |
-| PostgreSQL sanitized views                               | ✅ via gateway      | `openclaw_readonly` role + gateway proxy                   |
-| PostgreSQL raw tables (sites, outreaches, conversations) | ❌                  | Role has no grants on raw tables                           |
-| Docker container list/inspect                            | ✅ read-only        | docker MCP + socket-proxy (`POST:0`)                       |
-| Docker exec / create / secrets                           | ❌                  | socket-proxy (`EXEC:0 / POST:0 / SECRETS:0`)               |
-| Papertrail API                                           | ❌                  | iptables UID-9000 block + not in fetch allowlist           |
-| GitHub audit repo                                        | ❌                  | iptables UID-9000 block + not in fetch allowlist           |
-| Docs / man pages / NixOS options                         | ✅                  | fetch MCP via gateway allowlist                            |
-| GitHub issue creation (audit alerts)                     | ✅ pipeline only    | github MCP in pipeline/cron — OpenClaw has no path to this |
+| Resource                                                 | IronClaw MCP Access | Mechanism                                                       |
+| -------------------------------------------------------- | ------------------- | --------------------------------------------------------------- |
+| `/workspace/**`                                          | ✅ read/write       | filesystem MCP — explicitly listed                              |
+| `src/`, `tests/`, `docs/`                                | ✅ read-only        | filesystem MCP — `:readonly` flag                               |
+| `db/sites.db`, `.env`, `logs/`, `screenshots/`           | ❌                  | Not in any virtiofs share or MCP mount                          |
+| `/run/secrets/**`                                        | ❌                  | No sops-nix secrets in IronClaw VM + host AppArmor deny         |
+| PostgreSQL sanitized views                               | ✅ via gateway      | `openclaw_readonly` role + gateway proxy                        |
+| PostgreSQL raw tables (sites, outreaches, conversations) | ❌                  | Role has no grants on raw tables                                |
+| MicroVM status                                           | ✅ read-only        | vm-status tool via mcp-gateway                                  |
+| Other VMs' filesystems                                   | ❌                  | Separate kernels — no shared mount namespace                    |
+| Papertrail API                                           | ❌                  | Bridge isolation + not in fetch allowlist                        |
+| GitHub audit repo                                        | ❌                  | Bridge isolation + not in fetch allowlist                        |
+| Docs / man pages / NixOS options                         | ✅                  | fetch MCP via gateway allowlist                                 |
+| GitHub issue creation (audit alerts)                     | ✅ pipeline only    | github MCP in pipeline/cron VM — IronClaw has no path to this   |
 
 ### Priority Order for Implementation
 
 1. **`filesystem` MCP** (scoped) — enables all bootstrap config-writing tasks immediately
-2. **`mcp-gateway`** + postgres MCP — enables task queue visibility and status reads
-3. **`docker` MCP** — enables container inspection during `setup_docker_compose` bootstrap task
-4. **`github` MCP** (pipeline container) — enables out-of-band audit alerts on risk_level ≥ 4
+2. **`mcp-gateway` VM** + postgres MCP — enables task queue visibility and status reads
+3. **`vm-status`** — enables VM health inspection from IronClaw (replaces docker MCP)
+4. **`github` MCP** (pipeline VM) — enables out-of-band audit alerts on risk_level ≥ 4
 5. **`fetch` MCP** (via gateway, allowlisted) — enables config research during bootstrap tasks
 6. **`memory` MCP** — enables bootstrap state tracking across multi-run tasks
 
 ### Key Rules
 
-- **Never give OpenClaw a fetch MCP with Papertrail or GitHub audit repo in the allowlist.** The
-  iptables UID-9000 block is the backstop, but allowlist is the first line of defense.
-- **Never mount MCP servers that have access to secrets in OpenClaw's container.** The gateway
-  reads `openclaw_pg_password` from `/run/secrets` to build its connection string, but that
-  secret is not exposed to OpenClaw through any MCP tool output.
+- **Never give IronClaw a fetch MCP with Papertrail or GitHub audit repo in the allowlist.** The
+  bridge isolation is the backstop, but allowlist is the first line of defense.
+- **Never share sops-nix secrets into IronClaw's VM via virtiofs.** The gateway VM
+  reads `openclaw_pg_password` from its own `/run/secrets` to build its connection string, but that
+  secret is not exposed to IronClaw through any MCP tool output.
 - **Rotate `AUDIT_REVIEW_MODEL` monthly** between `openai/gpt-4o` and `x-ai/grok-2` to avoid
   a single AI vendor reviewing Claude's behavior. Independence is the point.
-- **All MCP server configs are version-controlled** in the `333Method-infra/` flake — changes to
-  what tools OpenClaw has access to appear in the git-watcher audit trail as NixOS config diffs.
+- **All MCP server and microVM configs are version-controlled** in the `333Method-infra/` flake ��� changes to
+  what tools IronClaw has access to appear in the git-watcher audit trail as NixOS config diffs.
 
 ### Cross-Reference with Part 2
 
 Part 2 covers MCP for the **distributed agent coordination system** (Redis pub/sub, Claude Desktop
-integration, mobile approvals). Part 14 covers MCP for the **VPS trust architecture** (OpenClaw
+integration, mobile approvals). Part 14 covers MCP for the **VPS trust architecture** (IronClaw
 isolation, audit pipeline, bootstrap tasks). The two are complementary: Part 2's agent MCP server
 exposes `agent:create_task` / `agent:approve_action` tools used by human operators; Part 14's MCP
-servers expose filesystem/database/docker tools used by OpenClaw itself.
+servers expose filesystem/database/vm-status tools used by IronClaw itself.
 
 ---
 
@@ -3196,6 +3196,8 @@ PENTEST_GITHUB_ISSUE_THRESHOLD=critical   # create GitHub issue for critical fin
 ## Part 16: Windows Desktop Worker Nodes (Headless Docker)
 
 **Added:** 2026-02-21
+
+> **Note (2026-04-02):** The VPS itself has moved from Docker to microvm.nix (Part 7). Windows worker nodes still use Docker (Hyper-V backend) because microvm.nix requires a NixOS host. For non-Windows machines, prefer Part 17 (NixOS USB) which can run microVMs natively. Windows Docker workers connect to the VPS's PostgreSQL/Valkey microVMs over NetBird — the protocol is the same regardless of whether the VPS services run in containers or microVMs.
 
 Idle Windows desktop PCs can run pipeline worker tasks as headless Docker containers, connected
 to the VPS via NetBird VPN. This section covers the security architecture needed to prevent
@@ -3334,7 +3336,7 @@ sc stop WSearch && sc config WSearch start= disabled
 ### Backup Cron Refactoring Note
 
 ⚠️ **The current `backupDatabase` handler in `src/cron.js` (line 368) must be refactored**
-before the Docker/multi-node architecture goes live.
+before the microVM/multi-node architecture goes live.
 
 **Current behaviour:** Creates local `db/sites-backup-TIMESTAMP.db` files via SQLite's online
 backup API. Vacuums before backup. Stores everything in `db/` on the same machine.
@@ -3349,9 +3351,9 @@ backup API. Vacuums before backup. Stores everything in `db/` on the same machin
 **Required refactoring:**
 
 - Keep local SQLite backup as a snapshot (good for fast recovery)
-- Add restic push step: after local backup completes, trigger the `backup` container to run
+- Add restic push step: after local backup completes, trigger the `backup` microVM to run
   `restic backup` and push to B2
-- OR: remove `backupDatabase` from `cron.js` entirely and let the `backup` container run
+- OR: remove `backupDatabase` from `cron.js` entirely and let the `backup` microVM run
   on its own NixOS systemd timer (decoupled from app-level cron)
 - Ensure backup only runs on the VPS — worker nodes must not attempt DB backup
 - Add verification: `restic check` and `restic snapshots` results logged to DB/dashboard
@@ -3367,6 +3369,8 @@ as a pipeline worker — with full remote management by the operator and zero tr
 host machine when unplugged.
 
 ### Why Bootable USB is Better than Windows Docker for Non-Techs
+
+> **Note (2026-04-02):** USB worker nodes run NixOS natively, so they can use microvm.nix for worker isolation (same architecture as the VPS). The Docker references below in the comparison table refer to Part 16 (Windows worker nodes) only.
 
 | Factor                      | NixOS Bootable USB                                | Windows Docker (Part 16)                       |
 | --------------------------- | ------------------------------------------------- | ---------------------------------------------- |
@@ -3615,7 +3619,7 @@ fileSystems."/var/lib/docker" = {
 | CREATE | `src/agents/openclaw-bootstrap.js`                                                        |
 | CREATE | `src/agents/contexts/openclaw-bootstrap.md`                                               |
 | CREATE | `scripts/load-secrets-to-env.js`                                                          |
-| CREATE | `scripts/mcp-gateway.js` — SSE MCP gateway (postgres + fetch) for OpenClaw                |
+| CREATE | `scripts/mcp-gateway.js` — SSE MCP gateway (postgres + fetch) for IronClaw                |
 | CREATE | `db/migrations/062-create-audit-reviews.sql`                                              |
 | CREATE | `db/migrations/063-seed-audit-review-cron.sql`                                            |
 | CREATE | `db/migrations/064-openclaw-readonly-views.sql`                                           |
@@ -3643,12 +3647,12 @@ Initial commit `a563541`, package fixes `9f32cde` — all files created 2026-02-
 | ✅ CREATED | `hosts/production/configuration.nix` — Hetzner CX41 config                                       |
 | ✅ CREATED | `hosts/production/disko.nix` — disk layout for nixos-anywhere                                    |
 | ✅ CREATED | `hosts/worker-usb/configuration.nix` — KDE, copytoram, VPN kill switch, power mgmt               |
-| ✅ CREATED | `modules/containers.nix` — all Docker services incl. mcp-gateway, openclaw                       |
+| ⚠️ MIGRATE | `modules/containers.nix` → `modules/microvms.nix` + `microvms/*.nix` (DR-150, 2026-04-02)       |
 | ✅ CREATED | `modules/monitoring.nix` — auditd, rsyslog→Papertrail, git-watcher, NetBird, RustDesk relay      |
-| ✅ CREATED | `modules/security.nix` — SSH hardening, fail2ban, AppArmor, OpenClaw UID 9000                    |
+| ✅ CREATED | `modules/security.nix` — SSH hardening, fail2ban, AppArmor, IronClaw UID 9000                    |
 | ✅ CREATED | `modules/backup.nix` — restic → B2, daily systemd timer                                          |
 | ✅ CREATED | `modules/secrets.nix` — sops-nix declarations for all secrets                                    |
-| ✅ CREATED | `modules/mcp.nix` — OpenClaw workspace dir + MCP intent documentation                            |
+| ✅ CREATED | `modules/mcp.nix` — IronClaw workspace dir + MCP intent documentation                            |
 | ✅ CREATED | `modules/worker.nix` — KDE autostart, RustDesk service, status writer                            |
 | ✅ CREATED | `secrets/production.yaml` — plaintext template (encrypt with sops before committing real values) |
 | ✅ CREATED | `scripts/build-usb.sh` — `nix build` wrapper with progress output                                |
@@ -3661,23 +3665,23 @@ Initial commit `a563541`, package fixes `9f32cde` — all files created 2026-02-
 
 ## Parts 6–17: Implementation Sequence
 
-**Week 1 — Infrastructure Foundation (human operator only, not OpenClaw)**
+**Week 1 — Infrastructure Foundation (human operator only, not IronClaw)**
 
 1. Provision Hetzner CX41 VPS with SSH key auth only
 2. Install NixOS via nixos-anywhere from local machine (or use Hetzner's marketplace image)
 3. Deploy auditd + rsyslog → Papertrail (audit foundation before anything else)
 4. Deploy git-watcher service → private GitHub audit repo
-5. Set iptables rules (block OpenClaw UID 9000 from audit sinks)
-6. Create all secrets via SSH session (Docker Secrets or sops-nix)
-7. Deploy base services (PostgreSQL, Redis) — verify healthy
+5. Set iptables rules (block IronClaw bridge from audit sinks)
+6. Create all secrets via sops-nix (encrypt in `333Method-infra/secrets/production.yaml`)
+7. Deploy base microVMs (PostgreSQL, Valkey on `br-internal`) — verify healthy
 
-**Week 2 — NetBird VPN + OpenClaw Bootstrap** 8. Install NetBird, verify Rosenpass active (`netbird status --detail`) 9. Apply WireGuard subnet iptables rule for dashboard (port 8501) 10. Deploy OpenClaw container + docker-socket-proxy (read-only configuration) 11. Create bootstrap agent tasks in `agent_tasks` table (human operator) 12. OpenClaw processes tasks → writes config templates to workspace 13. Human reviews templates in git-watcher GitHub repo 14. Secrets-init fills `{{PLACEHOLDER}}` values → services start
+**Week 2 — NetBird VPN + IronClaw Bootstrap** 8. Install NetBird, verify Rosenpass active (`netbird status --detail`) 9. Apply WireGuard subnet iptables rule for dashboard (port 8501) 10. Deploy IronClaw microVM on `br-agent` + mcp-gateway microVM (bridges both bridges) 11. Create bootstrap agent tasks in `agent_tasks` table (human operator) 12. IronClaw processes tasks → writes config templates to workspace 13. Human reviews templates in git-watcher GitHub repo 14. Secrets-init fills `{{PLACEHOLDER}}` values → services start
 
 **Week 3 — AI Audit Review Pipeline** 15. Run DB migrations 062 + 063 + 064 16. Implement `audit-log-review.js` 17. Register handler in `cron.js` 18. Add query functions to `dashboard/utils/database.py` 19. Add UI sections to System Health + Human Review pages 20. Update `.env.example` 21. Enable cron job: `npm run cron:enable auditLogReview` 22. Run first review manually: `npm run cron:run auditLogReview`
 
-**Week 4 — Validation** 23. Simulate a bad command in OpenClaw workspace; verify Papertrail captures it 24. Run audit review; verify risk level escalates; verify Human Review alert appears 25. Verify OpenClaw cannot reach PostgreSQL from its network 26. Verify OpenClaw cannot read `/run/secrets` or Docker Secrets via API 27. Test backup restore from Backblaze B2
+**Week 4 — Validation** 23. Simulate a bad command in IronClaw workspace; verify Papertrail captures it 24. Run audit review; verify risk level escalates; verify Human Review alert appears 25. Verify IronClaw cannot reach PostgreSQL from `br-agent` (no route to `br-internal`) 26. Verify IronClaw has no `/run/secrets` directory (no sops-nix declarations in VM config) 27. Test backup restore from Backblaze B2
 
-**Week 5 — Penetration Testing Pipeline** 28. Run DB migrations 065 + 066 29. Deploy `pentest` container (Shannon + Strix pre-installed) 30. Run first Shannon + Strix scans manually; verify findings in `security_scan_results` 31. Provision staging VPS clone on Hetzner; run first CAI external scan 32. Enable cron jobs: `shannonScan` (weekly), `strixScan` (nightly), `caiScan` (monthly) 33. Add pentest sections to System Health + Human Review dashboard pages 34. Triage first real findings — mark false positives, fix genuine issues
+**Week 5 — Penetration Testing Pipeline** 28. Run DB migrations 065 + 066 29. Deploy `pentest` microVM (Shannon + Strix pre-installed) 30. Run first Shannon + Strix scans manually; verify findings in `security_scan_results` 31. Provision staging VPS clone on Hetzner; run first CAI external scan 32. Enable cron jobs: `shannonScan` (weekly), `strixScan` (nightly), `caiScan` (monthly) 33. Add pentest sections to System Health + Human Review dashboard pages 34. Triage first real findings — mark false positives, fix genuine issues
 
 **Week 6 — USB Worker Nodes** _(333Method-infra/ repo already created — 2026-02-22)_
 
@@ -3689,7 +3693,7 @@ Initial commit `a563541`, package fixes `9f32cde` — all files created 2026-02-
     - KDE Plasma 6 auto-login as `worker`
     - NetBird connects and gets 100.x.x.x IP
     - VPN kill switch active (non-VPN traffic dropped)
-    - `pipeline-worker` container starts after VPN connects
+    - `pipeline-worker` microVM starts after VPN connects
     - RustDesk client connects to VPS relay over NetBird
     - SSH accessible from operator machine via NetBird IP
     - Screen turns off after 5 min; machine never suspends
@@ -3704,14 +3708,15 @@ Initial commit `a563541`, package fixes `9f32cde` — all files created 2026-02-
 ## Parts 6–17: Verification Checklist
 
 ```bash
-# Audit sidecar
-ausearch -k openclaw_exec --start recent           # kernel-level exec capture working
-docker exec openclaw curl -s https://papertrailapp.com  # must fail (iptables block)
-docker exec openclaw curl http://docker-socket-proxy:2375/v1.41/secrets  # must 403
+# Audit sidecar (host-level, captures cloud-hypervisor process for UID 9000)
+ausearch -k ironclaw_exec --start recent            # kernel-level exec capture working
+# From inside ironclaw VM: curl to audit sinks must fail (bridge isolation)
+microvm-exec ironclaw -- curl -s https://papertrailapp.com  # must fail (no route from br-agent)
 
 # Secrets isolation
-docker inspect openclaw | grep -i secret           # must show no secrets mounted
-docker exec openclaw env | grep -i KEY             # must show nothing
+# IronClaw VM has no /run/secrets — verify:
+microvm-exec ironclaw -- ls /run/secrets 2>&1       # must fail (no such directory)
+microvm-exec ironclaw -- env | grep -i KEY          # must show nothing
 
 # AI audit review
 npm run cron:run auditLogReview
@@ -3725,28 +3730,28 @@ sqlite3 db/sites.db "SELECT * FROM human_review_queue WHERE type='security' ORDE
 # Server cloning
 nix run nixpkgs#nixos-anywhere -- --flake .#production root@new-server-ip  # provisions clean clone
 
-# MCP isolation checks
-docker exec openclaw npx -y @modelcontextprotocol/server-filesystem /run/secrets  # must fail (path not listed)
-docker exec openclaw curl http://mcp-gateway:3000/sse  # must succeed (openclaw-net reachable)
-docker exec pipeline curl http://mcp-gateway:3000/sse  # must fail (pipeline on internal, not openclaw-net)
+# MicroVM isolation checks
+microvm-exec ironclaw -- curl http://10.0.1.2:5432  # must fail (no route from br-agent to br-internal)
+microvm-exec ironclaw -- curl http://10.0.2.1:3000/sse  # must succeed (mcp-gateway on br-agent)
+microvm-exec pipeline -- curl http://10.0.2.1:3000/sse  # must fail (pipeline on br-internal, not br-agent)
 
-# Fetch allowlist enforcement (from openclaw container)
-docker exec openclaw node -e "
+# Fetch allowlist enforcement (from ironclaw microVM via mcp-gateway)
+microvm-exec ironclaw -- node -e "
   // Simulate fetch MCP call to non-allowlisted domain
-  fetch('http://mcp-gateway:3000/fetch?url=https://papertrailapp.com')
+  fetch('http://10.0.2.1:3000/fetch?url=https://papertrailapp.com')
     .then(r => r.json())
     .then(d => console.log(d.error))   // must show 'domain not in allowlist'
 "
 
-# Postgres view restriction (from openclaw via gateway)
+# Postgres view restriction (from ironclaw via gateway)
 # Query must succeed for sanitized view, fail for raw table
-docker exec openclaw node -e "
+microvm-exec ironclaw -- node -e "
   // Via gateway postgres MCP
   // SELECT * FROM openclaw_v_agent_tasks WHERE assigned_to='openclaw'  → should succeed
   // SELECT * FROM sites LIMIT 1                                        → should fail (no grant)
 "
 
-# GitHub MCP audit issue creation (from pipeline container)
+# GitHub MCP audit issue creation (from pipeline VM)
 npm run cron:run auditLogReview  # if risk_level >= 4 in test data, GitHub issue must appear
 
 # Penetration testing (Part 15)
@@ -3756,13 +3761,13 @@ npm run pentest cai                # CAI external scan → requires CAI_STAGING_
 sqlite3 db/sites.db "SELECT tool, severity, vuln_type, title FROM security_scan_results ORDER BY created_at DESC LIMIT 10"
 sqlite3 db/sites.db "SELECT * FROM human_review_queue WHERE type='pentest' ORDER BY id DESC LIMIT 5"
 
-# Backup cron refactoring (Part 16 — verify before go-live)
+# Backup microVM (verify before go-live)
 sqlite3 db/sites.db "SELECT name, last_run, status FROM cron_jobs WHERE name='backupDatabase'"
 # After refactor: verify restic snapshot exists in B2
 restic -r b2:method333-backups-prod snapshots    # must show at least one snapshot
 restic -r b2:method333-backups-prod check        # must return 'no errors were found'
 
-# Windows worker node (Part 16)
+# Windows worker node (Part 16 — still Docker/Hyper-V on Windows)
 # From Windows host with worker container running:
 netbird status                         # must show connected to mesh, assigned 100.x.x.x IP
 docker exec pipeline-worker env | grep KEY   # must show nothing (no secrets in env)
@@ -3770,11 +3775,11 @@ docker exec pipeline-worker curl https://papertrailapp.com  # must fail (VPN-onl
 # Verify Docker backend is Hyper-V (not WSL2):
 docker info | grep -i "Operating System"   # must show "Docker Desktop" with Hyper-V
 
-# USB worker node (Part 17) — run from booted USB machine
+# USB worker node (Part 17) — run from booted USB machine (NixOS, can use microVMs)
 cat /proc/meminfo | grep MemAvailable    # should show most of RAM free (OS is in RAM)
 findmnt /                                # root should be tmpfs (copytoram succeeded)
 netbird status                           # must show connected, 100.x.x.x IP assigned
-docker ps                                # pipeline-worker container must be running
+systemctl list-units 'microvm@*'         # pipeline-worker microVM must be running
 id worker                                # must NOT include 'wheel' or 'sudo' groups
 which nix-env                            # must return nothing (not in worker PATH)
 which terminal                           # must return nothing (no terminal for user)
@@ -3784,7 +3789,7 @@ ssh root@<worker-100.x.x.x>             # must succeed with operator SSH key
 rustdesk                                  # connect to worker RustDesk ID → desktop visible
 
 # Opt-out test:
-# 1. Pull USB while worker container is running
+# 1. Pull USB while worker microVM is running
 # 2. Machine reboots to original OS
 # 3. Verify on VPS: task that was in-progress is re-queued or marked failed
 sqlite3 db/sites.db "SELECT id, status FROM agent_tasks WHERE assigned_to LIKE '%worker%' ORDER BY updated_at DESC LIMIT 5"
@@ -3832,17 +3837,17 @@ CPU/RAM-heavy. No Playwright on the VPS.
 
 | Service                                                | Est. RAM     |
 | ------------------------------------------------------ | ------------ |
-| PostgreSQL (shared_buffers=256 MB, max 10 connections) | ~600 MB      |
-| Redis                                                  | ~100 MB      |
-| OpenClaw (node + claude-code)                          | ~400 MB peak |
-| docker-socket-proxy                                    | ~20 MB       |
-| worker-config-server                                   | ~50 MB       |
-| Inbound webhook server (Twilio/Resend)                 | ~80 MB       |
-| OS overhead                                            | ~300 MB      |
-| **Total baseline**                                     | ~1.55 GB     |
-| **Peak (OpenClaw active)**                             | ~2.0 GB      |
+| PostgreSQL microVM (shared_buffers=256 MB, max 10 conn)| ~700 MB      |
+| Valkey microVM                                         | ~150 MB      |
+| IronClaw microVM (node + claude-code)                  | ~500 MB peak |
+| mcp-gateway microVM                                    | ~150 MB      |
+| worker-config-server (host systemd, not a VM)          | ~50 MB       |
+| Inbound webhook microVM (Twilio/Resend)                | ~180 MB      |
+| Host OS overhead + cloud-hypervisor processes           | ~500 MB      |
+| **Total baseline**                                     | ~2.23 GB     |
+| **Peak (IronClaw active)**                             | ~2.7 GB      |
 
-Fits comfortably in 4 GB with headroom for spikes.
+> **Note (2026-04-02):** ~10-15% higher memory than Docker due to per-VM kernel overhead (~50-100 MB each). Still fits in 4 GB with headroom. For the 10x multi-node setup, budget ~15% more RAM per node.
 
 ### Concurrent Job Claiming: `FOR UPDATE SKIP LOCKED`
 
@@ -3864,27 +3869,28 @@ COMMIT;
 Multiple workers each grab their own batch simultaneously. Redis remains useful for: rate limit
 state, distributed locks for non-DB resources, pub/sub for real-time dashboard updates.
 
-### `containers.nix` Split: VPS Profile vs Worker Profile
+### `microvms.nix` Split: VPS Profile vs Worker Profile
 
-The current `modules/containers.nix` mixes VPS and USB concerns. Split into two files in
-`333Method-infra/`:
+The microVM definitions are split by role in `333Method-infra/`:
 
-**`modules/containers-vps.nix`** — imported by `hosts/production/configuration.nix`:
+**`modules/microvms-vps.nix`** — imported by `hosts/production/configuration.nix`:
 
-- `postgresql` (active — data hub)
-- `redis` (active)
-- `openclaw` (active)
-- `docker-socket-proxy` (active)
-- `worker-config-server` (active)
-- `inbound-webhook` (Express server for Twilio/Resend webhooks)
-- `dashboard` (started manually when needed, or always-on)
+- `postgresql` microVM (active — data hub)
+- `valkey` microVM (active)
+- `ironclaw` microVM (active, on `br-agent`)
+- `mcp-gateway` microVM (bridges `br-agent` ↔ `br-internal`)
+- `worker-config-server` (host systemd service, not a VM — too lightweight)
+- `inbound-webhook` microVM (Express server for Twilio/Resend webhooks)
+- `dashboard` microVM (started manually when needed, or always-on)
+- `backup` microVM (restic + B2)
+- Observability VMs: `prometheus`, `grafana`, `loki`, `otel-collector`
 
-**`modules/containers-worker.nix`** — imported by `hosts/worker-usb/configuration.nix`:
+**`modules/microvms-worker.nix`** — imported by `hosts/worker-usb/configuration.nix`:
 
-- `pipeline` container — `DATABASE_URL=postgresql://...@<vps-netbird-ip>:5432/333method`
-- `agent-worker` container — same `DATABASE_URL`, runs Dev/QA/Security/Architect agents
+- `pipeline` microVM — `DATABASE_URL=postgresql://...@<vps-netbird-ip>:5432/333method`
+- `agent-worker` microVM — same `DATABASE_URL`, runs Dev/QA/Security/Architect agents
 - `REDIS_URL=redis://:<password>@<vps-netbird-ip>:6379`
-- **No local PostgreSQL/Redis** — connects to VPS over NetBird
+- **No local PostgreSQL/Valkey** — connects to VPS over NetBird
 
 ### SQLite → PostgreSQL Migration: Now a Hard Prerequisite
 
@@ -4003,8 +4009,8 @@ that can issue arbitrary host syscalls. IronClaw eliminates that attack surface 
 | Malicious skill disables rsyslog       | Detected in audit log (after the fact) | WASM can't issue `killall` syscall (capability not granted)         |
 | Skill reads `/run/secrets`             | auditd captures the open() call        | WASM filesystem capability scoped — `/run/secrets` never accessible |
 | Prompt injection → exec arbitrary code | Exec appears in audit log              | WASM sandbox — no host exec capability                              |
-| Supply chain skill from ClawHub        | Runs in Docker (host syscall access)   | Runs in WASM sandbox (no host access)                               |
-| Credential leak via LLM context        | Protected by Docker Secrets + sops     | Secrets vault: LLM context never contains credentials               |
+| Supply chain skill from ClawHub        | Runs in Docker (host syscall access)   | Runs in WASM sandbox inside microVM (no host access)                |
+| Credential leak via LLM context        | Protected by sops-nix + VM isolation   | Secrets vault: LLM context never contains credentials               |
 
 **The audit sidecar shifts from primary trust mechanism to secondary defence-in-depth.**
 
@@ -4012,7 +4018,7 @@ that can issue arbitrary host syscalls. IronClaw eliminates that attack surface 
 
 > **Note (2026-03-14):** Better Stack is proprietary SaaS. For a fully FOSS stack, replace with **Grafana Loki** (AGPL-3.0, [github.com/grafana/loki](https://github.com/grafana/loki)) — self-hosted Docker container on the VPS, already integrated with our Grafana deployment. Replace `rsyslog → TLS 6514 → Better Stack` with `Promtail → HTTP push → Loki`. Grafana Loki is a first-class Grafana datasource with no per-seat cost.
 
-The Better Stack pipeline runs at kernel/host level, completely outside Docker:
+The Better Stack pipeline runs at host kernel level, completely outside the microVM:
 
 ```
 IronClaw (WASM tool) → WASM runtime (blocks raw syscalls) → ✗ no path to host
@@ -4024,37 +4030,45 @@ With IronClaw, rsyslog **cannot** be killed or modified by the agent — even un
 compromise. The WASM capability model blocks it before the syscall layer. The iptables rule
 blocking UID 9000 from reaching `in.logs.betterstack.com` remains as belt-and-suspenders.
 
-### M3: containers.nix Changes
+### M3: microvms.nix Changes
 
-Replace `openclaw` container with `ironclaw`:
+Replace `openclaw` container with `ironclaw` microVM:
 
 ```nix
-# modules/containers-vps.nix (replaces openclaw stanza)
-ironclaw = {
-  image = "ghcr.io/nearai/ironclaw:latest";
-  volumes = [
-    "/opt/333method-ironclaw-workspace:/workspace"
-    "/opt/333method/src:/app/src:ro"
-    "/opt/333method/docs:/app/docs:ro"
-  ];
-  environment = {
-    IRONCLAW_CHANNEL = "telegram";        # WhatsApp or Telegram for colleague interface
-    IRONCLAW_SECRETS_DIR = "/run/secrets"; # sops-nix secrets; never passed to LLM
+# microvms/ironclaw.nix (replaces openclaw container stanza)
+{ pkgs, ... }: {
+  microvm = {
+    hypervisor = "cloud-hypervisor";
+    mem = 1024; vcpu = 2;
+    interfaces = [{ type = "tap"; id = "vm-iron"; mac = "02:00:00:00:02:01"; }];  # br-agent only
+    shares = [
+      { tag = "workspace"; source = "/opt/333method-ironclaw-workspace"; mountPoint = "/workspace"; proto = "virtiofs"; }
+      { tag = "src";        source = "/opt/333method/src";                mountPoint = "/app/src";   proto = "virtiofs"; }
+      { tag = "docs";       source = "/opt/333method/docs";               mountPoint = "/app/docs";  proto = "virtiofs"; }
+    ];
+    # NO secrets share — /run/secrets does not exist in this VM
   };
-  extraOptions = [ "--network=333method-openclaw-net" "--user=9000:9000" ];
-};
+  networking.interfaces.eth0.ipv4.addresses = [{ address = "10.0.2.2"; prefixLength = 24; }];
+  users.users.ironclaw = { uid = 9000; group = "ironclaw"; isSystemUser = true; };
+  users.groups.ironclaw.gid = 9000;
+  environment.variables = {
+    IRONCLAW_CHANNEL = "telegram";        # WhatsApp or Telegram for colleague interface
+  };
+}
 ```
 
-The `333method-openclaw-net` Docker network name is kept (rename optional); Docker network
-isolation remains as defence-in-depth alongside WASM sandboxing.
+IronClaw runs on `br-agent` (10.0.2.0/24) with no route to `br-internal`. VM-boundary isolation
+is the primary control; WASM sandboxing inside the VM is defence-in-depth.
 
 ### M4: monitoring.nix Changes
 
 Simplify auditd rules — keep for defence-in-depth, but remove `connect` syscall tracking
-(WASM capability model handles network access before syscall layer):
+(WASM capability model + microVM bridge isolation handle network access before syscall layer):
 
 ```nix
-# Simplified — connect tracking removed (WASM handles network access)
+# Simplified — connect tracking removed (microVM bridge isolation + WASM handle network access)
+# Note: auditd runs on the HOST, not inside the microVM. It captures syscalls from the
+# cloud-hypervisor process running as UID 9000 on the host.
 services.auditd.extraConfig = ''
   -a always,exit -F arch=b64 -S execve -F uid=9000 -k ironclaw_exec
   -a always,exit -F arch=b64 -S openat,creat -F perm=w -F uid=9000 -k ironclaw_writes
@@ -4293,20 +4307,21 @@ These recommendations apply to IronClaw, any future OpenClaw-derived agent, and 
 
 ### O1: Isolated Execution Environment
 
-Run agents in a sandboxed VM or container on an isolated host. **Default-deny egress** with a tightly scoped allowlist:
+Run agents in a sandboxed microVM on an isolated bridge. **Default-deny egress** with a tightly scoped allowlist:
 
 ```nix
-# security.nix — iptables egress allowlist for IronClaw (UID 9000)
-# All outbound blocked except:
-#   - Anthropic API (api.anthropic.com :443)
-#   - OpenRouter (openrouter.ai :443)
-#   - NetBird control plane (app.netbird.io :443)
-#   - VPS-internal Docker network (172.17.0.0/16)
+# security.nix — iptables egress allowlist for IronClaw microVM (br-agent bridge)
+# All outbound from br-agent blocked except:
+#   - mcp-gateway VM (10.0.2.1:3000) — the only service on br-agent
+#   - Anthropic API (api.anthropic.com :443) — via host NAT
+#   - OpenRouter (openrouter.ai :443) — via host NAT
+#   - NetBird control plane (app.netbird.io :443) — via host NAT
+# No route to br-internal (10.0.1.0/24) — enforced by bridge topology
 ```
 
-Never run agent containers on the same host as production secrets, the pipeline database, or sensitive customer data. If a breach occurs, blast radius is scoped to the agent container only.
+Never run agent VMs on the same bridge as production secrets, the pipeline database, or sensitive customer data. If a breach occurs, blast radius is scoped to the agent VM only — and escaping a microVM requires a hypervisor vulnerability (orders of magnitude harder than a container escape).
 
-**Current posture:** IronClaw uses WASM sandbox (no raw host syscalls) + UID 9000 iptables block (defence-in-depth). ✅
+**Current posture:** IronClaw uses microVM isolation (separate kernel) + WASM sandbox (no raw syscalls within the VM) + UID 9000 iptables block on host (defence-in-depth). ✅
 
 ### O2: Non-Human Service Identities, Least Privilege, Short Token Lifetimes
 
@@ -5415,38 +5430,50 @@ Start with: `node --require @opentelemetry/auto-instrumentations-node/register s
 
 No code changes required — SDK auto-instruments `fetch`, `http`, `dns`, database drivers.
 
-### Central Collection Services (Docker, `333method-internal`)
+### Central Collection Services (MicroVMs, `br-internal`)
 
 ```nix
-# modules/containers.nix additions
+# modules/microvms-vps.nix — observability VMs (all on br-internal)
 prometheus = {
-  image  = "prom/prometheus:v3";
-  volumes = [
-    "/opt/333method/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
-    "prometheus_data:/prometheus"
-  ];
-  extraOptions = [ "--network=333method-internal" ];
+  config = { pkgs, ... }: {
+    microvm = {
+      hypervisor = "cloud-hypervisor"; mem = 512; vcpu = 1;
+      interfaces = [{ type = "tap"; id = "vm-prom"; mac = "02:00:00:00:01:10"; }];
+      volumes = [{ image = "prometheus-data.img"; mountPoint = "/prometheus"; size = 10240; }];
+      shares = [{ tag = "prom-config"; source = "/opt/333method/config"; mountPoint = "/etc/prometheus-host"; proto = "virtiofs"; }];
+    };
+    services.prometheus = { enable = true; configFile = "/etc/prometheus-host/prometheus.yml"; };
+    networking.interfaces.eth0.ipv4.addresses = [{ address = "10.0.1.10"; prefixLength = 24; }];
+  };
 };
 
 grafana = {
-  image   = "grafana/grafana:11";
-  volumes = [ "grafana_data:/var/lib/grafana" ];
-  environment.GF_SECURITY_ADMIN_PASSWORD_FILE = "/run/secrets/grafana_password";
-  extraOptions = [ "--network=333method-internal" "--publish=3000:3000" ];
-  # Port 3000 restricted to NetBird subnet via iptables (same pattern as dashboard 8501)
+  config = { pkgs, ... }: {
+    microvm = {
+      hypervisor = "cloud-hypervisor"; mem = 256; vcpu = 1;
+      interfaces = [{ type = "tap"; id = "vm-graf"; mac = "02:00:00:00:01:11"; }];
+      volumes = [{ image = "grafana-data.img"; mountPoint = "/var/lib/grafana"; size = 5120; }];
+    };
+    services.grafana = { enable = true; settings.server.http_port = 3000; };
+    networking.interfaces.eth0.ipv4.addresses = [{ address = "10.0.1.11"; prefixLength = 24; }];
+    networking.firewall.allowedTCPPorts = [ 3000 ];
+    # Port 3000 forwarded by host, restricted to NetBird subnet via host iptables
+  };
 };
 
 loki = {
-  image   = "grafana/loki:3";
-  volumes = [ "loki_data:/loki" "/opt/333method/config/loki.yml:/etc/loki/local-config.yaml:ro" ];
-  extraOptions = [ "--network=333method-internal" ];
+  config = { pkgs, ... }: {
+    microvm = {
+      hypervisor = "cloud-hypervisor"; mem = 256; vcpu = 1;
+      interfaces = [{ type = "tap"; id = "vm-loki"; mac = "02:00:00:00:01:12"; }];
+      volumes = [{ image = "loki-data.img"; mountPoint = "/var/lib/loki"; size = 10240; }];
+      shares = [{ tag = "loki-config"; source = "/opt/333method/config"; mountPoint = "/etc/loki-host"; proto = "virtiofs"; }];
+    };
+    services.loki = { enable = true; configFile = "/etc/loki-host/loki.yml"; };
+    networking.interfaces.eth0.ipv4.addresses = [{ address = "10.0.1.12"; prefixLength = 24; }];
+  };
 };
-
-otel-collector = {
-  image   = "otel/opentelemetry-collector-contrib:latest";
-  volumes = [ "/opt/333method/config/otel-collector.yml:/etc/otel/config.yaml:ro" ];
-  extraOptions = [ "--network=333method-internal" ];
-};
+# otel-collector: similar pattern — microVM with NixOS otel-collector service
 ```
 
 **Prometheus scrape config** (`config/prometheus.yml`):
