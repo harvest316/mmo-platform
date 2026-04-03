@@ -2109,3 +2109,12 @@ Key learnings:
 
 **Status:** Implemented
 **Impl:** 2Step — `data/templates/` (10 JSON files), `src/outreach/email-template.js`, `src/stages/outreach.js`, `src/stages/proposals.js`, `src/stages/sync-opt-outs.js`, `src/stages/sync-video-views.js`, `src/video/ffmpeg-render.js`, `src/video/pronunciation-researcher.js`, `scripts/send-test-email.mjs`, `scripts/2step-batch.js`, `scripts/backfill-poster-urls.js`, `scripts/reposter.js`, `tests/outreach/email-template.test.js`, `tests/e2e/stages/unsubscribe.e2e.test.js`. AdManager — `composer.json`, `package.json`, `README.md`, `CLAUDE.md`, `docs/dashboard-ux-architecture.md`, 5 Campaign PHP classes, `tests/Meta/CampaignTest.php`. Requires `BRAND_NAME` in 2Step `.env`.
+
+### DR-157: 333Method source code brand/persona debranding (2026-04-02)
+
+**Context:** 333Method source code (non-template `.js`/`.mjs`/`.jsx` files) contained ~50+ hardcoded references to "Marcus Webb", "Marcus", "Audit&Fix", and "Audit & Fix" in proposals, emails, PDFs, LLM prompts, autoresponder config, and payment messages. Template JSON files (`data/templates/`) were already handled by DR-155. This made the pipeline brand-specific and prevented white-labelling.
+
+**Decision:** Replace all hardcoded persona/brand strings in 333Method source code with env vars: `PERSONA_NAME` (full name), `PERSONA_FIRST_NAME` (first name), `BRAND_NAME` (business name). Critical paths (proposal generator, claude-store) throw if env vars missing. Less critical paths (HTTP headers, template literals) use inline `process.env.*` references. All `BRAND_DOMAIN`/`BRAND_URL` fallback defaults (`|| 'auditandfix.com'`) also removed — code now requires these env vars to be set. Test files updated to set env vars before module imports. Zero new test failures vs baseline (145 pre-existing).
+
+**Status:** Implemented
+**Impl:** 30 files across `scripts/`, `src/`, `tests/`, `dashboard-v2/`, `__quarantined_tests__/`, `.env.example`. Key files: `scripts/claude-store.js`, `src/proposal-generator-v2.js`, `src/inbound/autoresponder.js`, `src/payment/paypal.js`, `src/reports/scan-email-templates.js`, `src/cron/send-scan-email-sequence.js`, `src/reports/audit-report-generator.js`, `src/reports/purchase-confirmation.js`, `src/reports/report-delivery.js`. Requires `PERSONA_NAME`, `PERSONA_FIRST_NAME`, `BRAND_NAME` in `.env`.
