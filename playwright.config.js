@@ -2,9 +2,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright config for auditandfix.com E2E tests.
+ * Playwright config for brand site E2E tests.
  *
- * By default, tests run against the live site: https://auditandfix.com
+ * By default, tests run against the live site (BRAND_URL env var).
  * Set LOCAL_TEST=1 to test against a local PHP dev server instead.
  *
  * Usage:
@@ -23,7 +23,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.LOCAL_TEST
       ? (process.env.LOCAL_BASE_URL || 'http://localhost:8080')
-      : 'https://auditandfix.com',
+      : (process.env.BRAND_URL || 'https://auditandfix.com'),
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

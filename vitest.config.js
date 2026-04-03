@@ -14,7 +14,7 @@ export default defineConfig({
         'node_modules/**',
         'tests/**',
         'packages/**',
-        'auditandfix.com/**',
+        'website/**',
       ],
       thresholds: {
         lines: 85,

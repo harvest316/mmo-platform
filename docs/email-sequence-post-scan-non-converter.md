@@ -1,5 +1,5 @@
 # Post-Scan Email Sequence — Non-Converter Spec
-# auditandfix.com | Draft 2026-03-22
+# Brand Site | Draft 2026-03-22
 
 ## Overview
 
@@ -33,9 +33,9 @@ send time. Confirm these are available from the scan results before building the
 | `{{price_quickfixes}}` | Localised price e.g. $67 / A$97 / £47 | getProductPriceForCountry(country, 'quick_fixes') |
 | `{{price_fullaudit}}` | Localised price e.g. $297 / A$337 / £159 | getProductPriceForCountry(country, 'full_audit') |
 | `{{country_code}}` | ISO country from geo.php detect | request IP at scan time |
-| `{{scan_url}}` | Deep link back to their results | `https://www.auditandfix.com/scan?url={{domain}}&ref=email` |
-| `{{order_url_qf}}` | Quick Fixes purchase link | `https://www.auditandfix.com/?domain={{domain}}&product=quick_fixes#order` |
-| `{{order_url_fa}}` | Full Audit purchase link | `https://www.auditandfix.com/?domain={{domain}}&product=full_audit#order` |
+| `{{scan_url}}` | Deep link back to their results | `{{BRAND_URL}}/scan?url={{domain}}&ref=email` |
+| `{{order_url_qf}}` | Quick Fixes purchase link | `{{BRAND_URL}}/?domain={{domain}}&product=quick_fixes#order` |
+| `{{order_url_fa}}` | Full Audit purchase link | `{{BRAND_URL}}/?domain={{domain}}&product=full_audit#order` |
 
 Store country_code and factor_scores JSON against the scan_id at scan time. Without this, you
 cannot personalise beyond score/grade, which kills the reply rate justification for the whole
@@ -160,7 +160,7 @@ CTA (marketing_optin = 1 only): One line, one link.
 - Segment C: "Get the full picture — Full Audit Report for {{price_fullaudit}}: {{order_url_fa}}"
 
 Footer: unsubscribe link, physical address, "You're receiving this because you scanned
-{{domain}} at auditandfix.com and asked for your results."
+{{domain}} at our site and asked for your results."
 
 ---
 
@@ -403,7 +403,7 @@ send. Do not rely on a webhook from PayPal arriving in time — poll the DB dire
 
 Resend sends transactional email via API. For this sequence:
 
-1. Use a dedicated subdomain for sequence mail (e.g. `mail.auditandfix.com`) with proper SPF,
+1. Use a dedicated subdomain for sequence mail (e.g. `mail.BRAND_DOMAIN`) with proper SPF,
    DKIM, DMARC. Do not send sequence mail from the same domain/IP as transactional order
    confirmations — a spam classification on sequence mail must not affect order confirmation
    deliverability.
