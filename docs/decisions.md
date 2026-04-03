@@ -2383,3 +2383,13 @@ Data isolation policy:
 
 **Status:** Accepted, implemented
 **Impl:** `auditandfix-website/tests/`, `auditandfix-website/tests/README.md` (isolation policy), `auditandfix-website/tests/.env.example`
+
+### DR-167: Gate proposal generation on GDPR verification — skip unverified GDPR-country sites (2026-04-03)
+
+**Context:** Proposal generation runs for all `enriched`/`enriched_llm` sites regardless of sendability. GDPR-required countries (UK, IE, DE, FR, etc.) need `gdpr_verified = true` before any outreach can be sent. Sites with `gdpr_verified IS NULL` (no verified company email found) or `gdpr_verified = false` (all emails failed verification) were silently generating proposals and messages that could never be delivered — wasting LLM tokens and cluttering the message queue. 857 stranded approved messages were found on UK/GDPR-country sites at time of fix.
+
+**Decision:** Add SQL gate to `generateBulkProposals()` in both `proposal-generator-templates.js` and `proposal-generator-v2.js` to exclude GDPR-required-country sites where `gdpr_verified` is not `true`. Uses `getGDPRCountries()` to derive the code list dynamically — no hardcoded country arrays. Backfilled 857 existing stranded messages to `gdpr_blocked`.
+
+**Status:** Accepted, implemented
+**Impl:** `src/proposal-generator-templates.js:generateBulkProposals()`, `src/proposal-generator-v2.js:generateBulkProposals()`, DB backfill via psql
+
