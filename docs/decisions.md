@@ -2100,3 +2100,12 @@ Key learnings:
 
 **Status:** Implemented
 **Impl:** 333Method — `data/templates/` (41 JSON files), `src/utils/template-proposals.js`, `src/stages/followup-generator.js`. Requires `PERSONA_NAME`, `PERSONA_FIRST_NAME`, `BRAND_NAME` in `.env`.
+
+### DR-156: 2Step + AdManager brand name debranding (2026-04-02)
+
+**Context:** 2Step templates and source code hardcoded "Audit&Fix", "AuditFix", and "auditandfix.com" throughout. AdManager docblocks, descriptions, and tests also contained "Audit&Fix". This made the repos brand-specific instead of generic multi-project tools.
+
+**Decision:** 2Step: Replace all `{Audit&Fix|AuditFix}` spintax in template JSON files with `[brand_name]` token (resolved by `spinWithVars` in `proposals.js` from `process.env.BRAND_NAME`). Email template (`email-template.js`) now accepts `brandName` param for copyright, alt text, and title fallback. All hardcoded `BRAND_URL`, `BRAND_DOMAIN`, `SENDER_NAME`, `LOGO_URL`, `UNSUBSCRIBE_WORKER_URL` fallbacks removed — env vars only (empty string fallback for URL builders). AdManager: Package descriptions changed to generic "multi-project ad platform". Docblock campaign name examples changed from "Audit&Fix" to "MyBrand". Dashboard wireframe uses "Example Brand". Test fixtures use "TestBrand".
+
+**Status:** Implemented
+**Impl:** 2Step — `data/templates/` (10 JSON files), `src/outreach/email-template.js`, `src/stages/outreach.js`, `src/stages/proposals.js`, `src/stages/sync-opt-outs.js`, `src/stages/sync-video-views.js`, `src/video/ffmpeg-render.js`, `src/video/pronunciation-researcher.js`, `scripts/send-test-email.mjs`, `scripts/2step-batch.js`, `scripts/backfill-poster-urls.js`, `scripts/reposter.js`, `tests/outreach/email-template.test.js`, `tests/e2e/stages/unsubscribe.e2e.test.js`. AdManager — `composer.json`, `package.json`, `README.md`, `CLAUDE.md`, `docs/dashboard-ux-architecture.md`, 5 Campaign PHP classes, `tests/Meta/CampaignTest.php`. Requires `BRAND_NAME` in 2Step `.env`.
