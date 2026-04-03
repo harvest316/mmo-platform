@@ -10,6 +10,7 @@ Parent platform for all "make money online" child projects. This workspace (`~/c
   333Method/             ← SERP → score → proposal → outreach pipeline (ACTIVE)
   2Step/                 ← Video review outreach: prospect → video → DM/email (BUILDING)
   AdManager/             ← Multi-project ad platform (Google + Meta)
+  AgentSystem/           ← Cross-project automated fix dispatcher (DR-163)
   distributed-infra/     ← NixOS infrastructure + infra plans (PRIVATE)
   auditandfix-website/   ← PHP website + CF Worker for the production site (PRIVATE)
   mmo.code-workspace     ← VSCode multi-root workspace file
