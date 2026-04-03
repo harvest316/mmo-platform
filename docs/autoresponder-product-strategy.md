@@ -3,7 +3,8 @@
 **Author:** Alex (PM)  
 **Date:** 2026-04-02  
 **Status:** Draft  
-**Version:** 1.0
+**Version:** 1.1  
+**Domain:** contactreplyai.com (purchased 2026-04-02 by Gary, the product owner)
 
 ---
 
@@ -179,16 +180,18 @@ The conversational onboarding captures 80% of what the AI needs. The remaining 2
 ### 3.1 MVP (Weeks 1-8) -- Prove the Core Value
 
 **Must Have:**
-- AI responds to inbound SMS within 10 seconds
-- AI responds to inbound email within 60 seconds
-- Conversational onboarding (business profile via chat)
-- Mobile app (or mobile-optimised web app) showing all conversations
-- Push notifications for new inquiries
-- Owner can reply directly from the app (AI pauses when human takes over)
-- Owner "pause" button (disable AI for X hours)
-- Basic business hours logic (different response after hours: "Thanks for reaching out, we'll get back to you first thing in the morning")
-- Conversation context maintained (AI remembers what was discussed in the same thread)
-- Escalation trigger: AI recognises when to say "Let me get [owner name] to call you directly about this"
+- AI responds to all inbound channels within 60 seconds (p95) — see architecture Section 6
+- Trust graduation UX: Stage 1 (approve before send) → Stage 2 (auto-send after 5-min timer) → Stage 3 (fully automatic) — see architecture Section 12
+- Conversational onboarding (business profile via SMS or web chat — not a form)
+- PWA dashboard showing all conversations, sorted by recency
+- Push notifications for: new inquiries, AI drafts awaiting approval (Stage 1/2), low-confidence replies
+- Owner can reply directly from the dashboard (AI pauses when human takes over)
+- Owner "pause" button (disable AI for X hours with one tap)
+- Emergency safety response framework: keyword detection → templated Tier 1/2/3 response, never free-form LLM — see architecture Section 14
+- Business hours logic (after-hours: different response or human-fallback message)
+- Conversation context maintained (AI remembers the thread; cross-channel if same customer)
+- Escalation trigger: AI recognises when to say "Let me get [owner name] to call you directly"
+- Feature waitlist collection during onboarding (calendar, CRM, phone, Facebook, Google) — see architecture Section 17
 
 **Should Have (MVP stretch):**
 - Web chat widget (JS embed)
@@ -274,32 +277,53 @@ The conversational onboarding captures 80% of what the AI needs. The remaining 2
 
 **No setup fee.** (DR-082 established this pattern for 2Step -- waiving setup fees is proven effective for cold-approached local businesses.)
 
+**Billing: PayPal subscriptions only.** No Stripe. PayPal plan managed under Jason's account initially; migrate to Gary's account when MRR covers infrastructure costs (~$300 AUD/mo). See TODO.md.
+
 **Overage:** $0.50 per conversation over the plan limit, billed at end of month. Soft cap: notify at 80%, auto-upgrade suggestion at 100%. Never cut off a customer mid-conversation.
 
-### 4.3 Free Trial
+### 4.3 Founding Member Pricing (Beta Launch)
 
-- **14 days, no credit card required.** Tradies will not enter a card for something they have not tried.
-- Trial includes Pro-level features (all channels, 24/7) so they experience the full value.
-- On day 10: "Your trial ends in 4 days. AI has handled X inquiries. [Continue for $99/month] or [Downgrade to Starter at $49/month]."
-- On day 14: AI pauses. Owner gets: "Your AI is paused. Your customers are going to voicemail. [Reactivate now]."
+Gary's existing page uses $197/mo. For the beta launch, we are introducing Option D pricing:
 
-### 4.4 Why Not Freemium
+| Tier | Founding Member Price | Standard Price (after beta) |
+|------|-----------------------|-----------------------------|
+| Pro (all features) | **$99 AUD/mo** (locked forever) | $197 AUD/mo |
 
-- The cost of running Claude Opus on every conversation makes a free tier unprofitable at any meaningful volume
+- **Founding member rate ($99/mo) is locked for life** — never increases as long as subscription is active.
+- **Standard rate ($197/mo)** applies to new signups after the founding member period closes (first 100 customers).
+- The $197/mo rate is Gary's existing PayPal plan ID `P-4PA59369BG8691002NG5IFFY` (already live).
+- A new PayPal plan at $99/mo needs to be created for founding members.
+- The landing page clearly shows both prices: "Limited founding member rate: $99/mo (normally $197/mo). First 100 customers only."
+
+### 4.4 Free Trial
+
+- **7-day free trial, no credit card required.** (Gary's existing page uses 7 days — keep consistent.)
+- Trial includes all features so they experience the full value.
+- On day 5: "Your trial ends in 2 days. AI has handled X inquiries worth an estimated $Y. [Claim founding member rate: $99/mo]"
+- On day 7: AI pauses. Owner gets: "Your AI is paused. Your customers are going to voicemail. [Reactivate now — $99/mo founding member rate]."
+
+### 4.5 Why Not Freemium
+
+- The cost of running Claude API on every conversation makes a free tier unprofitable at any meaningful volume
 - A free tier attracts tire-kickers, not paying tradies
-- The 14-day trial with no card is the compromise: zero risk to try, but clear conversion moment
+- The 7-day trial with no card is the compromise: zero risk to try, but clear conversion moment
 
-### 4.5 Unit Economics (Pro Plan at $79 USD)
+### 4.6 Unit Economics (Founding Member at $99 AUD ~$64 USD)
 
 | Item | Cost per Month (est.) |
 |------|----------------------|
-| Claude API (Opus, ~200 conversations x ~4 turns each x ~500 tokens) | ~$8-15 |
+| Claude API — Haiku classifier (200 calls x $0.001) | ~$0.20 |
+| Claude API — Sonnet replies (160 calls x $0.007 avg) | ~$1.12 |
+| Claude API — Opus complex replies (40 calls x $0.05 avg) | ~$2.00 |
 | Twilio SMS (inbound free, outbound ~100 messages x $0.05 AU) | ~$5-8 |
 | Email sending (Resend, ~100 emails) | ~$0.04 |
 | WhatsApp Business API (service replies free within 24h) | ~$0 |
 | Infrastructure (shared, amortised) | ~$2-5 |
-| **Total COGS** | **~$15-28** |
-| **Gross margin** | **~$51-64 (65-81%)** |
+| **Total COGS (AUD)** | **~$14-25 AUD** |
+| **Revenue (founding member, AUD)** | **$99 AUD** |
+| **Gross margin** | **~75-86%** |
+
+With Haiku→Sonnet routing, LLM costs drop from ~$8-15 (all-Opus) to ~$3.32 per tenant — a 78% LLM cost reduction. At $197/mo standard pricing, gross margin is ~87-93%.
 
 At 100 paying customers on Pro: ~$7,900/month revenue, ~$5,100-6,400/month gross profit. Not venture-scale, but highly profitable as a bootstrapped product within the mmo-platform ecosystem.
 
@@ -319,7 +343,7 @@ At 100 paying customers on Pro: ~$7,900/month revenue, ~$5,100-6,400/month gross
 
 | # | Name | Reasoning | Concerns |
 |---|------|-----------|----------|
-| 1 | **ReplyMate** | "Mate" resonates strongly in AU, works in US/UK as "teammate." Describes exactly what it does (replies). Friendly, approachable, memorable. Easy to say: "I use ReplyMate." | replymate.org exists (Shopify autoresponder). replymate.com/.ai likely taken. Need to verify. |
+| 1 | **ContactReply AI** | "Mate" resonates strongly in AU, works in US/UK as "teammate." Describes exactly what it does (replies). Friendly, approachable, memorable. Easy to say: "I use ContactReply AI." | replymate.org exists (Shopify autoresponder). replymate.com/.ai likely taken. Need to verify. |
 | 2 | **QuickReply.ai** | Immediately communicates the value prop (fast replies). Clean, professional. The .ai domain signals the tech without being intimidating. | "Quick Reply" is generic/descriptive. May be hard to trademark. quickreply.com is almost certainly taken. |
 | 3 | **OnTheJob** | Speaks directly to the tradie context: "I'm on the job, but my AI handles it." Strong brand storytelling potential. | Might sound too casual. onthejob.com likely taken. Could be confused with job boards. |
 | 4 | **TradeReply** | Clearly for the trades. Exactly what it does. Professional but approachable. | Limits perceived market to trades only (fine if that is the permanent focus). |
@@ -337,13 +361,11 @@ At 100 paying customers on Pro: ~$7,900/month revenue, ~$5,100-6,400/month gross
 
 ### 5.3 Recommendation
 
-**Primary: ReplyMate** (if the .com or .ai domain can be secured, or a close variant like getreplymate.com, replymate.com.au)
+**Domain purchased (2026-04-02):** contactreplyai.com. Gary (product owner) purchased this domain and built the initial landing page using this identity.
 
-**Backup: QuickReply.ai** (clean, descriptive, the .ai domain might be available)
+**Marketing name:** Consider using a friendlier name in marketing copy (e.g. "ContactReply AI" as two words) while keeping the URL. The domain functions as the technical anchor; the brand can evolve. Short product name can be introduced in v2 once traction is established.
 
-**AU-only backup: Offsider** (if we decide AU is the permanent primary market and want maximum local resonance)
-
-**Do not use:** ContactReplyAI.com -- it is long, hard to say, hard to remember, and sounds like a B2B enterprise tool. It describes the technology stack, not the benefit.
+**Note:** contactreplyai.com describes what the product does (contact + reply + AI) which is actually good for SEO and direct-response marketing, even if it is not the most memorable word-of-mouth name. Tradies searching "AI reply for contacts" will find it naturally.
 
 ---
 
@@ -359,13 +381,13 @@ This is the single most valuable distribution channel. Audit&Fix already:
 
 **Cross-sell integration points:**
 
-1. **In the audit report itself:** Add a section: "Response Time Audit -- We called/texted your business number at 2pm on a Tuesday. It took [X hours / no response] to hear back. Industry data shows 80% of leads call someone else within 5 minutes. [Learn about ReplyMate]."
+1. **In the audit report itself:** Add a section: "Response Time Audit -- We called/texted your business number at 2pm on a Tuesday. It took [X hours / no response] to hear back. Industry data shows 80% of leads call someone else within 5 minutes. [Learn about ContactReply AI]."
 
 2. **In the follow-up sequence:** After the free fix (DR-128), touch 3 or 4 can mention: "By the way, while fixing your meta description, we noticed your contact form has no autoresponder. Every form submission sits unanswered until you check email. Want to see what instant AI responses look like? [Demo link]."
 
-3. **Post-purchase upsell:** After someone buys an audit, include a one-pager: "Your website is now optimised. But are you capturing every lead that comes through? [ReplyMate intro + 30-day free trial for Audit&Fix customers]."
+3. **Post-purchase upsell:** After someone buys an audit, include a one-pager: "Your website is now optimised. But are you capturing every lead that comes through? [ContactReply AI intro + 30-day free trial for Audit&Fix customers]."
 
-4. **Audit report add-on:** Offer ReplyMate setup as a line item in the audit proposal: "Website audit: $297. ReplyMate setup + 3 months: $237 (save $60)." Bundle pricing.
+4. **Audit report add-on:** Offer ContactReply AI setup as a line item in the audit proposal: "Website audit: $297. ContactReply AI setup + 3 months: $237 (save $60)." Bundle pricing.
 
 ### 6.2 Direct Acquisition
 
@@ -437,7 +459,7 @@ Specific differentiators:
 
 ### 7.3 Positioning Statement
 
-For solo tradies and small trade businesses who lose leads because they can't answer the phone while on the job, [ReplyMate] is an AI-powered autoresponder that handles SMS, email, web chat, and WhatsApp inquiries with human-quality responses. Unlike Podium, Smith.ai, or answering services that cost $300-600/month and only handle phone calls, [ReplyMate] covers every channel for $49-149/month and sets up in 5 minutes -- no IT skills required.
+For solo tradies and small trade businesses who lose leads because they can't answer the phone while on the job, [ContactReply AI] is an AI-powered autoresponder that handles SMS, email, web chat, and WhatsApp inquiries with human-quality responses. Unlike Podium, Smith.ai, or answering services that cost $300-600/month and only handle phone calls, [ContactReply AI] covers every channel for $49-149/month and sets up in 5 minutes -- no IT skills required.
 
 ---
 
@@ -653,7 +675,7 @@ FB Messenger (Meta webhook)     --+                               v
 
 | # | Question | Owner | Deadline | Impact |
 |---|----------|-------|----------|--------|
-| 1 | Domain name: Can we secure replymate.com, replymate.ai, or replymate.com.au? | Jason | Week 1 | Branding, all marketing assets |
+| 1 | ~~Domain: contactreplyai.com~~ — **DONE** (purchased 2026-04-02) | Gary | Complete | |
 | 2 | Claude API pricing: What is the actual cost per conversation with Opus + Sonnet mix? Need to run 50 simulated conversations. | PM | Week 2 | Unit economics, pricing confidence |
 | 3 | Twilio inbound SMS: Can we use a single number with intelligent routing, or do we need per-customer numbers? | Eng | Week 1 | Cost model, phone number provisioning |
 | 4 | Legal review: AU Privacy Act obligations for storing customer conversation data. Data retention policy. | Jason | Week 3 | Architecture, privacy policy |

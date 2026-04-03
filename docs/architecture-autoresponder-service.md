@@ -19,7 +19,13 @@ Target market: Australian local trades (plumbers, electricians, cleaners) expand
 9. [Multi-Tenant Architecture](#9-multi-tenant-architecture)
 10. [Deliverability](#10-deliverability)
 11. [Infrastructure](#11-infrastructure)
-12. [Build Sequence](#12-build-sequence)
+12. [Trust Graduation UX](#12-trust-graduation-ux)
+13. [Domain Connect (DNS Autoconfigure)](#13-domain-connect-dns-autoconfigure)
+14. [Emergency Safety Response Framework](#14-emergency-safety-response-framework)
+15. [Localisation](#15-localisation)
+16. [AI Phone Answering Bolt-On](#16-ai-phone-answering-bolt-on)
+17. [Onboarding — Feature Waitlist Collection](#17-onboarding--feature-waitlist-collection)
+18. [Build Sequence](#18-build-sequence)
 
 ---
 
@@ -131,9 +137,9 @@ The tradie has an existing phone number printed on their van, Google Business Pr
 
 **Primary path: Custom sending subdomain on the tenant's domain.** We add `reply.theirdomain.com.au` with SPF include, DKIM CNAME, and DMARC record pointing to our Resend infrastructure. Emails come from `ai@reply.theirdomain.com.au` -- clearly from their business but on a subdomain that isolates autoresponder reputation from their primary email.
 
-**Inbound: Forward to our processing address.** The tradie sets up a forwarding rule in Gmail/Outlook: "Forward a copy of all messages to `{tenant_id}@inbound.replymate.com.au`". We receive via Resend inbound webhooks (or Cloudflare Email Workers for cost efficiency). No OAuth, no stored credentials, no token refresh nightmares.
+**Inbound: Forward to our processing address.** The tradie sets up a forwarding rule in Gmail/Outlook: "Forward a copy of all messages to `{tenant_id}@inbound.contactreplyai.com`". We receive via Resend inbound webhooks (or Cloudflare Email Workers for cost efficiency). No OAuth, no stored credentials, no token refresh nightmares.
 
-**Fallback: Branded email** for tenants who cannot or will not add DNS records. They get `theirbusiness@replymate.com.au` as their AI email address. Lower trust signal but zero DNS setup.
+**Fallback: Branded email** for tenants who cannot or will not add DNS records. They get `theirbusiness@contactreplyai.com` as their AI email address. Lower trust signal but zero DNS setup.
 
 **Why not OAuth (Options A/B)?** Three reasons:
 1. **Scope creep risk.** Gmail's `gmail.send` and `gmail.readonly` scopes give us access to their entire mailbox history. One data breach and we are front-page news. For a product targeting non-technical tradies, the trust barrier is already high.
@@ -149,7 +155,7 @@ The onboarding wizard generates three DNS records the tradie (or their web perso
 ```
 reply._domainkey.theirdomain.com.au  CNAME  resend._domainkey.resend.dev
 reply.theirdomain.com.au             TXT    v=spf1 include:send.resend.dev ~all
-_dmarc.reply.theirdomain.com.au      TXT    v=DMARC1; p=none; rua=mailto:dmarc@replymate.com.au
+_dmarc.reply.theirdomain.com.au      TXT    v=DMARC1; p=none; rua=mailto:dmarc@contactreplyai.com
 ```
 
 We verify via DNS lookup during onboarding (same pattern as Resend's domain verification API).
@@ -387,7 +393,7 @@ Per-tenant knowledge base stored as structured JSON in the database (not vector 
 Tenant's website                    Our infrastructure
 +-------------------+              +-------------------+
 | <script src=       |   WebSocket  | CF Worker         |
-|  "replymate.com/   |<----------->| (ws.replymate.com)|
+|  "contactreplyai.com/   |<----------->| (ws.contactreplyai.com)|
 |   widget.js">      |              |                   |
 |                    |              | - Auth validation  |
 | [Chat bubble]      |              | - Rate limiting    |
@@ -406,7 +412,7 @@ Tenant's website                    Our infrastructure
 ### Widget Delivery
 
 - `widget.js` served from Cloudflare CDN (~5KB gzipped)
-- Initialised with a tenant-specific public key: `<script src="https://cdn.replymate.com/widget.js" data-key="rm_pub_xxxx"></script>`
+- Initialised with a tenant-specific public key: `<script src="https://cdn.contactreplyai.com/widget.js" data-key="rm_pub_xxxx"></script>`
 - Widget renders as an iframe (style isolation from host page) with a floating chat bubble
 - No React/Vue dependency -- vanilla JS + shadow DOM for maximum compatibility and minimum bundle size
 
@@ -428,22 +434,22 @@ Web chat is the highest-risk channel for LLM credit drain. A bot can send thousa
 
 ### Real-Time vs Queued
 
-Web chat messages go through the same Channel Gateway and Conversation Engine as SMS/email/WhatsApp. However, web chat users expect faster responses than email. Architecture:
+Web chat messages go through the same Channel Gateway and Conversation Engine as SMS/email/WhatsApp. Web chat users expect fast responses. Architecture:
 
-- **First reply:** Immediate canned acknowledgement ("Thanks for your message! We're looking into this and will reply within a few minutes.") -- zero LLM cost, instant.
-- **AI reply:** Queued through the standard 5-10 minute pipeline. For web chat specifically, we target the lower end (2-5 minutes) by using a higher-priority queue lane.
+- **First reply:** Immediate canned acknowledgement ("Thanks for your message! We're looking into this right now.") -- zero LLM cost, instant (<1s).
+- **AI reply:** Target sub-60-second delivery (p95). Web chat gets a high-priority queue lane: Haiku classifier runs immediately on arrival, Sonnet replies dispatch within 15-20s, Opus within 45s.
 - **Typing indicator:** The widget shows "typing..." when the AI reply job is actively being processed (via WebSocket push from the Worker).
 
 ### What We Are Giving Up
 
-- True real-time chat (sub-second responses)
-- This is explicitly acceptable per the requirements
+- True real-time chat (sub-second responses for the AI reply itself)
 
 ### What We Are Gaining
 
 - Single pipeline for all channels (no separate real-time infrastructure)
 - Cost control (no per-keystroke LLM calls)
-- Quality (Opus with full context, not a fast-but-shallow model)
+- Quality (full context, not a degraded fast-path model)
+- Sub-60-second performance is indistinguishable from "fast" for most chat contexts
 
 ---
 
@@ -526,8 +532,8 @@ CREATE TABLE tenants (
     knowledge_base  JSONB NOT NULL DEFAULT '{}', -- FAQ, services, policies
     settings        JSONB NOT NULL DEFAULT '{}', -- business hours, AI personality, etc.
     billing_status  TEXT NOT NULL DEFAULT 'trial', -- trial, active, paused, cancelled
-    stripe_customer_id TEXT,
-    stripe_subscription_id TEXT,
+    paypal_subscription_id TEXT,   -- PayPal subscription ID (no Stripe)
+    paypal_payer_id TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -605,7 +611,7 @@ Every database connection sets `SET app.current_tenant_id = {id}` at the start o
 Not in Phase 1. When needed (agency partners reselling):
 - `white_label` JSONB on tenants table: custom logo URL, colour scheme, sender name
 - Widget CSS variables for theming
-- Custom domain CNAME for the dashboard (agency.theirbrand.com -> dashboard.replymate.com.au)
+- Custom domain CNAME for the dashboard (agency.theirbrand.com -> dashboard.contactreplyai.com)
 
 ---
 
@@ -650,7 +656,7 @@ Not in Phase 1. When needed (agency partners reselling):
                                    Cloudflare
                                    +-----------------------------------+
 Internet --> CF DNS/CDN            | widget.js (CDN cached)            |
-                |                  | ws.replymate.com (Durable Object) |
+                |                  | ws.contactreplyai.com (Durable Object) |
                 |                  +---+-------------------------------+
                 |                      |
                 v                      v
@@ -719,13 +725,27 @@ Internet --> CF DNS/CDN            | widget.js (CDN cached)            |
 -- Queue table (or use the messages table directly with status filtering)
 -- Messages with delivery_status = 'pending' and direction = 'inbound' are the queue.
 
--- Dequeue pattern:
+-- Dequeue pattern (sub-60s target):
 BEGIN;
-SELECT * FROM messages
-WHERE delivery_status = 'pending'
-  AND direction = 'inbound'
-  AND created_at < NOW() - INTERVAL '30 seconds'  -- deliberate delay for batching context
-ORDER BY created_at ASC
+SELECT m.* FROM messages m
+WHERE m.delivery_status = 'pending'
+  AND m.direction = 'inbound'
+  AND (
+    -- Rapid-fire batch window: wait up to 8s for more messages from same customer
+    -- (handles "where are you located?" followed immediately by "and what's your rate?")
+    NOT EXISTS (
+      SELECT 1 FROM messages m2
+      WHERE m2.tenant_id = m.tenant_id
+        AND m2.conversation_id = m.conversation_id
+        AND m2.direction = 'inbound'
+        AND m2.delivery_status = 'pending'
+        AND m2.created_at > m.created_at
+        AND m2.created_at < NOW() - INTERVAL '8 seconds'
+    )
+    -- After 8s of no follow-up, process immediately
+    OR m.created_at < NOW() - INTERVAL '8 seconds'
+  )
+ORDER BY m.created_at ASC
 LIMIT 10
 FOR UPDATE SKIP LOCKED;
 
@@ -733,7 +753,7 @@ FOR UPDATE SKIP LOCKED;
 COMMIT;
 ```
 
-The 30-second deliberate delay serves two purposes: (a) allows multiple rapid-fire messages from the same customer to be batched into one AI call, and (b) provides a buffer for webhook delivery ordering (SMS webhooks can arrive out of order).
+**No fixed 30-second deliberate delay.** Messages are processed as soon as the rapid-fire window (8 seconds) has elapsed with no follow-up from the same customer. This keeps the p50 reply time under 20 seconds while still batching conversational multi-part messages. Webhook ordering is handled by the 8-second window (SMS delivery ordering is typically within milliseconds, not seconds).
 
 ### Webhook Architecture
 
@@ -752,7 +772,7 @@ Per-tenant monitoring (reusable patterns from 333Method):
 
 | Metric | Source | Alert Threshold |
 |--------|--------|----------------|
-| Reply latency (p95) | messages table (created_at delta between inbound and outbound) | >10 minutes |
+| Reply latency (p95) | messages table (created_at delta between inbound and outbound) | >90 seconds |
 | AI confidence (p10) | messages.ai_confidence | <0.3 for 5+ consecutive replies |
 | Delivery failure rate | messages.delivery_status = 'failed' / total | >5% per channel per tenant |
 | LLM cost per tenant per day | messages.ai_cost_usd | >$5/day (web chat cap) |
@@ -763,7 +783,262 @@ Monitoring runs as a cron job (same pattern as `pipeline-status-monitor.js` and 
 
 ---
 
-## 12. Build Sequence
+## 12. Trust Graduation UX
+
+### The Problem
+
+The tradie doesn't trust AI to send messages on their behalf — not on day one. But once they do trust it, they don't want to approve every message. The UX must build trust gradually.
+
+### The Gmail "Undo Send" Pattern
+
+Trust graduation mirrors Gmail's "Undo Send" feature: AI composes a reply, waits N seconds, then sends automatically — unless the owner intervenes. As trust grows, N shrinks.
+
+```
+Stage 1: Preview Only (default for new tenants)
+  AI composes reply → push notification "New reply drafted"
+  Owner must tap Approve before AI sends
+  Window: unlimited (reply waits indefinitely)
+
+Stage 2: Auto-send after timer (after 10 approved replies)
+  AI composes reply → push notification with 5-minute countdown
+  "Reply sending in 5:00 — Approve / Edit / Cancel"
+  If owner doesn't act, sends automatically at T+5min
+  N is configurable: 5 min default, adjustable to 2-30 min in settings
+
+Stage 3: Fully automatic (after 30 approved/auto-sent replies)
+  AI composes and sends immediately
+  Push notification: "Replied to John about blocked drain [View]"
+  Owner can still override retroactively (can't unsend SMS, but can send follow-up)
+```
+
+### Server-Side Implementation
+
+```sql
+-- pending_reply table
+CREATE TABLE pending_replies (
+    id              SERIAL PRIMARY KEY,
+    tenant_id       INTEGER NOT NULL REFERENCES tenants(id),
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id),
+    message_id      INTEGER REFERENCES messages(id), -- draft message
+    draft_body      TEXT NOT NULL,
+    stage           INTEGER NOT NULL DEFAULT 1, -- 1, 2, or 3
+    send_at         TIMESTAMPTZ, -- NULL for stage 1; set for stage 2
+    status          TEXT NOT NULL DEFAULT 'pending', -- pending, approved, edited, cancelled, sent
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_pending_replies_send_at ON pending_replies(send_at)
+    WHERE status = 'pending' AND send_at IS NOT NULL;
+```
+
+Stage transitions are tracked per tenant using the `approved_reply_count` field on the tenants table. A cron job (`pending-reply-dispatcher.js`, runs every 30s) checks for `send_at < NOW()` and dispatches auto-send replies.
+
+Push notification action buttons (Web Push API `actions` field):
+- Stage 1: `[Approve] [Edit] [Cancel]`
+- Stage 2: `[Send Now] [Edit] [Cancel]` (with countdown in body)
+
+### What This Achieves
+
+- Day 1: Owner sees the AI draft and approves it. Zero risk. Maximum transparency.
+- Day 7: Auto-send with 5-minute window. Owner checks app periodically, cancels anything off.
+- Month 2: Fully automatic. AI runs the inbox. Owner gets a daily summary.
+- Graduated trust means churn is low: owners who hit Stage 3 are locked in.
+
+---
+
+## 13. Domain Connect (DNS Autoconfigure)
+
+### The Problem
+
+Setting up email DNS records (SPF/DKIM/DMARC for custom subdomain) requires the tradie to log into their domain registrar, navigate DNS settings, and add three records they don't understand. Most will give up or make errors.
+
+### Domain Connect Standard
+
+Domain Connect (IETF draft, open standard) is supported by all major registrars including Namecheap, GoDaddy, IONOS, Hostinger, 123-reg, and Cloudflare. It allows a service provider to configure DNS records on a user's domain via OAuth redirect — the user clicks "Connect DNS" and is redirected to their registrar, which applies the records after a single approval click.
+
+```
+1. During onboarding, user enters their domain
+2. We detect their DNS provider via SOA/NS lookup
+3. If Domain Connect supported: redirect to provider's DC OAuth endpoint
+   → User sees: "ContactReplyAI wants to add these DNS records to yourdomain.com:
+     reply._domainkey CNAME, reply TXT (SPF), _dmarc.reply TXT"
+   → User clicks Approve
+   → Records added automatically
+4. If not supported: show manual DNS instructions (with copy-paste blocks)
+5. We poll DNS to verify records propagated (up to 24h)
+```
+
+### Template Submission
+
+We submit a Domain Connect template to the GitHub registry (https://github.com/Domain-Connect/Templates) so registrars can apply it directly. Template file: `templates/com.contactreplyai.dns/template.json`.
+
+Required DNS records in template:
+```json
+{
+  "providerId": "contactreplyai.com",
+  "serviceId": "email-relay",
+  "records": [
+    { "type": "CNAME", "host": "reply._domainkey.@", "pointsTo": "resend._domainkey.resend.dev" },
+    { "type": "TXT",   "host": "reply.@",             "data": "v=spf1 include:send.resend.dev ~all" },
+    { "type": "TXT",   "host": "_dmarc.reply.@",       "data": "v=DMARC1; p=none; rua=mailto:dmarc@contactreplyai.com" }
+  ]
+}
+```
+
+Cloudflare natively supports Domain Connect (verified) — so the majority of AU SMBs using Cloudflare for DNS get one-click setup. Namecheap, GoDaddy, and IONOS support it for their own hosting customers.
+
+**Fallback (manual):** Onboarding wizard shows copy-paste DNS records with a "Check DNS" button that polls for verification. Same pattern as Resend's domain verification flow.
+
+---
+
+## 14. Emergency Safety Response Framework
+
+Per DR-161, when customers describe emergencies (gas leaks, flooding, electrical hazards), the AI must NOT free-form generate safety advice. The response must be templated, legally reviewed, and jurisdiction-appropriate.
+
+### Three-Tier Framework
+
+| Tier | Category | Examples | Response Approach |
+|------|----------|----------|------------------|
+| **Tier 1 (SAFE)** | Life-safety warnings from emergency services | "I smell gas", "fire", "electrocution", "drowning" | Immediately: emergency number + evacuate + call professional. Template only. |
+| **Tier 2 (CAUTIOUS)** | Infrastructure interaction, standard homeowner actions | "flooding inside", "water everywhere", "tripping breaker" | Guided action: "turn off mains water at the meter" (with "if unsure, don't proceed" caveat). Template only. |
+| **Tier 3 (NEVER)** | Technical diagnosis, gas infrastructure, professional-only procedures | "fix the pipe", "check the gas valve", "rewire" | Hard stop: "This needs a professional — calling me now would be the fastest option." No instructions. |
+
+### Trigger Detection
+
+Keywords are detected **before** the LLM call (in the CF Worker, sub-millisecond):
+
+```javascript
+const EMERGENCY_KEYWORDS = {
+  tier1: ['gas leak', 'smell gas', 'fire', 'burning smell', 'electric shock',
+          'sparking', 'flooding rapidly', 'water rising', 'roof collapse'],
+  tier2: ['flooding', 'burst pipe', 'water everywhere', 'power out', 'no power',
+          'tripped breaker', 'hot water system', 'leaking badly'],
+};
+```
+
+When a Tier 1 keyword is detected, the reply bypasses the LLM entirely and returns a pre-authored template within <1 second. This is the highest-priority path — faster than any LLM call.
+
+### Response Templates (Tier 1 example)
+
+```
+AU: "This sounds like an emergency. Please call 000 immediately if anyone is in danger.
+For a gas leak: leave the building now, don't use any switches or lights, call 1800 GAS LINE
+(1800 427 546) from outside. I've alerted {owner_name} — they'll call you as soon as possible.
+[This is an automated response from an AI assistant for {business_name}]"
+
+US: "This sounds like an emergency. Call 911 immediately if anyone is in danger.
+For a gas leak: leave the building now, don't use any switches, call your gas company's
+emergency line from outside. I've alerted {owner_name} and they'll reach out as soon as possible.
+[This is an automated response from an AI assistant for {business_name}]"
+```
+
+All templates: localised by jurisdiction, include AI identification, include human callback assurance, and are stored in the `emergency_templates` table (not in source code) for quarterly review.
+
+---
+
+## 15. Localisation
+
+### Why Localisation is a First-Class Concern
+
+The same plumber in Sydney vs London vs Denver uses different words. An AI that says "heater" to a US customer asking about their "boiler" sounds wrong. An AI that says "arvo" to a US customer sounds weird. Localisation is not just spelling — it is trade terminology, emergency numbers, and cultural register.
+
+### Scope
+
+| Dimension | AU | US | UK |
+|-----------|----|----|-----|
+| Spelling | Australian English (-ise, colour, organise, aluminium) | American English (-ize, color, organize, aluminum) | British English (-ise, colour, organise, aluminium) |
+| Trade terms | Tradie, hot water system, tap, render, weatherboard, tiler | Contractor, water heater, faucet, stucco, siding, tile contractor |
+Tradesperson, boiler, tap, render, weatherboard, tiler |
+| Business hours | 8am-8pm (Spam Act industry practice) | 8am-9pm ET/CT/MT/PT (TCPA) | 9am-8pm (PECR/industry) |
+| Emergency numbers | 000, 13 XXXX utility lines | 911, utility emergency lines | 999, 105 (power), 0800 111 999 (gas) |
+| Currency | AUD ($) | USD ($) | GBP (£) |
+| Time zones | AEST/AEDT/AWST | ET/CT/MT/PT | GMT/BST |
+| Distance | km | miles | miles |
+| Temperature | Celsius | Fahrenheit | Celsius |
+
+### Implementation
+
+Localisation is resolved at the tenant level, not the message level. `tenants.settings.locale` stores `{ country: 'AU', spelling: 'en-AU', trade_terms: 'au' }`. The system prompt includes a locale block:
+
+```
+You are the AI assistant for {business_name}, an Australian {vertical} business.
+Use Australian English spelling and terminology. Refer to the business owner as a "tradie"
+only in casual contexts. Use "tap" not "faucet", "hot water system" not "water heater",
+"arvo" only if the customer uses casual language first.
+Emergency number: 000. Currency: AUD.
+```
+
+Vertical-specific term mappings (e.g., `hot_water_system_au`, `boiler_uk`, `water_heater_us`) are stored in the knowledge base vertical templates and injected into the system prompt. New vertical terms are added without code changes.
+
+---
+
+## 16. AI Phone Answering Bolt-On
+
+Per DR-160, phone answering is a natural extension of the multi-channel autoresponder. It is NOT built in Phase 1.
+
+### Phase 1: Resell My AI Front Desk (MAIFD) White-Label
+
+- **Wholesale cost:** $54.99 USD/receptionist/month
+- **Retail price:** $149 AUD/mo as a bolt-on to any ContactReplyAI plan
+- **Gross margin:** ~47-55% per receptionist
+- **Setup:** Sub-5 minutes. Tradie imports their Twilio number into MAIFD via the reseller dashboard.
+- **AU caveat:** Uses US-accent voice by default. Configurable to more neutral English. Not ideal but viable for Phase 1.
+
+### Phase 2: Johnni.ai Partnership (AU-Optimised)
+
+Johnni.ai (Adelaide, SA) builds specifically for AU tradies: Aussie-accented AI, ServiceM8/Simpro/ServiceTitan native integrations, trained on Australian trade jargon. Explore reseller/OEM arrangement. If not available, use as affiliate/referral channel (20-30% recurring).
+
+### Phase 3: DIY Build (Differentiation)
+
+Twilio ConversationRelay + ElevenLabs custom voice + Claude (Haiku routing). Cost: ~$0.28-0.41 AUD/min. At typical tradie call volume (30 calls/mo × 3 min avg): ~$25-37 AUD/mo infrastructure cost. Charge $99-149 AUD/mo bolt-on = 60-74% gross margin. Timeline: 4-6 weeks dev. Full integration with ContactReplyAI dashboard (call transcripts, conversation continuity across SMS + voice).
+
+---
+
+## 17. Onboarding — Feature Waitlist Collection
+
+During conversational SMS onboarding (Step 4), the system implicitly collects feature waitlist data by asking natural questions at the right moments. This data shapes the roadmap and surfaces pre-validated demand before features are built.
+
+### Implicit Collection Pattern
+
+```
+After SMS channel setup:
+"Do you use any calendar or booking software for managing your jobs?" 
+→ Captures: CRM/job management interest
+
+After email channel setup:
+"Do you get messages on Facebook or Instagram from customers?"
+→ Captures: Facebook Messenger / Instagram DM interest
+
+After web chat widget setup:
+"Do customers ever message you on Google Business?"
+→ Captures: Google Business Messages interest
+
+In profile setup:
+"Do customers ever call a phone number and leave voicemails that you miss?"
+→ Captures: AI phone answering interest
+
+End of onboarding:
+"One last thing — is there anything else you wish was easier about managing enquiries?"
+→ Free-text, tagged by ops team
+```
+
+### Storage
+
+```sql
+CREATE TABLE waitlist_signals (
+    id          SERIAL PRIMARY KEY,
+    tenant_id   INTEGER NOT NULL REFERENCES tenants(id),
+    feature     TEXT NOT NULL,  -- 'calendar_integration', 'crm', 'ai_phone', 'facebook', 'google_biz'
+    response    TEXT,           -- raw answer text
+    captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+Dashboard for Gary (product owner): waitlist count per feature → drives roadmap prioritisation.
+
+---
+
+## 18. Build Sequence
 
 ### Phase 1: MVP (4-6 weeks, 1 developer)
 
@@ -839,16 +1114,18 @@ Monitoring runs as a cron job (same pattern as `pipeline-status-monitor.js` and 
 | Twilio SMS usage (20K messages x $0.0079 AU) | $158 |
 | Twilio WhatsApp (5K conversations x $0.06) | $300 |
 | Resend email (50K emails, Pro plan) | $20 |
-| Anthropic API (Opus, ~$0.05 avg/reply, 30K replies) | $1,500 |
-| OpenRouter (Sonnet overflow, 10K replies) | $100 |
+| Anthropic API — Haiku classifier (30K calls x $0.001) | $30 |
+| Anthropic API — Sonnet (24K replies x $0.007 avg) | $168 |
+| Anthropic API — Opus (6K complex replies x $0.05 avg) | $300 |
+| OpenRouter (overflow, ~5%) | $25 |
 | Cloudflare Workers (Pro plan) | $5 |
 | PostgreSQL (existing VPS, no additional cost) | $0 |
 | NixOS VPS (existing Hostinger, no additional cost) | $0 |
-| **Total infrastructure** | **~$2,233** |
-| **Revenue (100 x $99/mo)** | **$9,900** |
-| **Gross margin** | **~77%** |
+| **Total infrastructure** | **~$1,156** |
+| **Revenue (100 x $99 AUD/mo = ~$64 USD avg)** | **~$6,400 USD** |
+| **Gross margin** | **~82%** |
 
-The LLM cost is the largest variable. The complexity classifier (Section 6) is critical for keeping this under control -- routing 60% of replies to Sonnet instead of Opus drops the Anthropic line item from $1,500 to ~$600.
+With Haiku→Sonnet/Opus complexity routing (Section 6), LLM costs drop from a naive ~$1,500/mo (all Opus) to ~$498/mo — a 67% reduction. Routing 80% of calls to Sonnet and 20% to Opus is the key cost lever. AUD pricing: at 100 x $99 AUD = $9,900 AUD/mo, infrastructure cost in AUD (~$1,850 AUD at 0.625 exchange) gives ~81% gross margin.
 
 ---
 
