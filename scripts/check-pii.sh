@@ -35,6 +35,11 @@ check_pattern 'Suite 255.*Barratt|Hurstville NSW 2220' 'Personal address'
 check_pattern '0424.?225.?495' 'Personal phone'
 check_pattern 'Paul Harvey' 'Real name (use PERSONA_NAME env var)'
 
+# ── Domain and brand names (should use env vars, not hardcoded) ──
+check_pattern 'auditandfix\.com' 'Domain name (use BRAND_DOMAIN env var)'
+check_pattern 'Audit\s*&\s*Fix|Audit&Fix|AuditFix' 'Brand name (use BRAND_NAME env var)'
+check_pattern 'Marcus Webb' 'Persona name (use PERSONA_NAME env var)'
+
 # ── Phone numbers (AU/international) ──
 check_pattern '\+61[0-9 ]{9,12}' 'Australian phone number (+61)'
 check_pattern '\b04[0-9]{2}[- ]?[0-9]{3}[- ]?[0-9]{3}\b' 'Australian mobile (04xx)'
