@@ -102,6 +102,34 @@ When a plan is approved via ExitPlanMode, immediately decompose it into agent-de
 
 If no agent type fits the task, do it directly in the main context. The goal is focused context per task (token efficiency) and parallel execution where possible.
 
+### Model routing by task type
+
+| Task type | Model | Effort | Thinking |
+|-----------|-------|--------|----------|
+| Architecture / novel design decisions | opus | auto | on |
+| Complex multi-system bug diagnosis | opus | high | on |
+| Security review | opus | high | on |
+| Feature implementation (>100 lines) | sonnet | high | on |
+| Refactoring / mechanical changes | sonnet | medium | off |
+| Writing tests | sonnet | medium | off |
+| Simple extraction / data transforms | haiku | low | off |
+| Documentation | haiku | low | off |
+
+### Upfront disclosure (before writing any code)
+
+Scan the plan for any steps that require user action outside the sandbox: credentials, host-side commands, external approvals. List these upfront as "⚠️ You'll need:" items with exact instructions/URLs so the user can handle them in parallel while implementation runs.
+
+### Completion behavior (automatic — no user prompt needed)
+
+When all phases of an approved plan are implemented:
+1. Commit all work (one commit per logical phase, per existing guidance)
+2. Attempt `rad push` — if it fails (e.g., conflicts, hooks), skip and note it as a manual step
+3. Output a **session summary**: what changed, which files were modified, which DRs were added, noteworthy decisions
+4. List **all remaining/pending tasks** — unfinished plan steps + any follow-up work surfaced during implementation
+5. Format any manual steps (host-side, credentials, external actions) as "⚠️ Manual step required:" blocks
+
+Do not stop mid-plan to ask for confirmation unless: (a) a required secret/credential is missing and wasn't surfaced upfront, (b) a design decision arises that wasn't resolved during planning, or (c) a destructive action is imminent (git force push, data deletion, etc.).
+
 ## Website Deployment
 
 The brand website and CF Worker have been moved to a **private repo**: `~/code/auditandfix-website/` (harvest316/auditandfix-website). See that repo's CLAUDE.md for deploy instructions.

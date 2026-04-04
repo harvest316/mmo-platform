@@ -2420,3 +2420,22 @@ Data isolation policy:
 **Status:** Accepted, implemented
 **Impl:** `src/proposal-generator-templates.js`
 
+### DR-171: meta_monitor — stateless claude -p batch calls replace IDE AFK session for Tier 3 monitoring (2026-04-03)
+
+**Context:** IDE AFK sessions were accumulating 30M+ tokens per overnight session (5,000+ turns, growing context). 80% of all Claude Code token spend traced to these sessions. The Tier 3 requirement (watch the watchers, find blind spots, fix gaps, commit fixes) was being handled entirely inside one long-lived IDE session.
+
+**Decision:** Introduce `meta_monitor` as a new AgentSystem task type. When the `oversee` orchestrator batch emits a `LOG_ONLY` finding with severity `high` or `critical`, `claude-store.js` creates a `tel.agent_tasks` row (`task_type='meta_monitor'`). The AgentSystem dispatcher picks it up and launches a stateless `claude -p` batch call (~20–50k tokens, fresh context each time) using `META-MONITOR.md` as the prompt template. Each `meta_monitor` call: runs `monitoring-checks.sh`, diagnoses the specific `finding_type` from context, writes a code fix, runs tests, commits, updates the oversight dashboard log. If root cause not found, adds debug logging and outputs `fixed: false, added_logging: true` so the overseer re-escalates.
+
+**Deduplication key:** `finding_type` structured code (e.g. `stall:proposals`, `bounce:email`, `error:enrichment_llm`) — NOT description hashing. LLMs describe the same problem differently each time; structured codes are stable.
+
+**Token reduction:** ~47x per check cycle (IDE AFK: 150k–500k/check growing; `claude -p` batch: ~20–50k flat).
+
+**Route:** `sonnet`, effort=`high`, thinking=`adaptive` (model decides per-call).
+
+**Dashboard:** `~/code/333Method/logs/oversight-dashboard.log` — table section overwritten each overseer run; activity section prepended newest-first, hard-capped at 200 lines.
+
+**IDE AFK session retained until verified:** Until at least one full `meta_monitor` dispatch cycle runs end-to-end (finding → task created → dispatched → fixed → committed), the IDE AFK workflow remains as the Tier 3 fallback per `333Method/CLAUDE.md`.
+
+**Status:** Accepted, implemented
+**Impl:** `AgentSystem/prompts/META-MONITOR.md`, `AgentSystem/src/dispatcher.js` (TASK_ROUTING + routeTask + --effort/--thinking), `333Method/scripts/claude-store.js` (storeOverseerResult meta_monitor task creation, updateOversightDashboard, storeMetaMonitorResult), `333Method/scripts/claude-orchestrator.sh` (finding_type in oversee output schema)
+
