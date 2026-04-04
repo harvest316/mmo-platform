@@ -130,6 +130,27 @@ When all phases of an approved plan are implemented:
 
 Do not stop mid-plan to ask for confirmation unless: (a) a required secret/credential is missing and wasn't surfaced upfront, (b) a design decision arises that wasn't resolved during planning, or (c) a destructive action is imminent (git force push, data deletion, etc.).
 
+## Code Review Rules
+
+When running a Code Reviewer agent (or reviewing code yourself before committing), enforce these rules in addition to standard review:
+
+### LLM Usage Tracking (DR-172)
+
+**Every LLM API call in every project MUST be tracked in `tel.llm_usage`.** No exceptions.
+
+- **333Method**: Use `callLLM()` from `src/utils/llm-provider.js` with a `stage:` parameter. Never use direct `fetch()` or `axios` to an LLM API.
+- **2Step**: Use `logLLMUsage()` from `src/utils/log-llm-usage.js` after any OpenRouter fetch call.
+- **ContactReplyAI**: Use `logUsage()` from `src/services/llm.js` after any Anthropic SDK call.
+- **AdManager**: Use `LLMTracker::log()` from `src/LLMTracker.php` after any curl or CLI LLM call.
+- **AgentSystem**: Dispatcher auto-logs after `claude -p` calls; no manual tracking needed.
+- **Orchestrator batches**: Tracked via `claude-store-wrapper.js` (provider='claude-cli').
+
+**Flag as a blocking issue** if a PR introduces:
+- A direct `fetch()`/`axios`/`curl` call to any LLM API (openrouter.ai, api.anthropic.com, api.openai.com, etc.)
+- A `callLLM()` call without a `stage:` parameter
+- A `new Anthropic()` / `new OpenAI()` SDK call without a corresponding usage log
+- A `claude -p` CLI invocation outside the dispatcher/orchestrator without usage logging
+
 ## Website Deployment
 
 The brand website and CF Worker have been moved to a **private repo**: `~/code/auditandfix-website/` (harvest316/auditandfix-website). See that repo's CLAUDE.md for deploy instructions.

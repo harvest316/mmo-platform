@@ -2439,3 +2439,19 @@ Data isolation policy:
 **Status:** Accepted, implemented
 **Impl:** `AgentSystem/prompts/META-MONITOR.md`, `AgentSystem/src/dispatcher.js` (TASK_ROUTING + routeTask + --effort/--thinking), `333Method/scripts/claude-store.js` (storeOverseerResult meta_monitor task creation, updateOversightDashboard, storeMetaMonitorResult), `333Method/scripts/claude-orchestrator.sh` (finding_type in oversee output schema)
 
+### DR-172: Mandatory LLM usage tracking across all projects (2026-04-04)
+
+**Context:** Audit revealed ~15 untracked LLM call sites across the workspace. $90 OpenRouter spend on 2026-04-03 couldn't be attributed because multiple code paths (2Step video, AdManager creative, ContactReplyAI replies, 333Method one-off scripts) bypass `tel.llm_usage` entirely. The `cost_usd` column was all zeros, SQLite tracking was dead (0-byte DBs), and some `callLLM()` calls omitted the `stage:` parameter.
+
+**Decision:** Every LLM API call in every project must log to `tel.llm_usage`. Per-project tracking approach:
+- **333Method**: `callLLM()` with mandatory `stage:` param (existing pattern, now enforced). Direct fetch/axios to LLM APIs replaced with callLLM().
+- **2Step**: New `src/utils/log-llm-usage.js` — lightweight PG insert after existing fetch() calls.
+- **ContactReplyAI**: `logUsage()` helper added to `src/services/llm.js` — logs after each Anthropic SDK call.
+- **AdManager**: New `src/LLMTracker.php` — `pg_query_params` INSERT after curl/proc_open calls.
+- **AgentSystem**: Dispatcher logs `claude -p` output usage to `tel.llm_usage` after each dispatch.
+
+Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer agents flag any new untracked LLM call as a blocking issue.
+
+**Status:** Accepted, implemented
+**Impl:** All projects — see per-project tracking modules above. Enforcement: `mmo-platform/CLAUDE.md` "Code Review Rules" section.
+
