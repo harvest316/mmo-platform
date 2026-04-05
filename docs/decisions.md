@@ -2455,3 +2455,73 @@ Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer
 **Status:** Accepted, implemented
 **Impl:** All projects — see per-project tracking modules above. Enforcement: `mmo-platform/CLAUDE.md` "Code Review Rules" section.
 
+
+### DR-173: ContactReplyAI API server — CF Worker + Hyperdrive, not LAMP-hosted Node.js (2026-04-04)
+
+**Context:** The production webhost (Gary's LAMP server, contactreplyai.com) can't run Node.js. The Node.js API server (`src/api/server.js`) has two concerns: (1) stateless request-handling (dashboard API + Twilio/Resend/PayPal webhooks), and (2) a stateful processing loop (`loop.js`) that polls DB every 5s and holds a PostgreSQL NOTIFY listener for instant inbound wake-up.
+
+**Options considered:**
+- **AWS Lambda + API Gateway:** Works but adds VPC complexity, cold starts affect webhook latency, connection pooling needs RDS Proxy, more ops overhead.
+- **Fly.io/Render (persistent Node.js):** Would support NOTIFY listener, but another vendor + ops surface.
+- **CF Worker + Hyperdrive:** Stateless handlers map cleanly to Workers. Hyperdrive proxies PostgreSQL, handles connection pooling, and is co-located with CF edge. Webhooks (Twilio, Resend, PayPal) work perfectly routed to a Worker URL. CF Cron Triggers (minimum 1-minute interval) replace the 5s polling loop — slightly less responsive but acceptable. NOTIFY listener is lost (Workers have no persistent connections) but this is acceptable: the 1-minute cron catches all pending messages; NOTIFY was a latency optimisation, not a correctness requirement.
+
+**Decision:** Deploy API and webhook handlers as a CF Worker with Hyperdrive for PostgreSQL. Inbound SMS response latency of ~1 minute is acceptable (CF Cron Trigger polls for unprocessed inbound messages). The website demo chatbot widget (`/api/chat.php`) requires <5s response — this is met by direct Anthropic Haiku call (~2-4s), no queuing involved. CF Cron Trigger used for SMS processing loop and background work (retry queues, billing checks, etc.).
+
+**Why CF Worker over Lambda:** No VPC, no cold-start penalty on webhook paths, Hyperdrive handles PG pooling natively, simpler deploy pipeline (wrangler deploy), lower ops overhead.
+
+**Status:** Accepted, not yet implemented (Phase 2 — see TODO.md "CF Worker deploy" tasks)
+**Impl:** `src/api/server.js`, `src/api/loop.js` — to be ported to `workers/` when Phase 2 begins.
+
+### DR-174: Onboarding wizard — single PHP page with vanilla JS step state (2026-04-04)
+
+**Context:** The onboarding wizard (6 steps) needs to persist progress across browser sessions and support back-navigation. Implementation options: (a) separate PHP page per step, (b) single PHP page with JS step state.
+
+**Decision:** Single PHP page (`public/onboarding.php`) with vanilla JS managing step visibility and state. Matches the existing dashboard architecture (vanilla JS, no build step, Tailwind CDN). Progress saved after each step via `PUT /api/onboarding/step` to DB, so resuming works from any browser. Back-navigation is JS show/hide — no server round-trips.
+
+**Status:** Accepted
+**Impl:** `public/onboarding.php` (to be built), `src/api/routes.js` (new onboarding endpoints)
+
+### DR-175: Sandbox mode — cookie persistence, tenant tagging, SMS redirect (2026-04-04)
+
+**Context:** Need a way to test the full purchase + onboarding flow without real money or live SMS. Options: (a) separate sandbox environment, (b) mode flag on production infrastructure.
+
+**Decision:** Mode flag approach. Sandbox is activated via `?sandbox=1` query param, persisted via cookie (`crai_sandbox=1`). Sandbox tenants are tagged `settings.sandbox = true` in DB. All outbound SMS to sandbox tenants is redirected to `SANDBOX_SMS_RECIPIENT` (Jason's mobile). PayPal sandbox credentials loaded from separate env vars. No separate code path — all workflows execute identically, only credential and SMS routing differ. Sandbox tenants are manually cleaned up after test sessions.
+
+**Status:** Accepted
+**Impl:** `public/checkout.php`, `public/onboarding.php`, `public/dashboard/index.html`, `src/services/dispatch.js`
+
+### DR-176: Tenant provisioning is async — webhook returns HTTP 200 after upsert, provisioning enqueued (2026-04-04)
+
+**Context:** PayPal webhook expects HTTP 200 within 30s. Twilio number provisioning (steps 3-6 of tenant provisioning) can take 20-30s total. Running synchronously in the webhook handler risks timeout.
+
+**Decision:** Webhook handler returns HTTP 200 immediately after the tenant upsert (STEP 2). Steps 3-6 (Twilio provisioning, token generation, welcome SMS) are enqueued as an async job processed by the reply loop or a separate provisioning queue. For the CF Worker architecture (DR-173), this maps naturally to a queued Worker call or a DB-based job queue polled by the Cron Trigger.
+
+**Status:** Accepted
+**Impl:** `src/channels/paypal.js`, provisioning service (to be built)
+
+### DR-177: Welcome SMS deferred to onboarding step 1 (owner_phone availability) (2026-04-04)
+
+**Context:** The tenant provisioning webhook fires before the owner has entered their phone number (owner_phone is NULL at provisioning time). The welcome SMS cannot be sent without a destination number.
+
+**Decision:** Welcome SMS is sent when onboarding step 1 is saved and owner_phone is first populated. The `PUT /api/onboarding/step` handler for step 1 triggers the welcome SMS after saving. This ensures (a) the SMS is sent to a verified number the owner just entered, (b) the dashboard link in the SMS is valid because the token is already issued. Edge case: if owner abandons after payment but before onboarding, they never receive the welcome SMS. Mitigation: Gary follows up manually via email (owner_email is available from PayPal).
+
+**Status:** Accepted
+**Impl:** `src/api/routes.js` (onboarding step 1 handler), `src/services/dispatch.js`
+
+### DR-178: Migrate 333Method outbound email sending to shared mmo-platform transport (2026-04-04)
+
+**Context:** 333Method had five files sending email via Resend directly (raw fetch or Resend SDK). The mmo-platform shared module `src/email.js` was created to abstract provider routing for the SES migration, supporting `EMAIL_PROVIDER=resend|ses` with SES warmup overflow back to Resend.
+
+**Decision:** Replace all direct Resend usage in 333Method with `sendEmail()` from `mmo-platform/src/email.js`. Files migrated:
+- `src/outreach/email.js` — raw fetch replaced; tags converted from `[{name,value}]` array to `{key:value}` plain object; rate limiter + circuit breaker wrapper retained unchanged
+- `src/reports/report-delivery.js` — Resend SDK replaced; PDF attachment support added to shared module's Resend path
+- `src/reports/purchase-confirmation.js` — Resend SDK replaced
+- `src/cron/send-scan-email-sequence.js` — Resend SDK replaced; `resend` arg removed from `sendSequenceEmail`; tags converted to plain object
+- `scripts/send-test-email.mjs` — raw fetch replaced
+
+**Shared module extensions (mmo-platform/src/email.js):**
+- Added `attachments` parameter to `sendViaResend` and public `sendEmail` (Resend path only; SES MIME encoding not yet implemented)
+- Added `bcc` parameter to `sendViaResend` and public `sendEmail` (Resend path only)
+
+**Status:** Accepted
+**Impl:** `mmo-platform/src/email.js`, 333Method outreach/report/cron/scripts files listed above
