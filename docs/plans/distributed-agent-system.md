@@ -6156,6 +6156,23 @@ to `seed.radicle.garden`. See workflow file in each repo for implementation.
 **Outcome:** All repos mirrored to Radicle on every push to main. GitHub Actions, Dependabot,
 and existing CI pipelines continue unchanged.
 
+### 25.2a Radicle Private Repo Seeding (Parked — needs own VPS node)
+
+**Status: parked 2026-04-04.** All 7 Radicle repos set to private. GitHub-ci delegate removed
+from 333Method (was blocking identity changes). Mirror workflow deleted. No active Radicle
+syncing — repos exist locally only in `~/.radicle/storage/` on k7.
+
+**All repos private:** mmo-platform, 2Step, 333Method, AdManager, distributed-infra (+ 2 stale
+test copies of 333Method: `z35S...`, `z4P4...`).
+
+**To resume once VPS Radicle node is live (`services.radicle` enabled in NixOS):**
+1. Run `rad seed <RID>` on the VPS node for each private repo
+2. Add the VPS node's `<nodeID>@<host>:8776` to `connect` in `~/.radicle/config.json` on k7
+3. Add the VPS node DID as an allowed viewer (`rad id update --allow <VPS-DID>`) for each private repo
+4. Verify `rad sync` succeeds for all 5 repos from the dev container
+5. Re-create mirror workflow (or use `rad push` via systemd timer) for ongoing sync
+6. Optionally re-add GitHub Actions CI delegate if needed for CI/CD integration
+
 ### 25.3 Phase 2 — VPS CI/CD (When VPS is built)
 
 Replace GitHub Actions + Dependabot with self-hosted equivalents on the VPS.

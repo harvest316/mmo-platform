@@ -4,6 +4,20 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-182: ContactReplyAI full-stack Cloudflare Worker replaces Node.js API server (2026-04-06)
+**Context:** ContactReplyAI ran a Node.js HTTP server (src/api/) plus a separate Cloudflare Worker webhook-gateway stub that forwarded to it. This added latency, operational complexity, and meant two deploy targets. Neon serverless postgres supports HTTP from Workers; all outbound calls (Twilio, PayPal, Anthropic, Resend) can be done via fetch().
+**Decision:** Replace both the Node.js server and the gateway stub with a single `workers/index.js` Worker. Use `@neondatabase/serverless` neon() for DB access (HTTP, no TCP). All Node SDK dependencies (twilio, @anthropic-ai/sdk, pg, aws-sdk, mailparser) replaced with direct fetch() calls. SES inbound path drops the S3/mailparser dependency — requires SES configured to pass inline email content in the SNS notification body (content field); if absent, the webhook acknowledges and skips with a warning. neon's `sql.transaction()` requires a non-async callback returning an array of query objects; conditional multi-step DB logic (ingestMessage) is implemented as a single CTE instead.
+**Status:** Implemented — `workers/index.js`, `workers/wrangler.toml`, `workers/package.json`.
+**Impl:** `ContactReplyAI/workers/index.js`.
+
+---
+
+### DR-181: ContactReplyAI unit tests use node:test + c8; branch coverage over statement coverage (2026-04-05)
+**Context:** E2E Playwright tests covered all API routes. Service-layer unit tests were added to cover pure logic. llm.js, ingest.js, and paypal.js all import db/index.js (which calls requireEnv('DATABASE_URL') at module load) and @anthropic-ai/sdk (constructed at module level). ESM module mocking is not supported by node:test without an external loader.
+**Decision:** Use node:test (built-in, zero deps) + c8 for coverage. Set a dummy DATABASE_URL env var before dynamic imports to satisfy the module load guard. Test pure/exported functions directly; reproduce non-exported pure logic (buildSystemPrompt, estimateConfidence, model routing) inline in tests to achieve branch coverage without the production module constructors running. Overall statement coverage is ~40% due to DB/HTTP paths being untestable without live services; branch coverage for the pure-function files is 100% (ingest.js) and substantial for the others.
+**Status:** Implemented — 56 unit tests, all passing.
+**Impl:** `ContactReplyAI/tests/unit/`, `ContactReplyAI/package.json` (test:unit, test:coverage scripts).
+
 ---
 
 ## Infrastructure
@@ -2525,3 +2539,43 @@ Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer
 
 **Status:** Accepted
 **Impl:** `mmo-platform/src/email.js`, 333Method outreach/report/cron/scripts files listed above
+
+### DR-179: SES inbound email support — S3 fetch + MIME parsing in 333Method (2026-04-04)
+
+**Context:** 333Method's inbound email pipeline fetches email content via the Resend API (`GET /emails/:id`). Migrating to SES Receiving means inbound emails arrive as raw MIME objects in S3 (via SES → S3 → SNS → CF Worker → R2 events). The R2 event now carries `s3_key` + `s3_bucket` instead of `email_id`.
+
+**Decision:**
+1. `src/inbound/email.js` — add `fetchReceivedEmailFromS3(s3Key, s3Bucket)` using a lazy `S3Client` singleton (same pattern as the SES send client in mmo-platform). Uses `@aws-sdk/client-s3` + `mailparser.simpleParser`. Returns `{ from, to, subject, text, html }` matching the existing Resend shape. `pollInboundEmails()` branches on `event.data.s3_key` vs `event.data.email_id`; dedup key is whichever identifier is present. Raw payload includes `s3_key`/`s3_bucket` instead of `email_id` for SES events.
+2. `src/utils/rate-limiter.js` — rename `resendLimiter` → `emailLimiter`, env vars `RESEND_REQUESTS_PER_SECOND` → `EMAIL_REQUESTS_PER_SECOND` and `RESEND_MAX_CONCURRENT` → `EMAIL_MAX_CONCURRENT`. Old env vars remain as fallbacks; `resendLimiter` exported as alias.
+3. `src/utils/circuit-breaker.js` — add `createSesBreaker()` / `sesBreaker` singleton for SES-specific error patterns. `emailBreaker` exported as alias for `resendBreaker` during migration. SES terminal errors (`MessageRejected`, `AccountSendingPausedException`, `MailFromDomainNotVerifiedException`) are not counted by the circuit breaker's `errorFilter` (they match the business-logic bypass patterns). `ThrottlingException` triggers the breaker normally.
+4. `src/utils/error-categories.js` — SES retriable: `ThrottlingException`, `SES daily warmup limit`. SES terminal: `MessageRejected`, `AccountSendingPausedException`, `MailFromDomainNotVerifiedException`.
+
+**All existing Resend patterns and exports kept unchanged for backward compatibility during migration.**
+
+**Status:** Accepted
+**Impl:** `333Method/src/inbound/email.js`, `src/utils/rate-limiter.js`, `src/utils/circuit-breaker.js`, `src/utils/error-categories.js`
+
+### DR-180: Resend → SES migration for 2Step, ContactReplyAI, auditandfix-website (2026-04-04)
+
+**Context:** After migrating 333Method email (DR-178, DR-179), the remaining Resend users are 2Step outreach, ContactReplyAI outbound replies + inbound email, and auditandfix-website transactional email.
+
+**Decision:**
+1. **2Step `outreach.js`** — replaced `Resend` SDK with `transportSendEmail()` from `mmo-platform/src/email.js`. Removed `RESEND_API_KEY` guard around email sends (transport module handles provider routing internally). `resendId` result field renamed `emailId`. `cc` on test sends is logged-only (shared transport does not support it).
+2. **ContactReplyAI `dispatch.js`** — replaced `Resend` SDK with `transportSendEmail()` from `mmo-platform/src/email.js`. `getResend()` removed. Response handling updated: shared module returns `{ id }` and throws on error.
+3. **ContactReplyAI `webhooks.js`** — added `/webhooks/ses/email` handler for SNS push notifications. Flow: SNS `SubscriptionConfirmation` → fetch SubscribeURL (validated against `sns.` domain prefix + `SNS_TOPIC_ARN` env). SNS `Notification` → parse SES receipt → fetch raw MIME from S3 (`@aws-sdk/client-s3`) → parse with `mailparser.simpleParser` → `resolveTenantByEmail` → `parseSesPayload` → `ingestMessage`. Old `/webhooks/resend/email` handler retained for backward compat.
+4. **ContactReplyAI `ingest.js`** — added `parseSesPayload(sesNotification, parsedEmail)` export. `parseResendPayload` kept unchanged.
+5. **auditandfix-website `api.php`** — added `sendViaSesSmtp()` helper using `stream_socket_client` STARTTLS (no new PHP deps). Replaced both Resend cURL blocks (`demoEmail`, `sendMagicLink`) with `sendViaSesSmtp()`. Env vars: `SES_SMTP_USERNAME`, `SES_SMTP_PASSWORD`, optionally `SES_SMTP_HOST` (default: `email-smtp.us-east-1.amazonaws.com`), `SES_SMTP_PORT` (default: 587).
+6. Installed `mailparser` + `@aws-sdk/client-s3` in ContactReplyAI.
+
+**Status:** Accepted
+**Impl:** `2Step/src/stages/outreach.js`, `ContactReplyAI/src/services/dispatch.js`, `ContactReplyAI/src/api/webhooks.js`, `ContactReplyAI/src/channels/ingest.js`, `auditandfix-website/site/api.php`
+
+### DR-181: SES tenant management — deferred, not cost-justified yet (2026-04-06)
+
+**Context:** SES has tenant management features (per-tenant configuration sets, Virtual Deliverability Manager) that could let ContactReplyAI customers send from their own verified domain with isolated reputation. This would be a premium feature for the $197/mo tier.
+
+**Decision:** Defer. Current CRAI volume doesn't justify the cost. VDM is $0.07/1k emails on top of base SES pricing — negligible at volume, but the feature requires paying customers first. Revisit when CRAI has 5+ active tenants.
+
+**How to check if VDM is enabled:** SES Console → Virtual Deliverability Manager → if "Enabled", it's billing. Disable to stop.
+
+**Status:** Deferred
