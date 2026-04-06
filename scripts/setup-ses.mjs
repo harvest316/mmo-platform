@@ -18,7 +18,8 @@
 
 import crypto from 'node:crypto';
 import { SESv2Client, CreateEmailIdentityCommand, GetEmailIdentityCommand,
-  CreateConfigurationSetCommand, CreateConfigurationSetEventDestinationCommand } from '@aws-sdk/client-sesv2';
+  CreateConfigurationSetCommand, CreateConfigurationSetEventDestinationCommand,
+  PutEmailIdentityMailFromAttributesCommand } from '@aws-sdk/client-sesv2';
 import { SESClient, CreateReceiptRuleSetCommand, CreateReceiptRuleCommand,
   SetActiveReceiptRuleSetCommand } from '@aws-sdk/client-ses';
 import { SNSClient, CreateTopicCommand, SubscribeCommand, ListSubscriptionsByTopicCommand } from '@aws-sdk/client-sns';
@@ -218,6 +219,119 @@ async function step1_verifyDomains() {
   }
 
   return dkimTokensByDomain;
+}
+
+// ---------------------------------------------------------------------------
+// Step 1a: Configure custom MAIL FROM domains (SPF alignment)
+// ---------------------------------------------------------------------------
+//
+// Without a custom MAIL FROM, SES uses its own bounce domain (e.g.
+// bounce-ap-southeast-2-xxx@ap-southeast-2.amazonses.com). This means the
+// envelope "MAIL FROM" domain doesn't match the "From:" header domain, causing
+// SPF alignment failures in DMARC. A custom MAIL FROM domain like
+// bounce.auditandfix.com aligns with From: @auditandfix.com (relaxed mode).
+//
+// Required DNS records per bounce subdomain:
+//   MX  bounce.{domain}  →  feedback-smtp.{region}.amazonses.com  (priority 10)
+//   TXT bounce.{domain}  →  "v=spf1 include:amazonses.com ~all"
+//
+// These are idempotent via CF API.
+// ---------------------------------------------------------------------------
+
+/**
+ * Map each identity to its custom MAIL FROM (bounce) subdomain.
+ * Subdomains of auditandfix.com use a shared bounce.auditandfix.com —
+ * this satisfies DMARC relaxed SPF alignment for all @*.auditandfix.com From addresses.
+ */
+function mailFromForDomain(domain) {
+  if (domain === 'contactreplyai.com') return 'bounce.contactreplyai.com';
+  if (domain === 'auditandfix.com') return 'bounce.auditandfix.com';
+  // Subdomains of auditandfix.com — use bounce.{subdomain}.auditandfix.com
+  return `bounce.${domain}`;
+}
+
+async function step1a_setMailFromDomains() {
+  console.log('\n── Step 1a: Configure custom MAIL FROM domains ───────────────────────');
+
+  const feedbackSmtp = `feedback-smtp.${AWS_REGION}.amazonaws.com`;
+
+  // Collect unique bounce domains to avoid creating duplicate DNS records
+  const bounceDomainsSeen = new Set();
+
+  for (const domain of DOMAINS) {
+    const mailFromDomain = mailFromForDomain(domain);
+
+    if (DRY_RUN) {
+      console.log(`  [dry-run] Would set MAIL FROM ${mailFromDomain} for ${domain}`);
+      continue;
+    }
+
+    // Set custom MAIL FROM on the SES identity
+    try {
+      await sesv2.send(new PutEmailIdentityMailFromAttributesCommand({
+        EmailIdentity: domain,
+        MailFromDomain: mailFromDomain,
+        BehaviorOnMxFailure: 'USE_DEFAULT_VALUE', // fallback to amazonses.com if MX missing
+      }));
+      console.log(`  ✓ Set MAIL FROM ${mailFromDomain} for ${domain}`);
+    } catch (err) {
+      console.error(`  ✗ Failed to set MAIL FROM for ${domain}:`, err.message);
+    }
+
+    // Create DNS records for this bounce domain (once per unique bounce domain)
+    if (bounceDomainsSeen.has(mailFromDomain)) continue;
+    bounceDomainsSeen.add(mailFromDomain);
+
+    const zoneId = zoneIdForDomain(domain);
+    if (!zoneId) {
+      console.warn(`  ⚠ No CF zone ID for ${domain} — add manually:`);
+      console.warn(`      MX  ${mailFromDomain}  10 ${feedbackSmtp}`);
+      console.warn(`      TXT ${mailFromDomain}  "v=spf1 include:amazonses.com ~all"`);
+      continue;
+    }
+
+    // MX record
+    try {
+      const existing = await cfRequest('GET', `/zones/${zoneId}/dns_records?type=MX&name=${encodeURIComponent(mailFromDomain)}`);
+      const alreadySet = (existing.result ?? []).some(r => r.content.includes('feedback-smtp'));
+      if (alreadySet) {
+        console.log(`  ⚠ MX already exists: ${mailFromDomain}`);
+      } else {
+        await cfRequest('POST', `/zones/${zoneId}/dns_records`, {
+          type: 'MX',
+          name: mailFromDomain,
+          content: feedbackSmtp,
+          priority: 10,
+          proxied: false,
+          ttl: 300,
+        });
+        console.log(`  ✓ Created MX ${mailFromDomain} → ${feedbackSmtp}`);
+      }
+    } catch (err) {
+      console.error(`  ✗ MX for ${mailFromDomain}:`, err.message);
+    }
+
+    // TXT / SPF record
+    try {
+      const spfValue = '"v=spf1 include:amazonses.com ~all"';
+      const existing = await cfRequest('GET', `/zones/${zoneId}/dns_records?type=TXT&name=${encodeURIComponent(mailFromDomain)}`);
+      const alreadySet = (existing.result ?? []).some(r => r.content.includes('amazonses.com'));
+      if (alreadySet) {
+        console.log(`  ⚠ SPF TXT already exists: ${mailFromDomain}`);
+      } else {
+        await cfRequest('POST', `/zones/${zoneId}/dns_records`, {
+          type: 'TXT',
+          name: mailFromDomain,
+          content: 'v=spf1 include:amazonses.com ~all',
+          proxied: false,
+          ttl: 300,
+        });
+        console.log(`  ✓ Created TXT ${mailFromDomain} = v=spf1 include:amazonses.com ~all`);
+      }
+    } catch (err) {
+      console.error(`  ✗ SPF TXT for ${mailFromDomain}:`, err.message);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -666,7 +780,7 @@ async function step9_createIamUser(accountId) {
       {
         Sid: 'AllowSESSend',
         Effect: 'Allow',
-        Action: ['ses:SendEmail', 'ses:SendRawEmail'],
+        Action: ['ses:SendEmail', 'ses:SendRawEmail', 'ses:PutEmailIdentityMailFromAttributes'],
         Resource: [
           `arn:aws:ses:${AWS_REGION}:${accountId}:identity/auditandfix.com`,
           `arn:aws:ses:${AWS_REGION}:${accountId}:identity/contactreplyai.com`,
@@ -813,6 +927,7 @@ async function main() {
   }
 
   const dkimTokensByDomain = await step1_verifyDomains();
+  await step1a_setMailFromDomains();
   await step1b_cleanupResendDns();
   await step2_addDkimCnames(dkimTokensByDomain);
   await step3_createConfigSet();
