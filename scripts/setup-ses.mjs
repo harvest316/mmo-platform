@@ -87,6 +87,13 @@ const DOMAINS = [
   'eu.auditandfix.com',
   'sa.auditandfix.com',
   'contactreplyai.com',
+  'send.contactreplyai.com',
+  'mail.contactreplyai.com',
+  'email.contactreplyai.com',
+  'outreach.contactreplyai.com',
+  'outbound.contactreplyai.com',
+  'eu.contactreplyai.com',
+  'sa.contactreplyai.com',
 ];
 
 // Zone ID lookup by domain root — subdomains of auditandfix.com use the same zone
@@ -246,7 +253,7 @@ async function step1_verifyDomains() {
 function mailFromForDomain(domain) {
   if (domain === 'contactreplyai.com') return 'bounce.contactreplyai.com';
   if (domain === 'auditandfix.com') return 'bounce.auditandfix.com';
-  // Subdomains of auditandfix.com — use bounce.{subdomain}.auditandfix.com
+  // Subdomains — bounce.{subdomain}.{root} e.g. bounce.outreach.auditandfix.com
   return `bounce.${domain}`;
 }
 
