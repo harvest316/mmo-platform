@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { existsSync } from 'fs';
 import pg from 'pg';
 import {
   openDb,
@@ -24,7 +25,11 @@ import {
   batchImport,
 } from '../../src/suppression.js';
 
+const hasPg = existsSync('/run/postgresql/.s.PGSQL.5432');
+
 // ── Test PG pool in isolated schema ────────────────────────────────────────
+
+describe.skipIf(!hasPg)('Suppression list (requires PostgreSQL)', () => {
 
 let pool;
 
@@ -884,3 +889,5 @@ describe('edge cases', () => {
     expect((await checkBeforeSend({ phone: '+61400000001' })).blocked).toBe(true);
   });
 });
+
+}); // describe.skipIf(!hasPg)
