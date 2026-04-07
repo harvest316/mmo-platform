@@ -484,7 +484,80 @@ describe('warmup counter', () => {
   });
 });
 
-// ── 6. Warmup overflow end-to-end ───────────────────────────────────────────
+// ── 6. Reputation pause flag ────────────────────────────────────────────────
+//
+// The shared transport reads /home/jason/code/mmo-platform/.email-pause-state.json
+// (path resolved relative to email.js) on every send. The cron writes it.
+// We use a real temp file in the expected location so the integration is exercised
+// end-to-end without mocking node:fs.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+// Path must match mmo-platform/src/email.js: path.resolve(__dirname, '../.email-pause-state.json')
+// Resolved from src/, that's mmo-platform/.email-pause-state.json (one level up).
+const PAUSE_FILE = path.resolve(path.dirname(__filename), '../../.email-pause-state.json');
+
+function writePauseFile(doc) {
+  fs.writeFileSync(PAUSE_FILE, JSON.stringify(doc));
+}
+function clearPauseFile() {
+  try { fs.unlinkSync(PAUSE_FILE); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+}
+
+describe('reputation pause flag', () => {
+  beforeEach(() => clearPauseFile());
+  afterEach(() => clearPauseFile());
+
+  it('no file → sends proceed (fail-open)', async () => {
+    process.env.EMAIL_PROVIDER = 'ses';
+    const sendEmail = await freshImport();
+    await expect(sendEmail(BASE_PARAMS)).resolves.toEqual({ id: 'ses-msg-id-1' });
+  });
+
+  it("state='none' → sends proceed", async () => {
+    writePauseFile({ state: 'none' });
+    process.env.EMAIL_PROVIDER = 'ses';
+    const sendEmail = await freshImport();
+    await expect(sendEmail(BASE_PARAMS)).resolves.toEqual({ id: 'ses-msg-id-1' });
+  });
+
+  it("state='cold' → blocks default (cold) sends", async () => {
+    writePauseFile({ state: 'cold', reason: 'test cold' });
+    process.env.EMAIL_PROVIDER = 'ses';
+    const sendEmail = await freshImport();
+    await expect(sendEmail(BASE_PARAMS)).rejects.toThrow('Cold outreach paused');
+    await expect(sendEmail(BASE_PARAMS)).rejects.toThrow('test cold');
+  });
+
+  it("state='cold' → allows transactional sends", async () => {
+    writePauseFile({ state: 'cold', reason: 'test cold' });
+    process.env.EMAIL_PROVIDER = 'ses';
+    const sendEmail = await freshImport();
+    await expect(sendEmail({ ...BASE_PARAMS, kind: 'transactional' }))
+      .resolves.toEqual({ id: 'ses-msg-id-1' });
+  });
+
+  it("state='all' → blocks everything including transactional", async () => {
+    writePauseFile({ state: 'all', reason: 'critical reputation' });
+    process.env.EMAIL_PROVIDER = 'ses';
+    const sendEmail = await freshImport();
+    await expect(sendEmail(BASE_PARAMS)).rejects.toThrow('Email paused');
+    await expect(sendEmail({ ...BASE_PARAMS, kind: 'transactional' }))
+      .rejects.toThrow('Email paused');
+  });
+
+  it('error message includes the pause file path for operator clarity', async () => {
+    writePauseFile({ state: 'all', reason: 'r' });
+    process.env.EMAIL_PROVIDER = 'ses';
+    const sendEmail = await freshImport();
+    await expect(sendEmail(BASE_PARAMS)).rejects.toThrow('.email-pause-state.json');
+  });
+});
+
+// ── 7. Warmup overflow end-to-end ───────────────────────────────────────────
 
 describe('warmup overflow end-to-end', () => {
   it('SES limit exceeded → overflows to Resend → returns Resend id', async () => {

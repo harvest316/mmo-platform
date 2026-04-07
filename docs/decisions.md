@@ -4,6 +4,32 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-183: Hourly SES reputation cron with tiered auto-pause + split-domain transactional isolation (2026-04-07)
+**Context:** AWS suspends SES accounts unilaterally under Service Terms 15.4 when bounce or complaint rates spike, with no stated minimum threshold. By the time AWS sends warning email, the operator has hours not days. Throttling doesn't fix rates (independent of volume). Switching IP/ESP/subdomain doesn't help — Gmail/Outlook track reputation primarily at the organisational domain level. The only effective levers are: (1) catch degradation early, (2) pause cold outreach before transactional reputation taints, (3) isolate transactional sends on a different brand domain so cold outreach can't burn the magic-link path.
+**Decision:** Three-part defense:
+1. **Hourly CloudWatch poll** (`333Method/src/cron/check-ses-reputation.js`, registered in `ops.cron_jobs` via migration 134) reads `AWS/SES/Reputation.{Bounce,Complaint}Rate`, classifies into 5 tiers (normal/warning/elevated/critical/emergency), persists to `tel.ses_reputation_history`, and writes `mmo-platform/.email-pause-state.json`.
+2. **Tiered auto-pause** in shared transport — `mmo-platform/src/email.js` reads the pause file (60s in-process cache, fail-open on missing) on every send. Default sends are treated as cold and blocked at `state=cold` (elevated tier). Sends with `kind: 'transactional'` only block at `state=all` (critical+).
+3. **Split-domain transactional isolation** — bought `auditandfix.app` and `contactreply.app` to send magic links, receipts, and AI replies from a brand domain that doesn't share reputation with the cold-outreach `.com` domains. Tracked in `TODO.md` for setup-ses extension.
+
+Pure decision logic lives in `mmo-platform/src/ses-reputation.js` (TIERS, classifyTier, actionForTier, summarise) so it's directly unit-testable. CloudWatch fetch is a thin wrapper. Tests: 30 cases in `tests/unit/ses-reputation.test.js` + 6 pause-flag integration cases in `tests/unit/email.test.js`.
+
+Tiers (rates in percent, either dimension promotes):
+
+| Tier      | Bounce | Complaint | Action |
+|-----------|--------|-----------|--------|
+| normal    | <2     | <0.05     | log only |
+| warning   | 2-4    | 0.05-0.08 | alert via npm run status |
+| elevated  | 4-7    | 0.08-0.15 | pause cold (transactional still flows) |
+| critical  | 7-9    | 0.15-0.4  | pause all + page |
+| emergency | ≥9     | ≥0.4      | pause all + kill switch |
+
+The npm run status panel shows the latest snapshot, age, tier, and active pause flag — visible alongside the existing 30d/1d Account Health rates so historic and live views are side-by-side.
+
+**Status:** Implemented except split-domain warmup (TODO).
+**Impl:** `mmo-platform/src/ses-reputation.js`, `mmo-platform/src/email.js` (pause check), `333Method/src/cron/check-ses-reputation.js`, `333Method/db/migrations/134-ses-reputation-monitoring.sql`, `333Method/src/cli/status.js` (renderSesReputation), `mmo-platform/tests/unit/ses-reputation.test.js`, `mmo-platform/tests/unit/email.test.js` (reputation pause flag suite), `mmo-platform/TODO.md`.
+
+---
+
 ### DR-182: ContactReplyAI full-stack Cloudflare Worker replaces Node.js API server (2026-04-06)
 **Context:** ContactReplyAI ran a Node.js HTTP server (src/api/) plus a separate Cloudflare Worker webhook-gateway stub that forwarded to it. This added latency, operational complexity, and meant two deploy targets. Neon serverless postgres supports HTTP from Workers; all outbound calls (Twilio, PayPal, Anthropic, Resend) can be done via fetch().
 **Decision:** Replace both the Node.js server and the gateway stub with a single `workers/index.js` Worker. Use `@neondatabase/serverless` neon() for DB access (HTTP, no TCP). All Node SDK dependencies (twilio, @anthropic-ai/sdk, pg, aws-sdk, mailparser) replaced with direct fetch() calls. SES inbound path drops the S3/mailparser dependency — requires SES configured to pass inline email content in the SNS notification body (content field); if absent, the webhook acknowledges and skips with a warning. neon's `sql.transaction()` requires a non-async callback returning an array of query objects; conditional multi-step DB logic (ingestMessage) is implemented as a single CTE instead.

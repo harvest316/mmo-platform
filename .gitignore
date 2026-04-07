@@ -66,6 +66,9 @@ temp/
 # Wrangler (Cloudflare Workers)
 .wrangler/
 
+# Runtime state files (written by crons, read by shared transport)
+.email-pause-state.json
+
 # Backup files
 *.backup
 *.bak

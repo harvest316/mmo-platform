@@ -17,6 +17,57 @@
  */
 
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// ── Reputation pause flag (file-based, written by check-ses-reputation cron) ─
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PAUSE_FILE = path.resolve(__dirname, '../.email-pause-state.json');
+const PAUSE_CACHE_TTL_MS = 60 * 1000; // 60s — fresh enough for hourly cron
+
+let _pauseCache = null;
+let _pauseCacheAt = 0;
+
+/**
+ * Read the pause state file with a 60s in-process cache.
+ * Returns one of:
+ *   { state: 'none' }                        — no pause
+ *   { state: 'cold', reason, since }         — pause cold outreach (333Method, 2Step)
+ *   { state: 'all',  reason, since }         — pause everything
+ *
+ * Missing file → { state: 'none' } (fail-open: never block sends because the
+ * monitoring system itself is unavailable; the cron logs and AWS metrics are
+ * the safety nets).
+ */
+function readPauseState() {
+  const now = Date.now();
+  if (_pauseCache && now - _pauseCacheAt < PAUSE_CACHE_TTL_MS) {
+    return _pauseCache;
+  }
+  try {
+    const raw = fs.readFileSync(PAUSE_FILE, 'utf8');
+    _pauseCache = JSON.parse(raw);
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      // Don't crash sends on a corrupt file — log once per cache cycle and treat as no-pause.
+      console.warn(`[email.js] readPauseState: ${err.message} — treating as 'none'`);
+    }
+    _pauseCache = { state: 'none' };
+  }
+  _pauseCacheAt = now;
+  return _pauseCache;
+}
+
+/**
+ * Test-only: clear the pause state cache so a freshImport() reads the file.
+ * Not part of the public contract.
+ */
+export function _resetPauseCache() {
+  _pauseCache = null;
+  _pauseCacheAt = 0;
+}
 
 // ── SES client (lazy singleton) ────────────────────────────────────────────
 
@@ -176,9 +227,30 @@ async function sendViaResend({ from, to, subject, html, text, headers, tags, rep
  *                                        Only honoured when EMAIL_PROVIDER=resend (or overflow).
  *                                        SES attachment support requires MIME encoding — not yet implemented.
  * @param {string} [params.bcc]         - BCC address. Only honoured when EMAIL_PROVIDER=resend (or overflow).
+ * @param {'cold'|'transactional'} [params.kind='cold']
+ *                                        - 'cold': prospecting/outreach (paused by reputation tier ≥ elevated)
+ *                                        - 'transactional': magic links, receipts, password resets (only paused on 'all')
  * @returns {Promise<{ id: string }>}
  */
-export async function sendEmail({ from, to, subject, html, text, headers, tags, replyTo, attachments, bcc }) {
+export async function sendEmail({ from, to, subject, html, text, headers, tags, replyTo, attachments, bcc, kind }) {
+  // Reputation pause check — set by check-ses-reputation cron.
+  // 'kind' lets transactional sends bypass a 'cold' pause; defaults to 'cold'
+  // (the safe default — anything that doesn't pass kind:'transactional' is
+  // treated as cold outreach).
+  const pause = readPauseState();
+  if (pause.state === 'all') {
+    throw new Error(
+      `Email paused (state=all): ${pause.reason || 'no reason recorded'}. ` +
+      `Edit ${PAUSE_FILE} to reset.`
+    );
+  }
+  if (pause.state === 'cold' && kind !== 'transactional') {
+    throw new Error(
+      `Cold outreach paused (state=cold): ${pause.reason || 'no reason recorded'}. ` +
+      `Pass { kind: 'transactional' } to bypass for transactional sends.`
+    );
+  }
+
   const provider = process.env.EMAIL_PROVIDER || 'resend';
 
   if (provider === 'ses') {

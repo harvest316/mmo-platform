@@ -1,5 +1,67 @@
 # TODO
 
+## Buy contactreply.ai domain when funds available
+
+`contactreply.ai` is available for ~$80/yr. Bought as the proper brand for
+ContactReplyAI long term — currently using `contactreplyai.com` (.com
+fallback).
+
+When purchased:
+- Add to setup-ses.mjs DOMAINS list
+- Verify SES identity, DKIM, MAIL FROM
+- Set up MX → `inbound-smtp.ap-southeast-2.amazonaws.com`
+- Migrate Worker custom domain `api.contactreply.ai` (no cross-account zone issue)
+
+---
+
+## Warm up parallel transactional domains
+
+Bought `contactreply.app` and `auditandfix.app` as transactional / app
+domains, isolated from cold-outreach reputation on the .com domains.
+
+Tasks:
+- Add both to `mmo-platform/scripts/setup-ses.mjs` DOMAINS list
+- Run setup-ses to verify SES identity, DKIM CNAME, MAIL FROM `bounce.{domain}`
+- Update `auditandfix-website/site/api.php` magic link send to use
+  `marcus@auditandfix.app` as the `From:` address (with `kind: 'transactional'`
+  if/when the PHP path goes through the shared transport — currently uses
+  SES SMTP directly so it'll just need the From swap)
+- Update CRAI dispatch to send AI replies from `marcus@contactreply.app`
+- Update `contactreplyai.com` login button to forward to
+  `contactreply.app/login` so transactional auth uses the .app domain
+- Even 2-3 sends/day to varied recipients during the warmup period builds
+  reputation. By the time CRAI launches the .app domains will be production-ready.
+
+---
+
+## Audit Cloudflare settings on all zones
+
+Review CF settings for:
+- `auditandfix.com` (Main account)
+- `contactreplyai.com` (Dads Account — also pending zone transfer to Main)
+- `auditandfix.app` (newly bought)
+- `contactreply.app` (newly bought)
+
+Specific things to check:
+- **Bot Fight Mode** — currently enabled? Does it block legitimate scrapers?
+  Does it interfere with Stripe/PayPal webhooks?
+- **Super Bot Fight Mode** (paid)
+- **Browser Integrity Check** — can falsely block API requests
+- **Hotlink Protection** — relevant for image hosting
+- **WAF custom rules** — any leftover from migration
+- **Rate Limiting** — defaults vs custom rules
+- **SSL/TLS mode** — Full (strict) on all
+- **Always Use HTTPS**, **Automatic HTTPS Rewrites**
+- **HSTS** — enabled with reasonable max-age
+- **Email obfuscation** — relevant for landing pages with mailto:
+- **Cache rules** — bypass for /api/*, /webhooks/*
+- **Page rules** vs new Rules engine — migrate any leftover
+- **Workers routes** — what's wired up where
+
+Output: short doc per zone summarising current settings + recommended changes.
+
+---
+
 ## Blog Post Visual Assets (images, diagrams, charts)
 
 Add visual content to the 3 citation-gap blog posts to improve dwell time and
