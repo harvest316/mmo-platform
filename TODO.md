@@ -21,10 +21,10 @@ domains, isolated from cold-outreach reputation on the .com domains.
 
 Tasks:
 - [x] Add both to `mmo-platform/scripts/setup-ses.mjs` DOMAINS list
-- [ ] **⚠️ User action** — Run `node mmo-platform/scripts/setup-ses.mjs` with admin AWS creds to verify SES identity, DKIM CNAME, MAIL FROM `bounce.{domain}` for both `.app` domains
+- [x] Run `setup-ses.mjs` — SES identities, DKIM CNAMEs, MAIL FROM, MX, SPF, DMARC for both `.app` domains (2026-04-09). 2 apex DKIM pending propagation (auditandfix.app, auditandfix.net)
 - [x] Update `auditandfix-website/site/api.php` demo + onboarding emails to use `marcus@auditandfix.app`
 - [x] Update CRAI dispatch to send AI replies from `marcus@contactreply.app` (workers/index.js + src/services/dispatch.js)
-- [ ] Update `auditandfix-website` magic link to use `marcus@auditandfix.app` — update `SENDER_EMAIL` env var on Gary's host once SES identity verified
+- [x] Update `auditandfix-website` magic link — `SENDER_EMAIL` in `.htaccess` switched to `marcus@auditandfix.app`, deployed via FTP
 - [x] Update `contactreplyai.com` login button to forward to `contactreply.app/login` so transactional auth uses the .app domain
 - Even 2-3 sends/day to varied recipients during the warmup period builds
   reputation. By the time CRAI launches the .app domains will be production-ready.
