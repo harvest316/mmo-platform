@@ -25,7 +25,7 @@ Tasks:
 - [x] Update `auditandfix-website/site/api.php` demo + onboarding emails to use `marcus@auditandfix.app`
 - [x] Update CRAI dispatch to send AI replies from `marcus@contactreply.app` (workers/index.js + src/services/dispatch.js)
 - [ ] Update `auditandfix-website` magic link to use `marcus@auditandfix.app` — update `SENDER_EMAIL` env var on Gary's host once SES identity verified
-- [ ] Update `contactreplyai.com` login button to forward to `contactreply.app/login` so transactional auth uses the .app domain
+- [x] Update `contactreplyai.com` login button to forward to `contactreply.app/login` so transactional auth uses the .app domain
 - Even 2-3 sends/day to varied recipients during the warmup period builds
   reputation. By the time CRAI launches the .app domains will be production-ready.
 
