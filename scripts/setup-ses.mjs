@@ -251,12 +251,16 @@ async function step1_verifyDomains() {
   console.log('\n── Step 1: Verify domain identities ──────────────────────────────────');
   const dkimTokensByDomain = {};
 
-  for (const domain of DOMAINS) {
+  for (let i = 0; i < DOMAINS.length; i++) {
+    const domain = DOMAINS[i];
     if (DRY_RUN) {
       console.log(`  [dry-run] Would create SES identity for ${domain}`);
       dkimTokensByDomain[domain] = ['token1', 'token2', 'token3'];
       continue;
     }
+
+    // Throttle to avoid SES API rate limits (1 req/s per identity API)
+    if (i > 0) await new Promise(r => setTimeout(r, 1200));
 
     try {
       await sesv2.send(new CreateEmailIdentityCommand({ EmailIdentity: domain }));
@@ -264,14 +268,28 @@ async function step1_verifyDomains() {
     } catch (err) {
       if (err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists')) {
         console.log(`  ⚠ Already exists: ${domain}`);
+      } else if (err.name === 'TooManyRequestsException') {
+        console.log(`  ⏳ Rate limited on ${domain}, backing off 5s...`);
+        await new Promise(r => setTimeout(r, 5000));
+        i--; // retry this domain
+        continue;
       } else {
         console.error(`  ✗ Failed to create identity ${domain}:`, err.message);
         throw err;
       }
     }
 
-    // Retrieve DKIM tokens
-    const info = await sesv2.send(new GetEmailIdentityCommand({ EmailIdentity: domain }));
+    // Retrieve DKIM tokens (with rate-limit retry)
+    let info;
+    try {
+      info = await sesv2.send(new GetEmailIdentityCommand({ EmailIdentity: domain }));
+    } catch (err) {
+      if (err.name === 'TooManyRequestsException') {
+        console.log(`  ⏳ Rate limited fetching DKIM for ${domain}, retrying...`);
+        await new Promise(r => setTimeout(r, 5000));
+        info = await sesv2.send(new GetEmailIdentityCommand({ EmailIdentity: domain }));
+      } else throw err;
+    }
     const tokens = info.DkimAttributes?.Tokens ?? [];
     if (tokens.length === 0) {
       console.warn(`  ⚠ No DKIM tokens returned for ${domain} — may take a moment`);
