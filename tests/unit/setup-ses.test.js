@@ -38,14 +38,27 @@ function deriveSmtpPassword(secretKey, region = 'us-east-1') {
 
 /**
  * Zone ID lookup by domain root.
- * Mirrors the function in setup-ses.mjs; receives the two zone-ID constants
+ * Mirrors the function in setup-ses.mjs; receives the five zone-ID constants
  * as parameters so tests can inject different values without env mutation.
+ *
+ * Order matters: more-specific suffixes (.auditandfix.app) must match before
+ * less-specific ones (.auditandfix.com) so the wrong zone isn't picked.
  */
-function zoneIdForDomain(domain, zoneAF, zoneCRAI) {
-  if (domain === 'contactreplyai.com' || domain.endsWith('.contactreplyai.com')) {
-    return zoneCRAI;
+function zoneIdForDomain(domain, zones) {
+  const { af, crai, afApp, afNet, crApp } = zones;
+  if (domain === 'auditandfix.app' || domain.endsWith('.auditandfix.app')) {
+    return afApp;
   }
-  return zoneAF;
+  if (domain === 'auditandfix.net' || domain.endsWith('.auditandfix.net')) {
+    return afNet;
+  }
+  if (domain === 'contactreply.app' || domain.endsWith('.contactreply.app')) {
+    return crApp;
+  }
+  if (domain === 'contactreplyai.com' || domain.endsWith('.contactreplyai.com')) {
+    return crai;
+  }
+  return af;
 }
 
 // ── deriveSmtpPassword ────────────────────────────────────────────────────────
@@ -112,39 +125,109 @@ describe('deriveSmtpPassword', () => {
 // ── zoneIdForDomain ───────────────────────────────────────────────────────────
 
 describe('zoneIdForDomain', () => {
-  const AF_ZONE   = 'zone-af-xxxxxx';
-  const CRAI_ZONE = 'zone-crai-yyyyyy';
+  const ZONES = {
+    af:    'zone-af-xxxxxx',
+    crai:  'zone-crai-yyyyyy',
+    afApp: 'zone-afapp-zzzzzz',
+    afNet: 'zone-afnet-aaaaaa',
+    crApp: 'zone-crapp-bbbbbb',
+  };
 
-  it('auditandfix.com → returns AF zone ID', () => {
-    expect(zoneIdForDomain('auditandfix.com', AF_ZONE, CRAI_ZONE)).toBe(AF_ZONE);
+  // ── auditandfix.com (cold outreach + marketing) ──
+  it('auditandfix.com → AF zone', () => {
+    expect(zoneIdForDomain('auditandfix.com', ZONES)).toBe(ZONES.af);
+  });
+  it('send.auditandfix.com → AF zone', () => {
+    expect(zoneIdForDomain('send.auditandfix.com', ZONES)).toBe(ZONES.af);
+  });
+  it('mail.auditandfix.com → AF zone', () => {
+    expect(zoneIdForDomain('mail.auditandfix.com', ZONES)).toBe(ZONES.af);
+  });
+  it('deep.sub.auditandfix.com → AF zone', () => {
+    expect(zoneIdForDomain('deep.sub.auditandfix.com', ZONES)).toBe(ZONES.af);
+  });
+  it('bounce.outreach.auditandfix.com (MAIL FROM) → AF zone', () => {
+    expect(zoneIdForDomain('bounce.outreach.auditandfix.com', ZONES)).toBe(ZONES.af);
   });
 
-  it('send.auditandfix.com (subdomain) → returns AF zone ID', () => {
-    expect(zoneIdForDomain('send.auditandfix.com', AF_ZONE, CRAI_ZONE)).toBe(AF_ZONE);
+  // ── auditandfix.app (customer portal + transactional) ──
+  it('auditandfix.app → AF.app zone', () => {
+    expect(zoneIdForDomain('auditandfix.app', ZONES)).toBe(ZONES.afApp);
+  });
+  it('send.auditandfix.app → AF.app zone', () => {
+    expect(zoneIdForDomain('send.auditandfix.app', ZONES)).toBe(ZONES.afApp);
+  });
+  it('bounce.auditandfix.app (MAIL FROM) → AF.app zone', () => {
+    expect(zoneIdForDomain('bounce.auditandfix.app', ZONES)).toBe(ZONES.afApp);
+  });
+  it('bounce.outbound.auditandfix.app → AF.app zone', () => {
+    expect(zoneIdForDomain('bounce.outbound.auditandfix.app', ZONES)).toBe(ZONES.afApp);
   });
 
-  it('mail.auditandfix.com → returns AF zone ID', () => {
-    expect(zoneIdForDomain('mail.auditandfix.com', AF_ZONE, CRAI_ZONE)).toBe(AF_ZONE);
+  // ── auditandfix.net (pre-seed) ──
+  it('auditandfix.net → AF.net zone', () => {
+    expect(zoneIdForDomain('auditandfix.net', ZONES)).toBe(ZONES.afNet);
+  });
+  it('send.auditandfix.net → AF.net zone', () => {
+    expect(zoneIdForDomain('send.auditandfix.net', ZONES)).toBe(ZONES.afNet);
+  });
+  it('bounce.auditandfix.net (MAIL FROM) → AF.net zone', () => {
+    expect(zoneIdForDomain('bounce.auditandfix.net', ZONES)).toBe(ZONES.afNet);
   });
 
-  it('contactreplyai.com → returns CRAI zone ID', () => {
-    expect(zoneIdForDomain('contactreplyai.com', AF_ZONE, CRAI_ZONE)).toBe(CRAI_ZONE);
+  // ── contactreplyai.com (CRAI marketing) ──
+  it('contactreplyai.com → CRAI zone', () => {
+    expect(zoneIdForDomain('contactreplyai.com', ZONES)).toBe(ZONES.crai);
+  });
+  it('sub.contactreplyai.com → CRAI zone', () => {
+    expect(zoneIdForDomain('sub.contactreplyai.com', ZONES)).toBe(ZONES.crai);
+  });
+  it('outbound.contactreplyai.com → CRAI zone', () => {
+    expect(zoneIdForDomain('outbound.contactreplyai.com', ZONES)).toBe(ZONES.crai);
   });
 
-  it('sub.contactreplyai.com (subdomain) → returns CRAI zone ID', () => {
-    expect(zoneIdForDomain('sub.contactreplyai.com', AF_ZONE, CRAI_ZONE)).toBe(CRAI_ZONE);
+  // ── contactreply.app (CRAI future portal) ──
+  it('contactreply.app → CR.app zone', () => {
+    expect(zoneIdForDomain('contactreply.app', ZONES)).toBe(ZONES.crApp);
+  });
+  it('send.contactreply.app → CR.app zone', () => {
+    expect(zoneIdForDomain('send.contactreply.app', ZONES)).toBe(ZONES.crApp);
+  });
+  it('bounce.contactreply.app → CR.app zone', () => {
+    expect(zoneIdForDomain('bounce.contactreply.app', ZONES)).toBe(ZONES.crApp);
   });
 
-  it('contactreplyai.com with no CRAI zone configured → returns null', () => {
-    expect(zoneIdForDomain('contactreplyai.com', AF_ZONE, null)).toBeNull();
+  // ── Disambiguation between similar suffixes ──
+  it('does not confuse contactreply.app with contactreplyai.com', () => {
+    expect(zoneIdForDomain('contactreply.app', ZONES)).toBe(ZONES.crApp);
+    expect(zoneIdForDomain('contactreplyai.com', ZONES)).toBe(ZONES.crai);
+    // The two are completely separate zones — never cross-contaminate
+    expect(zoneIdForDomain('contactreply.app', ZONES)).not.toBe(ZONES.crai);
+    expect(zoneIdForDomain('contactreplyai.com', ZONES)).not.toBe(ZONES.crApp);
   });
 
+  it('does not confuse auditandfix.app, .com, .net', () => {
+    expect(zoneIdForDomain('auditandfix.app', ZONES)).toBe(ZONES.afApp);
+    expect(zoneIdForDomain('auditandfix.com', ZONES)).toBe(ZONES.af);
+    expect(zoneIdForDomain('auditandfix.net', ZONES)).toBe(ZONES.afNet);
+    // All three should be distinct zones
+    const apps = new Set([ZONES.afApp, ZONES.af, ZONES.afNet]);
+    expect(apps.size).toBe(3);
+  });
+
+  // ── Null / missing zone fallback ──
+  it('contactreplyai.com with no CRAI zone configured → returns undefined', () => {
+    const partial = { ...ZONES, crai: undefined };
+    expect(zoneIdForDomain('contactreplyai.com', partial)).toBeUndefined();
+  });
+
+  it('auditandfix.app with no .app zone configured → returns undefined', () => {
+    const partial = { ...ZONES, afApp: undefined };
+    expect(zoneIdForDomain('auditandfix.app', partial)).toBeUndefined();
+  });
+
+  // ── Unknown domain fallthrough ──
   it('unknown domain → falls through to AF zone ID', () => {
-    // Any non-contactreplyai.com domain maps to the AF zone
-    expect(zoneIdForDomain('otherdomain.com', AF_ZONE, CRAI_ZONE)).toBe(AF_ZONE);
-  });
-
-  it('deep subdomain of auditandfix.com → returns AF zone ID', () => {
-    expect(zoneIdForDomain('deep.sub.auditandfix.com', AF_ZONE, CRAI_ZONE)).toBe(AF_ZONE);
+    expect(zoneIdForDomain('otherdomain.com', ZONES)).toBe(ZONES.af);
   });
 });
