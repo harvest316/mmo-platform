@@ -128,27 +128,23 @@ describe('shouldDrop', () => {
 
 describe('getForwardDestination', () => {
   const env = {
-    FORWARD_TO_MARCUS_APP:  'jason@personal.com',
-    FORWARD_TO_NET_STATUS:  'jason@personal.com',
-    FORWARD_TO_CRAI_MARCUS: 'gary@example.com',
+    FORWARD_TO_NET_STATUS: 'status@dev.auditandfix.com',
   };
 
-  it('returns destination for marcus@auditandfix.app', () => {
-    expect(getForwardDestination('marcus@auditandfix.app', env))
-      .toBe('jason@personal.com');
-  });
-
-  it('returns destination for status@auditandfix.net', () => {
+  it('returns destination for status@auditandfix.net (pre-seed monitoring)', () => {
     expect(getForwardDestination('status@auditandfix.net', env))
-      .toBe('jason@personal.com');
+      .toBe('status@dev.auditandfix.com');
   });
 
-  it('returns destination for marcus@contactreply.app', () => {
-    expect(getForwardDestination('marcus@contactreply.app', env))
-      .toBe('gary@example.com');
+  it('returns null for marcus@auditandfix.app (autoresponder pipeline)', () => {
+    expect(getForwardDestination('marcus@auditandfix.app', env)).toBeNull();
   });
 
-  it('returns null for marcus@auditandfix.com (handled by reply processor)', () => {
+  it('returns null for marcus@contactreply.app (CRAI autoresponder)', () => {
+    expect(getForwardDestination('marcus@contactreply.app', env)).toBeNull();
+  });
+
+  it('returns null for marcus@auditandfix.com (existing reply processor)', () => {
     expect(getForwardDestination('marcus@auditandfix.com', env)).toBeNull();
   });
 
@@ -157,12 +153,12 @@ describe('getForwardDestination', () => {
   });
 
   it('is case-insensitive on the To address', () => {
-    expect(getForwardDestination('Marcus@Auditandfix.App', env))
-      .toBe('jason@personal.com');
+    expect(getForwardDestination('Status@Auditandfix.Net', env))
+      .toBe('status@dev.auditandfix.com');
   });
 
   it('returns null when forward secret is not configured', () => {
-    expect(getForwardDestination('marcus@auditandfix.app', {})).toBeNull();
+    expect(getForwardDestination('status@auditandfix.net', {})).toBeNull();
   });
 });
 
