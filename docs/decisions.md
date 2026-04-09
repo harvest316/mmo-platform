@@ -4,6 +4,31 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-186: Split SES inbound between auditandfix and CRAI — separate SNS topic + receipt rule (2026-04-09)
+
+**Context:** DR-179 and DR-180 both assumed a single SES receiving pipeline. Under that pipeline, `mmo-inbound-rule` matched 5 domains (auditandfix.com, auditandfix.app, auditandfix.net, contactreplyai.com, contactreply.app) and published to the single `auditandfix` SNS topic. The `email-webhook-worker` (333Method) was the script-managed subscriber. During DR-180 implementation, `crai-api` was manually subscribed to the same `auditandfix` topic (not via `setup-ses.mjs`), creating two problems:
+1. **CRAI received every 333Method outreach reply** — `resolveTenantByEmail()` returned 404 for non-CRAI recipients, wasting S3 fetches and worker invocations per reply.
+2. **333Method received every CRAI inbound email** — `pollInboundEmails()` has no domain filter, so an email to `slug@inbound.contactreplyai.com` would be ingested as an auditandfix reply. Currently latent because CRAI inbound traffic is near-zero, but a time bomb.
+
+The topic is **not** just an inbound topic — the `mmo-outbound` configuration set also publishes SEND/DELIVERY/BOUNCE/COMPLAINT events to it via `sns-all-events`. So deleting `email-webhook-worker`'s subscription (user's first instinct) would break outbound bounce/complaint tracking AND inbound reply ingestion in 333Method.
+
+**Decision:** Split inbound handling by brand:
+1. Create new SNS topic `crai-inbound` with an SES publish policy scoped to the account.
+2. Update existing `mmo-inbound-rule` to match only `auditandfix.com`, `auditandfix.app`, `auditandfix.net`.
+3. Create new receipt rule `crai-inbound-rule` matching `contactreplyai.com`, `contactreply.app`, publishing to the new topic.
+4. Subscribe `crai-api` to the new topic.
+5. Unsubscribe `crai-api` from the `auditandfix` topic.
+6. 333Method `email-webhook-worker` subscription stays on `auditandfix` (unchanged) — still receives outbound events AND auditandfix.* inbound replies.
+
+Outbound SES events continue to flow only to the `auditandfix` topic (via config set event destination). CRAI doesn't currently monitor its own outbound reputation — it relies on the shared transport and DR-183 monitoring.
+
+All of this is now codified in `mmo-platform/scripts/setup-ses.mjs` with a `--crai-split-only` flag that skips the domain verification / DKIM / IAM steps and only runs the split work (safe to re-run, fully idempotent). Regular full provisioning runs (`node setup-ses.mjs`) also perform the split now.
+
+**Status:** Implemented 2026-04-09
+**Impl:** `mmo-platform/scripts/setup-ses.mjs` (step4b, step6b, step8 rule split, `--crai-split-only` flag); post-run: update `ContactReplyAI/.env` + `crai-api` worker secret `SNS_TOPIC_ARN` to the new ARN, then re-run `--crai-split-only` to trigger a fresh subscription confirmation.
+
+---
+
 ### DR-183: Hourly SES reputation cron with tiered auto-pause + split-domain transactional isolation (2026-04-07)
 **Context:** AWS suspends SES accounts unilaterally under Service Terms 15.4 when bounce or complaint rates spike, with no stated minimum threshold. By the time AWS sends warning email, the operator has hours not days. Throttling doesn't fix rates (independent of volume). Switching IP/ESP/subdomain doesn't help — Gmail/Outlook track reputation primarily at the organisational domain level. The only effective levers are: (1) catch degradation early, (2) pause cold outreach before transactional reputation taints, (3) isolate transactional sends on a different brand domain so cold outreach can't burn the magic-link path.
 **Decision:** Three-part defense:

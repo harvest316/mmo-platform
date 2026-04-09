@@ -21,8 +21,9 @@ import { SESv2Client, CreateEmailIdentityCommand, GetEmailIdentityCommand,
   CreateConfigurationSetCommand, CreateConfigurationSetEventDestinationCommand,
   PutEmailIdentityMailFromAttributesCommand } from '@aws-sdk/client-sesv2';
 import { SESClient, CreateReceiptRuleSetCommand, CreateReceiptRuleCommand,
-  SetActiveReceiptRuleSetCommand } from '@aws-sdk/client-ses';
-import { SNSClient, CreateTopicCommand, SubscribeCommand, ListSubscriptionsByTopicCommand } from '@aws-sdk/client-sns';
+  UpdateReceiptRuleCommand, SetActiveReceiptRuleSetCommand } from '@aws-sdk/client-ses';
+import { SNSClient, CreateTopicCommand, SubscribeCommand, UnsubscribeCommand,
+  ListSubscriptionsByTopicCommand, SetTopicAttributesCommand } from '@aws-sdk/client-sns';
 import { S3Client, CreateBucketCommand, PutBucketPolicyCommand,
   PutPublicAccessBlockCommand, PutBucketEncryptionCommand,
   PutBucketLifecycleConfigurationCommand, GetBucketLocationCommand } from '@aws-sdk/client-s3';
@@ -36,6 +37,11 @@ import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const SWITCH_MX = args.includes('--switch-mx');
+// --crai-split-only: skip identity/CNAME/S3/IAM/DKIM work and only run the
+// CRAI inbound split (DR-186): create crai-inbound topic, subscribe crai-api,
+// unsubscribe it from the shared topic, update receipt rules. Use when the
+// rest of the infra is already provisioned and you only need to split.
+const CRAI_SPLIT_ONLY = args.includes('--crai-split-only');
 
 if (DRY_RUN) console.log('⚠  DRY RUN — no changes will be made\n');
 
@@ -56,8 +62,11 @@ const AWS_SECRET_ACCESS_KEY = requireEnv('AWS_SECRET_ACCESS_KEY');
 const AWS_REGION            = process.env.AWS_REGION ?? 'ap-southeast-2';
 const CF_API_TOKEN          = process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
 if (!CF_API_TOKEN) { console.error('✗ Missing required env var: CF_API_TOKEN or CLOUDFLARE_API_TOKEN'); process.exit(1); }
-const CF_ZONE_ID_AUDITANDFIX     = requireEnv('CF_ZONE_ID_AUDITANDFIX');
-const CF_ZONE_ID_CONTACTREPLYAI  = process.env.CF_ZONE_ID_CONTACTREPLYAI ?? null;
+const CF_ZONE_ID_AUDITANDFIX        = requireEnv('CF_ZONE_ID_AUDITANDFIX');
+const CF_ZONE_ID_CONTACTREPLYAI     = process.env.CF_ZONE_ID_CONTACTREPLYAI    ?? null;
+const CF_ZONE_ID_AUDITANDFIX_APP    = process.env.CF_ZONE_ID_AUDITANDFIX_APP   ?? null;
+const CF_ZONE_ID_CONTACTREPLY_APP   = process.env.CF_ZONE_ID_CONTACTREPLY_APP  ?? null;
+const CF_ZONE_ID_AUDITANDFIX_NET    = process.env.CF_ZONE_ID_AUDITANDFIX_NET   ?? null;
 
 // ---------------------------------------------------------------------------
 // AWS client config
@@ -78,26 +87,62 @@ const sts    = new STSClient(awsConfig);
 // Constants
 // ---------------------------------------------------------------------------
 const DOMAINS = [
+  // auditandfix.com — cold outreach + marketing site
   'auditandfix.com',
   'send.auditandfix.com',
   'mail.auditandfix.com',
   'email.auditandfix.com',
   'outreach.auditandfix.com',
   'outbound.auditandfix.com',
-  'eu.auditandfix.com',
-  'sa.auditandfix.com',
+
+  // contactreplyai.com — CRAI sales site + per-tenant inbound base
   'contactreplyai.com',
   'send.contactreplyai.com',
   'mail.contactreplyai.com',
   'email.contactreplyai.com',
   'outreach.contactreplyai.com',
   'outbound.contactreplyai.com',
-  'eu.contactreplyai.com',
-  'sa.contactreplyai.com',
+
+  // auditandfix.app — customer portal + transactional sends (split-domain isolation, DR-184)
+  'auditandfix.app',
+  'send.auditandfix.app',
+  'mail.auditandfix.app',
+  'email.auditandfix.app',
+  'outreach.auditandfix.app',
+  'outbound.auditandfix.app',
+
+  // contactreply.app — CRAI future portal + transactional, pre-provisioned
+  'contactreply.app',
+  'send.contactreply.app',
+  'mail.contactreply.app',
+  'email.contactreply.app',
+  'outreach.contactreply.app',
+  'outbound.contactreply.app',
+
+  // auditandfix.net — pre-seed future cold sender (DR-185)
+  'auditandfix.net',
+  'send.auditandfix.net',
+  'mail.auditandfix.net',
+  'email.auditandfix.net',
+  'outreach.auditandfix.net',
+  'outbound.auditandfix.net',
 ];
 
-// Zone ID lookup by domain root — subdomains of auditandfix.com use the same zone
+// NOTE: eu.* and sa.* subdomains were removed from this list (DR-187).
+// They were a Resend artefact for regional sending pools — irrelevant under SES.
+// Cleanup handled by scripts/cleanup-stale-ses-identities.mjs (one-shot).
+
+// Zone ID lookup by domain root. Subdomains of each apex use the apex's zone.
 function zoneIdForDomain(domain) {
+  if (domain === 'auditandfix.app' || domain.endsWith('.auditandfix.app')) {
+    return CF_ZONE_ID_AUDITANDFIX_APP;
+  }
+  if (domain === 'auditandfix.net' || domain.endsWith('.auditandfix.net')) {
+    return CF_ZONE_ID_AUDITANDFIX_NET;
+  }
+  if (domain === 'contactreply.app' || domain.endsWith('.contactreply.app')) {
+    return CF_ZONE_ID_CONTACTREPLY_APP;
+  }
   if (domain === 'contactreplyai.com' || domain.endsWith('.contactreplyai.com')) {
     return CF_ZONE_ID_CONTACTREPLYAI;
   }
@@ -112,6 +157,17 @@ const IAM_USER_NAME       = 'ses-sender';
 const RECEIPT_RULE_SET    = 'mmo-inbound';
 const RECEIPT_RULE_NAME   = 'mmo-inbound-rule';
 const CF_WORKER_ENDPOINT  = 'https://email-webhook-worker.auditandfix.workers.dev/webhook/ses';
+
+// ── CRAI split (see DR-186) ──────────────────────────────────────────────────
+// Previously all 5 domains shared a single SNS topic + receipt rule, causing:
+// 1. CRAI worker received every 333Method outreach reply (wasteful 404s)
+// 2. 333Method worker received every CRAI inbound email (risk of misprocessing)
+// Fix: separate topic + separate receipt rule for CRAI domains.
+const CRAI_SNS_TOPIC_NAME   = 'crai-inbound';
+const CRAI_RECEIPT_RULE_NAME = 'crai-inbound-rule';
+const CRAI_WORKER_ENDPOINT  = 'https://crai-api.auditandfix.workers.dev/webhooks/ses/email';
+const AUDITANDFIX_INBOUND_DOMAINS = ['auditandfix.com', 'auditandfix.app', 'auditandfix.net'];
+const CRAI_INBOUND_DOMAINS        = ['contactreplyai.com', 'contactreply.app'];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -247,12 +303,16 @@ async function step1_verifyDomains() {
 
 /**
  * Map each identity to its custom MAIL FROM (bounce) subdomain.
- * Subdomains of auditandfix.com use a shared bounce.auditandfix.com —
- * this satisfies DMARC relaxed SPF alignment for all @*.auditandfix.com From addresses.
+ * Apex domains get a flat `bounce.{apex}` MAIL FROM. Subdomains get
+ * `bounce.{subdomain}.{apex}` to keep bounce streams isolated per identity.
  */
 function mailFromForDomain(domain) {
-  if (domain === 'contactreplyai.com') return 'bounce.contactreplyai.com';
-  if (domain === 'auditandfix.com') return 'bounce.auditandfix.com';
+  // Apex domains
+  if (domain === 'auditandfix.com')      return 'bounce.auditandfix.com';
+  if (domain === 'contactreplyai.com')   return 'bounce.contactreplyai.com';
+  if (domain === 'auditandfix.app')      return 'bounce.auditandfix.app';
+  if (domain === 'contactreply.app')     return 'bounce.contactreply.app';
+  if (domain === 'auditandfix.net')      return 'bounce.auditandfix.net';
   // Subdomains — bounce.{subdomain}.{root} e.g. bounce.outreach.auditandfix.com
   return `bounce.${domain}`;
 }
@@ -519,6 +579,51 @@ async function step4_createSnsTopic() {
 }
 
 // ---------------------------------------------------------------------------
+// Step 4b: Create CRAI-specific SNS topic + publish policy
+// (See DR-186 — splits CRAI inbound off the shared auditandfix topic)
+// ---------------------------------------------------------------------------
+async function step4b_createCraiSnsTopic(accountId) {
+  console.log('\n── Step 4b: Create CRAI SNS topic ─────────────────────────────────────');
+
+  if (DRY_RUN) {
+    console.log(`  [dry-run] Would create SNS topic: ${CRAI_SNS_TOPIC_NAME}`);
+    return `arn:aws:sns:${AWS_REGION}:${accountId}:${CRAI_SNS_TOPIC_NAME}`;
+  }
+
+  // CreateTopic is idempotent — returns existing ARN if topic already exists
+  const res = await sns.send(new CreateTopicCommand({ Name: CRAI_SNS_TOPIC_NAME }));
+  const topicArn = res.TopicArn;
+  console.log(`  ✓ CRAI SNS topic ARN: ${topicArn}`);
+
+  // Ensure SES can publish to this topic (receipt rule SNSAction requires it).
+  // Idempotent: SetTopicAttributes overwrites the existing policy.
+  const policy = {
+    Version: '2012-10-17',
+    Id: '__default_policy_ID',
+    Statement: [
+      {
+        Sid: 'AllowSESPublish',
+        Effect: 'Allow',
+        Principal: { Service: 'ses.amazonaws.com' },
+        Action: 'SNS:Publish',
+        Resource: topicArn,
+        Condition: {
+          StringEquals: { 'aws:SourceAccount': accountId },
+        },
+      },
+    ],
+  };
+  await sns.send(new SetTopicAttributesCommand({
+    TopicArn: topicArn,
+    AttributeName: 'Policy',
+    AttributeValue: JSON.stringify(policy),
+  }));
+  console.log(`  ✓ Applied CRAI topic publish policy (SES, scoped to account ${accountId})`);
+
+  return topicArn;
+}
+
+// ---------------------------------------------------------------------------
 // Step 5: Add SNS event destination to configuration set
 // ---------------------------------------------------------------------------
 async function step5_addEventDestination(topicArn) {
@@ -582,6 +687,57 @@ async function step6_subscribeWorker(topicArn) {
     }));
     console.log(`  ✓ Subscribed ${CF_WORKER_ENDPOINT}`);
     console.log(`  ⚠ SNS will send a confirmation request — the CF Worker must confirm it`);
+  }
+
+  // ── Unsubscribe crai-api from this (auditandfix) topic if present ─────────
+  // See DR-186: crai-api was accidentally subscribed here and should be on the
+  // crai-inbound topic instead. This is the cleanup half of the split.
+  try {
+    const subs = await sns.send(new ListSubscriptionsByTopicCommand({ TopicArn: topicArn }));
+    const stray = subs.Subscriptions?.find(
+      s => s.Protocol === 'https' && s.Endpoint === CRAI_WORKER_ENDPOINT && s.SubscriptionArn?.startsWith('arn:')
+    );
+    if (stray) {
+      await sns.send(new UnsubscribeCommand({ SubscriptionArn: stray.SubscriptionArn }));
+      console.log(`  ✓ Unsubscribed stray crai-api from ${topicArn}`);
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Could not check/remove stray crai-api subscription: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 6b: Subscribe crai-api CF Worker to the CRAI SNS topic
+// (See DR-186 — previously subscribed to the wrong shared topic)
+// ---------------------------------------------------------------------------
+async function step6b_subscribeCraiWorker(craiTopicArn) {
+  console.log('\n── Step 6b: Subscribe crai-api to CRAI SNS topic ─────────────────────');
+
+  if (DRY_RUN) {
+    console.log(`  [dry-run] Would subscribe ${CRAI_WORKER_ENDPOINT} to ${craiTopicArn}`);
+    return;
+  }
+
+  let alreadySubscribed = false;
+  try {
+    const existing = await sns.send(new ListSubscriptionsByTopicCommand({ TopicArn: craiTopicArn }));
+    alreadySubscribed = existing.Subscriptions?.some(
+      s => s.Protocol === 'https' && s.Endpoint === CRAI_WORKER_ENDPOINT && s.SubscriptionArn?.startsWith('arn:')
+    ) ?? false;
+  } catch (err) {
+    console.warn(`  ⚠ Could not list CRAI topic subscriptions: ${err.message}`);
+  }
+
+  if (alreadySubscribed) {
+    console.log(`  ⚠ Subscription already exists for ${CRAI_WORKER_ENDPOINT}`);
+  } else {
+    await sns.send(new SubscribeCommand({
+      TopicArn: craiTopicArn,
+      Protocol: 'https',
+      Endpoint: CRAI_WORKER_ENDPOINT,
+    }));
+    console.log(`  ✓ Subscribed ${CRAI_WORKER_ENDPOINT}`);
+    console.log(`  ⚠ SNS will send a confirmation request — crai-api must confirm it`);
   }
 }
 
@@ -696,12 +852,13 @@ async function step7_createS3Bucket(accountId) {
 // Step 8: Create SES receipt rule set and rule
 // NOTE: Receipt rules use SES v1 API
 // ---------------------------------------------------------------------------
-async function step8_createReceiptRules(topicArn) {
-  console.log('\n── Step 8: Create SES receipt rule set and rule ──────────────────────');
+async function step8_createReceiptRules(topicArn, craiTopicArn) {
+  console.log('\n── Step 8: Create SES receipt rule set and rules ─────────────────────');
 
   if (DRY_RUN) {
     console.log(`  [dry-run] Would create receipt rule set: ${RECEIPT_RULE_SET}`);
-    console.log(`  [dry-run] Would create receipt rule: ${RECEIPT_RULE_NAME}`);
+    console.log(`  [dry-run] Would create/update receipt rule: ${RECEIPT_RULE_NAME} (recipients: ${AUDITANDFIX_INBOUND_DOMAINS.join(', ')})`);
+    console.log(`  [dry-run] Would create receipt rule: ${CRAI_RECEIPT_RULE_NAME} (recipients: ${CRAI_INBOUND_DOMAINS.join(', ')}, topic: ${craiTopicArn})`);
     return;
   }
 
@@ -717,36 +874,87 @@ async function step8_createReceiptRules(topicArn) {
     }
   }
 
-  // Create rule
+  // ── Audit&Fix rule (auditandfix.com/.app/.net only) ──
+  // Spec used for both Create and Update (idempotent).
+  const auditandfixRule = {
+    Name: RECEIPT_RULE_NAME,
+    Enabled: true,
+    TlsPolicy: 'Optional',
+    Recipients: AUDITANDFIX_INBOUND_DOMAINS,
+    Actions: [
+      {
+        S3Action: {
+          BucketName: S3_BUCKET_NAME,
+          ObjectKeyPrefix: 'inbound/',
+        },
+      },
+      {
+        SNSAction: {
+          TopicArn: topicArn,
+          Encoding: 'UTF-8',
+        },
+      },
+    ],
+    ScanEnabled: true,
+  };
+
   try {
     await sesv1.send(new CreateReceiptRuleCommand({
       RuleSetName: RECEIPT_RULE_SET,
-      Rule: {
-        Name: RECEIPT_RULE_NAME,
-        Enabled: true,
-        TlsPolicy: 'Optional',
-        Recipients: ['auditandfix.com', 'contactreplyai.com'],
-        Actions: [
-          {
-            S3Action: {
-              BucketName: S3_BUCKET_NAME,
-              ObjectKeyPrefix: 'inbound/',
-            },
-          },
-          {
-            SNSAction: {
-              TopicArn: topicArn,
-              Encoding: 'UTF-8',
-            },
-          },
-        ],
-        ScanEnabled: true,
-      },
+      Rule: auditandfixRule,
     }));
-    console.log(`  ✓ Created receipt rule: ${RECEIPT_RULE_NAME}`);
+    console.log(`  ✓ Created receipt rule: ${RECEIPT_RULE_NAME} (${AUDITANDFIX_INBOUND_DOMAINS.join(', ')})`);
   } catch (err) {
-    if (err.name === 'AlreadyExists' || err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists')) {
-      console.log(`  ⚠ Receipt rule already exists: ${RECEIPT_RULE_NAME}`);
+    if (err.name === 'AlreadyExists' || err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists') || err.name === 'RuleExists' || err.name === 'RuleDoesNotExistException') {
+      // Rule exists — update it to ensure recipients match the new auditandfix-only list.
+      // This is the critical step that REMOVES contactreplyai.com/contactreply.app
+      // from the auditandfix topic, so CRAI emails stop flowing to email-webhook-worker.
+      await sesv1.send(new UpdateReceiptRuleCommand({
+        RuleSetName: RECEIPT_RULE_SET,
+        Rule: auditandfixRule,
+      }));
+      console.log(`  ✓ Updated receipt rule: ${RECEIPT_RULE_NAME} → recipients now ${AUDITANDFIX_INBOUND_DOMAINS.join(', ')}`);
+    } else {
+      throw err;
+    }
+  }
+
+  // ── CRAI rule (contactreplyai.com + contactreply.app) ──
+  const craiRule = {
+    Name: CRAI_RECEIPT_RULE_NAME,
+    Enabled: true,
+    TlsPolicy: 'Optional',
+    Recipients: CRAI_INBOUND_DOMAINS,
+    Actions: [
+      {
+        S3Action: {
+          BucketName: S3_BUCKET_NAME,
+          ObjectKeyPrefix: 'inbound/',
+        },
+      },
+      {
+        SNSAction: {
+          TopicArn: craiTopicArn,
+          Encoding: 'UTF-8',
+        },
+      },
+    ],
+    ScanEnabled: true,
+  };
+
+  try {
+    await sesv1.send(new CreateReceiptRuleCommand({
+      RuleSetName: RECEIPT_RULE_SET,
+      Rule: craiRule,
+    }));
+    console.log(`  ✓ Created receipt rule: ${CRAI_RECEIPT_RULE_NAME} (${CRAI_INBOUND_DOMAINS.join(', ')})`);
+  } catch (err) {
+    if (err.name === 'AlreadyExists' || err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists') || err.name === 'RuleExists' || err.name === 'RuleDoesNotExistException') {
+      await sesv1.send(new UpdateReceiptRuleCommand({
+        RuleSetName: RECEIPT_RULE_SET,
+        Rule: craiRule,
+      }));
+      console.log(`  ✓ Updated receipt rule: ${CRAI_RECEIPT_RULE_NAME}`);
     } else {
       throw err;
     }
@@ -780,25 +988,43 @@ async function step9_createIamUser(accountId) {
     }
   }
 
-  // Attach inline policy: SES send + S3 read on inbound bucket
+  // Attach inline policy: SES send + S3 read on inbound bucket.
+  //
+  // Resource wildcards cover all verified identities across the 5 apex domains.
+  // ses:FromAddress condition (RF-1) is defense-in-depth: even if this key is
+  // leaked, it cannot send from unrelated addresses.
+  const ALLOWED_FROM_DOMAINS = [
+    '*@auditandfix.com',    '*@*.auditandfix.com',
+    '*@auditandfix.app',    '*@*.auditandfix.app',
+    '*@auditandfix.net',    '*@*.auditandfix.net',
+    '*@contactreplyai.com', '*@*.contactreplyai.com',
+    '*@contactreply.app',   '*@*.contactreply.app',
+  ];
   const policy = {
     Version: '2012-10-17',
     Statement: [
       {
         Sid: 'AllowSESSend',
         Effect: 'Allow',
-        Action: ['ses:SendEmail', 'ses:SendRawEmail', 'ses:PutEmailIdentityMailFromAttributes'],
+        Action: ['ses:SendEmail', 'ses:SendRawEmail'],
         Resource: [
           `arn:aws:ses:${AWS_REGION}:${accountId}:identity/auditandfix.com`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.auditandfix.com`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/auditandfix.app`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.auditandfix.app`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/auditandfix.net`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.auditandfix.net`,
           `arn:aws:ses:${AWS_REGION}:${accountId}:identity/contactreplyai.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/send.auditandfix.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/mail.auditandfix.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/email.auditandfix.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/outreach.auditandfix.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/outbound.auditandfix.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/eu.auditandfix.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/sa.auditandfix.com`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.contactreplyai.com`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/contactreply.app`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.contactreply.app`,
+          `arn:aws:ses:${AWS_REGION}:${accountId}:configuration-set/${CONFIG_SET_NAME}`,
         ],
+        Condition: {
+          StringLike: {
+            'ses:FromAddress': ALLOWED_FROM_DOMAINS,
+          },
+        },
       },
       {
         Sid: 'AllowS3InboundRead',
@@ -874,6 +1100,126 @@ async function step10_pollDkimVerification() {
 }
 
 // ---------------------------------------------------------------------------
+// Step 8b: Ensure apex MX + auxiliary records for inbound mail
+//
+// Each apex domain we want to receive mail at needs:
+//   MX  apex  →  inbound-smtp.{region}.amazonaws.com  (priority 10)
+//
+// Some apex domains additionally need explicit SPF / DMARC records (the
+// MAIL FROM step writes SPF on the bounce.* subdomain, but the apex itself
+// also benefits from a published SPF that includes amazonses.com so that
+// transactional sends from From: marcus@{apex} pass SPF in relaxed mode).
+//
+// For auditandfix.net (the pre-seed domain) we publish a strict-er DMARC
+// from day 1 with rua reporting so we can monitor any alignment failures
+// during the trust-period accumulation window. See DR-185.
+//
+// All operations are idempotent — safe to re-run.
+// ---------------------------------------------------------------------------
+
+const APEX_DOMAINS_FOR_INBOUND = [
+  'auditandfix.com',
+  'contactreplyai.com',
+  'auditandfix.app',
+  'contactreply.app',
+  'auditandfix.net',
+];
+
+async function step8b_addApexInboundMx() {
+  console.log('\n── Step 8b: Apex MX + apex SPF + DMARC for inbound + DMARC ──────────');
+
+  const inboundSmtp = `inbound-smtp.${AWS_REGION}.amazonaws.com`;
+
+  for (const apex of APEX_DOMAINS_FOR_INBOUND) {
+    const zoneId = zoneIdForDomain(apex);
+    if (!zoneId) {
+      console.warn(`  ⚠ No CF zone ID for ${apex} — skip apex MX/SPF/DMARC`);
+      continue;
+    }
+
+    // ── 1. Apex MX ────────────────────────────────────────────────────────
+    if (DRY_RUN) {
+      console.log(`  [dry-run] Would ensure apex MX for ${apex} → ${inboundSmtp}`);
+    } else {
+      try {
+        const existing = await cfRequest('GET', `/zones/${zoneId}/dns_records?type=MX&name=${encodeURIComponent(apex)}`);
+        const alreadySet = (existing.result ?? []).some(r => r.content === inboundSmtp);
+        if (alreadySet) {
+          console.log(`  ⚠ Apex MX already set: ${apex} → ${inboundSmtp}`);
+        } else {
+          await cfRequest('POST', `/zones/${zoneId}/dns_records`, {
+            type: 'MX',
+            name: apex,
+            content: inboundSmtp,
+            priority: 10,
+            proxied: false,
+            ttl: 300,
+          });
+          console.log(`  ✓ Created apex MX: ${apex} → ${inboundSmtp}`);
+        }
+      } catch (err) {
+        console.error(`  ✗ Apex MX for ${apex}:`, err.message);
+      }
+    }
+
+    // ── 2. Apex SPF ───────────────────────────────────────────────────────
+    // Some apex domains may already have an SPF record (auditandfix.com does).
+    // Only create if no SPF exists at the apex.
+    if (DRY_RUN) {
+      console.log(`  [dry-run] Would ensure apex SPF for ${apex}`);
+    } else {
+      try {
+        const existing = await cfRequest('GET', `/zones/${zoneId}/dns_records?type=TXT&name=${encodeURIComponent(apex)}`);
+        const hasSpf = (existing.result ?? []).some(r => r.content.startsWith('v=spf1'));
+        if (hasSpf) {
+          console.log(`  ⚠ Apex SPF already exists: ${apex}`);
+        } else {
+          await cfRequest('POST', `/zones/${zoneId}/dns_records`, {
+            type: 'TXT',
+            name: apex,
+            content: 'v=spf1 include:amazonses.com ~all',
+            proxied: false,
+            ttl: 300,
+          });
+          console.log(`  ✓ Created apex SPF: ${apex} = v=spf1 include:amazonses.com ~all`);
+        }
+      } catch (err) {
+        console.error(`  ✗ Apex SPF for ${apex}:`, err.message);
+      }
+    }
+
+    // ── 3. DMARC at _dmarc.{apex} ─────────────────────────────────────────
+    // Use p=none with rua reporting so we observe alignment without rejecting.
+    // Reports go to dmarc@auditandfix.com (a single inbox we monitor).
+    const dmarcName = `_dmarc.${apex}`;
+    const dmarcContent = 'v=DMARC1; p=none; rua=mailto:dmarc@auditandfix.com; ruf=mailto:dmarc@auditandfix.com; fo=1; adkim=r; aspf=r';
+
+    if (DRY_RUN) {
+      console.log(`  [dry-run] Would ensure DMARC for ${apex}`);
+    } else {
+      try {
+        const existing = await cfRequest('GET', `/zones/${zoneId}/dns_records?type=TXT&name=${encodeURIComponent(dmarcName)}`);
+        const hasDmarc = (existing.result ?? []).some(r => r.content.startsWith('v=DMARC1'));
+        if (hasDmarc) {
+          console.log(`  ⚠ DMARC already exists: ${dmarcName}`);
+        } else {
+          await cfRequest('POST', `/zones/${zoneId}/dns_records`, {
+            type: 'TXT',
+            name: dmarcName,
+            content: dmarcContent,
+            proxied: false,
+            ttl: 300,
+          });
+          console.log(`  ✓ Created DMARC: ${dmarcName}`);
+        }
+      } catch (err) {
+        console.error(`  ✗ DMARC for ${apex}:`, err.message);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Switch MX records (Phase 4 — only when --switch-mx flag is passed)
 // ---------------------------------------------------------------------------
 async function switchMxRecords() {
@@ -933,16 +1279,35 @@ async function main() {
     console.log(`Account ID: ${accountId}`);
   }
 
+  if (CRAI_SPLIT_ONLY) {
+    console.log('\n⚠  --crai-split-only: skipping domain/CNAME/IAM/DKIM steps');
+    const topicArn = await step4_createSnsTopic();
+    const craiTopicArn = await step4b_createCraiSnsTopic(accountId);
+    await step6_subscribeWorker(topicArn);       // prunes stray crai-api subscription
+    await step6b_subscribeCraiWorker(craiTopicArn);
+    await step8_createReceiptRules(topicArn, craiTopicArn);
+    console.log('\n\n═══════════════════════════════════════════════════════════════════════');
+    console.log('  CRAI SPLIT COMPLETE — DR-186');
+    console.log('═══════════════════════════════════════════════════════════════════════');
+    console.log(`\n  333Method topic (unchanged): ${topicArn}`);
+    console.log(`  CRAI topic (new):            ${craiTopicArn}`);
+    console.log(`\n  Next: update ContactReplyAI SNS_TOPIC_ARN secret to the CRAI topic.\n`);
+    return;
+  }
+
   const dkimTokensByDomain = await step1_verifyDomains();
   await step1a_setMailFromDomains();
   await step1b_cleanupResendDns();
   await step2_addDkimCnames(dkimTokensByDomain);
   await step3_createConfigSet();
   const topicArn = await step4_createSnsTopic();
+  const craiTopicArn = await step4b_createCraiSnsTopic(accountId);
   await step5_addEventDestination(topicArn);
   await step6_subscribeWorker(topicArn);
+  await step6b_subscribeCraiWorker(craiTopicArn);
   await step7_createS3Bucket(accountId);
-  await step8_createReceiptRules(topicArn);
+  await step8_createReceiptRules(topicArn, craiTopicArn);
+  await step8b_addApexInboundMx();
   const { accessKeyId: sesKeyId, secretAccessKey: sesSecret } = await step9_createIamUser(accountId);
   await step10_pollDkimVerification();
 
@@ -960,6 +1325,9 @@ async function main() {
   const effectiveTopicArn = DRY_RUN
     ? `arn:aws:sns:${AWS_REGION}:${accountId}:${SNS_TOPIC_NAME}`
     : topicArn;
+  const effectiveCraiTopicArn = DRY_RUN
+    ? `arn:aws:sns:${AWS_REGION}:${accountId}:${CRAI_SNS_TOPIC_NAME}`
+    : craiTopicArn;
 
   console.log('\n\n═══════════════════════════════════════════════════════════════════════');
   console.log('  PROVISIONING COMPLETE — Copy the values below');
@@ -982,9 +1350,18 @@ SES_SMTP_USERNAME=${smtpUsername}
 SES_SMTP_PASSWORD=${smtpPassword}
 
 # ── Add as CF Worker secret (run from host terminal) ───────────────────────
+# (333Method email-webhook-worker — the auditandfix topic)
 # wrangler secret put SNS_TOPIC_ARN
 # (paste when prompted):
 # ${effectiveTopicArn}
+
+# ── Update ContactReplyAI crai-api SNS_TOPIC_ARN (DR-186 split) ─────────────
+# ContactReplyAI/.env:
+SNS_TOPIC_ARN=${effectiveCraiTopicArn}
+# crai-api CF Worker secret (run from host terminal):
+# (cd ~/code/ContactReplyAI/workers && npx wrangler secret put SNS_TOPIC_ARN)
+# (paste when prompted):
+# ${effectiveCraiTopicArn}
 `);
 
   console.log('═══════════════════════════════════════════════════════════════════════');
