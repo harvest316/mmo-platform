@@ -549,6 +549,22 @@ describe('reputation pause flag', () => {
       .rejects.toThrow('Email paused');
   });
 
+  it("state='all' → kind='auth' bypasses pause (magic links must always work) (DR-190)", async () => {
+    writePauseFile({ state: 'all', reason: 'critical reputation' });
+    process.env.EMAIL_PROVIDER = 'ses';
+    const sendEmail = await freshImport();
+    await expect(sendEmail({ ...BASE_PARAMS, kind: 'auth' }))
+      .resolves.toEqual({ id: 'ses-msg-id-1' });
+  });
+
+  it("state='cold' → kind='auth' bypasses pause", async () => {
+    writePauseFile({ state: 'cold', reason: 'cold outreach paused' });
+    process.env.EMAIL_PROVIDER = 'ses';
+    const sendEmail = await freshImport();
+    await expect(sendEmail({ ...BASE_PARAMS, kind: 'auth' }))
+      .resolves.toEqual({ id: 'ses-msg-id-1' });
+  });
+
   it('error message includes the pause file path for operator clarity', async () => {
     writePauseFile({ state: 'all', reason: 'r' });
     process.env.EMAIL_PROVIDER = 'ses';

@@ -227,9 +227,11 @@ async function sendViaResend({ from, to, subject, html, text, headers, tags, rep
  *                                        Only honoured when EMAIL_PROVIDER=resend (or overflow).
  *                                        SES attachment support requires MIME encoding — not yet implemented.
  * @param {string} [params.bcc]         - BCC address. Only honoured when EMAIL_PROVIDER=resend (or overflow).
- * @param {'cold'|'transactional'} [params.kind='cold']
+ * @param {'cold'|'transactional'|'auth'} [params.kind='cold']
  *                                        - 'cold': prospecting/outreach (paused by reputation tier ≥ elevated)
- *                                        - 'transactional': magic links, receipts, password resets (only paused on 'all')
+ *                                        - 'transactional': receipts, reports (only paused on state=all)
+ *                                        - 'auth': magic-link login emails — NEVER paused; customers must be
+ *                                          able to log in even when all other sends are paused (DR-190)
  * @returns {Promise<{ id: string }>}
  */
 export async function sendEmail({ from, to, subject, html, text, headers, tags, replyTo, attachments, bcc, kind }) {
@@ -238,17 +240,20 @@ export async function sendEmail({ from, to, subject, html, text, headers, tags, 
   // (the safe default — anything that doesn't pass kind:'transactional' is
   // treated as cold outreach).
   const pause = readPauseState();
-  if (pause.state === 'all') {
-    throw new Error(
-      `Email paused (state=all): ${pause.reason || 'no reason recorded'}. ` +
-      `Edit ${PAUSE_FILE} to reset.`
-    );
-  }
-  if (pause.state === 'cold' && kind !== 'transactional') {
-    throw new Error(
-      `Cold outreach paused (state=cold): ${pause.reason || 'no reason recorded'}. ` +
-      `Pass { kind: 'transactional' } to bypass for transactional sends.`
-    );
+  // kind='auth' is never paused — customers must be able to log in even when all sends are paused (DR-190).
+  if (kind !== 'auth') {
+    if (pause.state === 'all') {
+      throw new Error(
+        `Email paused (state=all): ${pause.reason || 'no reason recorded'}. ` +
+        `Edit ${PAUSE_FILE} to reset.`
+      );
+    }
+    if (pause.state === 'cold' && kind !== 'transactional') {
+      throw new Error(
+        `Cold outreach paused (state=cold): ${pause.reason || 'no reason recorded'}. ` +
+        `Pass { kind: 'transactional' } to bypass for transactional sends.`
+      );
+    }
   }
 
   const provider = process.env.EMAIL_PROVIDER || 'resend';
