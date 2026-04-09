@@ -4,6 +4,23 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-193: ContactReplyAI portal P1 foundation — PHP auth substrate adapted from auditandfix (2026-04-09)
+
+**Context:** ContactReply needs a PHP portal at `contactreply.app` for tenant dashboard, conversation management, and billing. The auditandfix-website already has a working PHP auth substrate (magic links, session management, rate limiting, SES SMTP). Rather than building from scratch, we adapted the auditandfix auth code with CRAI-specific changes: customer_id → tenant_id, Worker API integration via X-Portal-Auth signed envelope (api-contract.md section 3), bearer token encryption at rest (AES-256-GCM), TOCTOU-safe token consumption via UPDATE...RETURNING (CA-2), and the impeccable design system (navy/orange/Nunito).
+
+**Decision:**
+1. **Auth substrate** adapted from auditandfix: `db.php` (SQLite singleton with inline PHP migrations), `auth.php` (session management), `rate-limit.php` (verbatim copy), `csrf.php` (extracted from auth), `ses-smtp.php` (extracted from shared include), `email-template.php` (CRAI-branded), `magic-link.php` (Worker resolve-email integration, HA-11 rate limits: per-IP + per-email/IP composite, NOT per-email globally), `worker-client.php` (new: X-Portal-Auth envelope, bearer encryption/decryption, retry logic).
+2. **Two-step magic link verification** (CA-2): GET shows interstitial (defeats link previewers), POST atomically consumes token. Atomic UPDATE...RETURNING prevents TOCTOU race that existed in auditandfix verify.php.
+3. **Session-gated API proxy** (`portal-api.php`): validates session, CSRF, path allowlist with character whitelist, then forwards to Worker with decrypted bearer. No direct Worker calls from browser JS.
+4. **Security headers**: CSP with strict-dynamic + per-request nonce, HSTS, X-Frame-Options DENY, Permissions-Policy. Cookie: `__Host-CRAI_SESSID` with Secure/HttpOnly/SameSite=Strict.
+5. **Bearer at rest**: AES-256-GCM with PORTAL_BEARER_KEY env var, random 12-byte IV per session, stored in portal_sessions table.
+6. **.htaccess.example** committed with `__SET_ON_SERVER__` placeholders; real .htaccess gitignored.
+
+**Status:** Accepted
+**Impl:** `ContactReplyAI/portal/docroot/` (21 PHP files, 1 CSS, 1 JS, .htaccess.example, robots.txt), `ContactReplyAI/portal/data/.gitkeep`, `ContactReplyAI/portal/.gitignore`
+
+---
+
 ### DR-192: E2E test isolation — staging subdomain preferred over production harness (2026-04-09)
 
 **Context:** The Phase 6.6 plan included an E2E test for the `.app` magic-link portal flow. The initial draft relied on a production-side harness endpoint (`e2e-get-magic-link-token`) in `site/api.php`, gated by `E2E_HARNESS_ENABLED=1` and a bearer secret, with per-email LIKE-pattern token lookup. Security review (RF-11) flagged it as too risky: even with pattern guards, failure modes are catastrophic (LIKE typo → wrong tokens returned, wrong bearer shared, flag left on in prod). "Safe by construction" for an endpoint that reads auth tokens is a property to prove, not assume.
