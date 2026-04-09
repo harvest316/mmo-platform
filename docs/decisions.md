@@ -24,8 +24,8 @@ Outbound SES events continue to flow only to the `auditandfix` topic (via config
 
 All of this is now codified in `mmo-platform/scripts/setup-ses.mjs` with a `--crai-split-only` flag that skips the domain verification / DKIM / IAM steps and only runs the split work (safe to re-run, fully idempotent). Regular full provisioning runs (`node setup-ses.mjs`) also perform the split now.
 
-**Status:** Implemented 2026-04-09
-**Impl:** `mmo-platform/scripts/setup-ses.mjs` (step4b, step6b, step8 rule split, `--crai-split-only` flag); post-run: update `ContactReplyAI/.env` + `crai-api` worker secret `SNS_TOPIC_ARN` to the new ARN, then re-run `--crai-split-only` to trigger a fresh subscription confirmation.
+**Status:** Implemented 2026-04-09. E2E test suite live 2026-04-09 — 11/11 passing.
+**Impl:** `mmo-platform/scripts/setup-ses.mjs` (step4b, step6b, step8 rule split, `--crai-split-only` flag); post-run: update `ContactReplyAI/.env` + `crai-api` worker secret `SNS_TOPIC_ARN` to the new ARN, then re-run `--crai-split-only` to trigger a fresh subscription confirmation. E2E tests: `333Method/tests/e2e/sns-workers.test.js` — covers both SNS topics (11 tests total). **Test/prod isolation**: 333Method uses `email-webhook-worker-test` with a separate `email-events-test` R2 bucket and sig bypass via `ENVIRONMENT=test` wrangler var (DR-186 test env in `333Method/workers/email-webhook/wrangler.toml` + `ContactReplyAI/workers/wrangler.toml`); CRAI tests run against production with no-tenant payload addresses (no DB writes).
 
 ---
 
