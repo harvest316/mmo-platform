@@ -4,6 +4,16 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-194: Unified autoresponder handles customer service + sales — no separate CS path (2026-04-09)
+
+**Context:** With .app portal launching for video subscriptions, customer service requests (cancel, pause, billing, support) will arrive on the same channels as sales replies (email, SMS). Building a separate CS system would duplicate the LLM pipeline.
+
+**Decision:** Upskill the existing Marcus Webb autoresponder with CS funnel stages 7-11 (cancel_request, pause_request, billing_question, support_request, cross_sell). Cancel requests are treated as retention opportunities — offer pause as alternative. All CS and sales intents flow through the same classifyFunnelStage → generateReply → sendReply pipeline regardless of which domain (.com, .app) the reply arrived on.
+
+**.app reply routing:** Removed wrap-and-notify forwarding for marcus@auditandfix.app and marcus@contactreply.app from the CF Worker forwarder. These replies now flow through pollInboundEmails → messages table → autoresponder cron (same path as .com). Only status@auditandfix.net retains forwarding (pre-seed monitoring to status@dev.auditandfix.com).
+
+**Status:** Implemented (classification + prompt). Pending: pollInboundEmails customer-matching for .app domain replies.
+
 ### DR-193: ContactReplyAI portal P1 foundation — PHP auth substrate adapted from auditandfix (2026-04-09)
 
 **Context:** ContactReply needs a PHP portal at `contactreply.app` for tenant dashboard, conversation management, and billing. The auditandfix-website already has a working PHP auth substrate (magic links, session management, rate limiting, SES SMTP). Rather than building from scratch, we adapted the auditandfix auth code with CRAI-specific changes: customer_id → tenant_id, Worker API integration via X-Portal-Auth signed envelope (api-contract.md section 3), bearer token encryption at rest (AES-256-GCM), TOCTOU-safe token consumption via UPDATE...RETURNING (CA-2), and the impeccable design system (navy/orange/Nunito).
