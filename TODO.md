@@ -20,15 +20,12 @@ Bought `contactreply.app` and `auditandfix.app` as transactional / app
 domains, isolated from cold-outreach reputation on the .com domains.
 
 Tasks:
-- Add both to `mmo-platform/scripts/setup-ses.mjs` DOMAINS list
-- Run setup-ses to verify SES identity, DKIM CNAME, MAIL FROM `bounce.{domain}`
-- Update `auditandfix-website/site/api.php` magic link send to use
-  `marcus@auditandfix.app` as the `From:` address (with `kind: 'transactional'`
-  if/when the PHP path goes through the shared transport — currently uses
-  SES SMTP directly so it'll just need the From swap)
-- Update CRAI dispatch to send AI replies from `marcus@contactreply.app`
-- Update `contactreplyai.com` login button to forward to
-  `contactreply.app/login` so transactional auth uses the .app domain
+- [x] Add both to `mmo-platform/scripts/setup-ses.mjs` DOMAINS list
+- [ ] **⚠️ User action** — Run `node mmo-platform/scripts/setup-ses.mjs` with admin AWS creds to verify SES identity, DKIM CNAME, MAIL FROM `bounce.{domain}` for both `.app` domains
+- [x] Update `auditandfix-website/site/api.php` demo + onboarding emails to use `marcus@auditandfix.app`
+- [x] Update CRAI dispatch to send AI replies from `marcus@contactreply.app` (workers/index.js + src/services/dispatch.js)
+- [ ] Update `auditandfix-website` magic link to use `marcus@auditandfix.app` — update `SENDER_EMAIL` env var on Gary's host once SES identity verified
+- [ ] Update `contactreplyai.com` login button to forward to `contactreply.app/login` so transactional auth uses the .app domain
 - Even 2-3 sends/day to varied recipients during the warmup period builds
   reputation. By the time CRAI launches the .app domains will be production-ready.
 
