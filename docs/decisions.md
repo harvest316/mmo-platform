@@ -4,6 +4,124 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-192: E2E test isolation — staging subdomain preferred over production harness (2026-04-09)
+
+**Context:** The Phase 6.6 plan included an E2E test for the `.app` magic-link portal flow. The initial draft relied on a production-side harness endpoint (`e2e-get-magic-link-token`) in `site/api.php`, gated by `E2E_HARNESS_ENABLED=1` and a bearer secret, with per-email LIKE-pattern token lookup. Security review (RF-11) flagged it as too risky: even with pattern guards, failure modes are catastrophic (LIKE typo → wrong tokens returned, wrong bearer shared, flag left on in prod). "Safe by construction" for an endpoint that reads auth tokens is a property to prove, not assume.
+
+**Decision:** Preferred approach is `staging.auditandfix.app` — a separate Plesk additional-domain with a copied DB schema and synthetic test data. Production `auditandfix.app` never has a harness endpoint. The staging subdomain is isolated from the live customer DB. CI/CD points `BRAND_URL=https://staging.auditandfix.app` and runs the full magic-link E2E there. If staging provisioning is impractical (waiting on Gary), an acceptable fallback requires ALL of: (a) auto-disable-after-15min file flag, (b) registration-time block on `test+e2e-magiclink-%` pattern, (c) IP allowlist for CI egress, (d) CF Access mTLS, (e) row-whitelist deletes (no LIKE-pattern DELETEs), (f) `tel.e2e_harness_access` audit table with alert on non-CI access. The "current plan as written" (LIKE-pattern, flag via env, no IP guard) is unacceptable regardless of how fast it would be to ship.
+
+**Status:** Decision recorded, implementation pending. Staging domain provisioning is a Gary ask (Plesk additional-domain).
+**Impl:** `auditandfix-website/tests/e2e/app-magic-link.spec.js` (to be created), `playwright.config.js` (dotapp project)
+
+---
+
+### DR-191: Inbound reply forwarder safety — pre-filter pipeline + wrap-and-notify model (2026-04-09)
+
+**Context:** The From-address policy (Phase 5.7) means every domain has a replyable address (`marcus@auditandfix.app`, `status@auditandfix.net`, `marcus@contactreply.app`). Those addresses receive real mail: bounces, auto-replies, mailing-list noise, and occasionally genuine customer replies. A plain-forward implementation in the CF Worker is 30 lines but creates several serious risks: (1) bounces from `MAILER-DAEMON@` re-forwarded to a personal inbox flood it; (2) auto-replies with `Auto-Submitted: auto-replied` headers can loop if the forwarding inbox auto-replies back; (3) plain-forwarding leaks the operator's personal email when they reply from Gmail (From: appears as personal address to customer).
+
+**Decision:** Two-part safety architecture:
+
+1. **Deterministic pre-filter (mandatory before shipping):** Drop messages without any LLM involvement if any of: `From` matches `MAILER-DAEMON|postmaster|noreply|no-reply@*`; `Auto-Submitted: auto-replied` header present; `Precedence: bulk|list|junk`; `List-Id` or `List-Unsubscribe` header present; `X-Forwarded-By` header present (existing loop guard); `From` is one of our own sending domains (self-loop); Received header chain depth ≥ 8. This is 30 lines of regex, not a deferred sub-project (RF-8 pulled it from Phase 8 into Phase 5.7).
+
+2. **Wrap-and-notify, not plain-forward:** The forwarded message is a notification ("FYI: customer replied with: …"), not a raw forward. Operator reads the notification and responds via the dashboard or a separate channel — never hits Reply in Gmail (which would leak personal email as From to customer). Dedicated `bounce-sink@auditandfix.app` MAIL FROM (not in the SES inbound recipient list) isolates forwarder bounces. Worker KV dedupe cache (24h TTL, 1 forward per Message-ID). Per-inbox rate limit (max N forwards/min per source inbox; breached = kill switch + alert). `tel.inbound_forwards` log table; daily zero-row alarm if 0 forwards in 24h while inbound > 0 (silent-drop detection).
+
+**Tradeoff accepted:** Wrap-and-notify requires an extra step to respond (can't just hit Reply). This is intentional — the alternative leaks personal email to customers and creates loop risk.
+
+**Status:** Decision recorded. Plain-forward MVP in plan is superseded by this design. Implementation pending (Phase 5.7).
+**Impl:** `333Method/workers/email-webhook/src/forwarder.js` (to be created), `333Method/db/migrations/136-inbound-forwards-log.sql` (to be created)
+
+---
+
+### DR-190: kind:'auth' tier — magic-link sends bypass all reputation pauses (2026-04-09)
+
+**Context:** DR-183 added `kind:'transactional'` to the shared email transport, which bypasses `state=cold` (cold outreach pause) but still throws at `state=all` (critical reputation + emergency). A pause at `state=all` blocks everything — but this includes magic-link login emails. Customers who bought a report can't log in to retrieve it. They can't even read a "service delayed" message because they can't get past the login screen. The transactional carve-out doesn't help them.
+
+**Decision:** Add a third tier `kind:'auth'` that is **never paused** — bypasses both `state=cold` AND `state=all`. Magic-link/verify emails must always be deliverable regardless of reputation state, because the reputation monitoring system and human intervention both depend on someone being able to log in. All other auth flows (password resets, 2FA codes) should also use `kind:'auth'` for the same reason. The fail-open default (missing pause file = no pause) already handles the case where the monitoring cron is broken; `kind:'auth'` handles the case where monitoring ran correctly and really did pause everything.
+
+**Status:** Implemented 2026-04-09.
+**Impl:** `mmo-platform/src/email.js` (pause check wrapped in `if (kind !== 'auth')`), `mmo-platform/tests/unit/email.test.js` (2 new cases for auth bypass of state=cold and state=all)
+
+---
+
+### DR-189: Secrets out of committed config files — Plesk-hosted site pattern (2026-04-09)
+
+**Context:** The initial plan for `auditandfix.app` and `auditandfix-website` stored SES SMTP credentials (`SES_SMTP_USERNAME`, `SES_SMTP_PASSWORD`), bearer tokens, and API keys in `.htaccess` files. `.htaccess` files are committed to the private `auditandfix-website` repo. Even in a private repo, committed secrets create risk: accidental leak via clone, contributor error, or GitHub breach; and they prevent rotation without a code deploy.
+
+**Decision:** Secrets never go in committed `.htaccess` files. Pattern for Plesk-hosted sites:
+- A single `secrets.php` file at `/var/www/vhosts/{domain}/private/secrets.php` (sibling of `httpdocs/`, outside the docroot), mode 0600, owned by the PHP-FPM user.
+- PHP entry points (`api.php`, etc.) `require_once` this file before any SMTP/auth code runs.
+- `.htaccess` only sets non-secret environment variables (`SES_SMTP_HOST`, `SENDER_EMAIL`, `BRAND_NAME`, etc.).
+- `secrets.example.php` is committed as a template; the real `secrets.php` is uploaded out-of-band by Gary via FTP to the `private/` directory.
+- Subsequent rotations: upload a new `secrets.php` to the fixed path via FTP. No code deploy needed.
+- IAM policy hardening: `ses:FromAddress` condition per identity so a leaked SMTP credential can't send from arbitrary identities. Per-domain IAM users (one per `auditandfix.com`, `.app`, `.net`, `contactreply.app`).
+
+**Status:** Decision recorded. Implementation pending (Phase 3 / Gary ask for `private/` directory creation).
+**Impl:** `auditandfix-website/site/includes/account/secrets.example.php` (to be created), `app/.htaccess` (non-secret env only)
+
+---
+
+### DR-188: app/ duplicated shared assets instead of FTP symlinks (2026-04-09)
+
+**Context:** The `auditandfix.app` portal docroot needs the same `includes/` and `assets/` as `site/httpdocs/` (header, footer, CSS, images). There are three options: (1) server-side symlinks via SSH; (2) INCLUDES_PATH env var pointing from `.app` to `httpdocs/includes/` if Plesk allows cross-vhost reads; (3) rsync duplication of `site/includes/` → `app/includes/` pre-deploy.
+
+**Decision:** Rsync duplication (option 3) is the default until the Plesk cross-vhost probe (Phase 3.0) determines whether option 2 is available. If Plesk's `open_basedir` allows the `.app` docroot to `require_once` from the `.com` docroot's path, switch to option 2 (single source, no duplication). Option 1 (symlinks) is rejected because FTP doesn't preserve symlinks and requires SSH access (Gary dependency).
+
+For rsync duplication: `app/includes/` and `app/assets/` are git-tracked — PRs show both copies of every header.php change. This is a known tradeoff accepted for deployment determinism: `git diff` is the source of truth for what's on the server. A new `sync-shared-assets.sh` script (`rsync -a --delete site/includes/ app/includes/ && rsync -a --delete site/assets/ app/assets/`) runs pre-deploy to keep them in sync.
+
+**Status:** Decision recorded. INCLUDES_PATH option is preferred if Phase 3.0 probe passes. Rsync is the fallback.
+**Impl:** `auditandfix-website/scripts/sync-shared-assets.sh` (to be created), `auditandfix-website/app/` directory structure
+
+---
+
+### DR-187: eu.* and sa.* subdomain SES identities removed (2026-04-09)
+
+**Context:** During the Resend → SES migration, `setup-ses.mjs` was written to mirror Resend's regional-pool structure, which used `eu.{domain}` and `sa.{domain}` subdomains. Under SES, region is set per-client-configuration (`region:` in `SESv2Client`), not per sending domain. These subdomains created 4 orphaned SES identities (`eu.auditandfix.com`, `sa.auditandfix.com`, `eu.contactreplyai.com`, `sa.contactreplyai.com`) and their corresponding DKIM CNAMEs and MAIL FROM records in Cloudflare. Nothing in any codebase sends from them.
+
+**Decision:** Delete the 4 orphaned identities. Add `scripts/cleanup-stale-ses-identities.mjs` (idempotent, supports `--dry-run`) that: fetches DKIM tokens before deletion, deletes the SES identity, then removes the matching CF DNS records (DKIM CNAMEs, MAIL FROM MX, SPF TXT). The new `.app` and `.net` domains never get eu/sa subdomains. `setup-ses.mjs` DOMAINS list no longer includes them.
+
+**Status:** Script implemented 2026-04-09 (`scripts/cleanup-stale-ses-identities.mjs`). Run pending (requires AWS + CF creds in env).
+**Impl:** `mmo-platform/scripts/cleanup-stale-ses-identities.mjs`, `mmo-platform/scripts/setup-ses.mjs` (eu/sa removed from DOMAINS)
+
+---
+
+### DR-185: auditandfix.net domain strategy — 301 redirect + SES pre-seed (2026-04-09)
+
+**Context:** `auditandfix.net` is owned but unused. Cold outreach is currently sent from `auditandfix.com`. When a dedicated IP is approved (DR-186 re-request strategy), we need a second domain for future cold outreach expansion so `.com` isn't the single sending domain. But a brand-new domain on a new dedicated IP is penalised by Gmail/Microsoft/Yahoo — they have no history for the sending domain, adding another "new sender" signal on top of the new IP penalty.
+
+**Decision:** Two simultaneous uses for `.net`:
+1. **Brand defense redirect:** Cloudflare Bulk Redirect `https://auditandfix.net/*` → `https://auditandfix.com/$1` (301). No origin server needed; CF handles it before any request reaches the Plesk vhost.
+2. **Trust-period pre-seed:** 2 sends/week (Tuesday + Thursday), 5 recipients across diverse ISPs (2 Gmail, 1 Outlook, 1 Yahoo, 1 ProtonMail), 10 emails/week total. Sends via shared transport with `kind:'transactional'` from `status@auditandfix.net`. Content: plain-text system heartbeat (weekly status numbers, ask for reply once/month to generate engagement signal). Recipients are opted-in friends/family with clear unsubscribe path (`List-Unsubscribe` header, body-regex reply scan → auto-unsubscribe). Logs to `tel.net_preseed_log`. Consent table: `tel.preseed_consent` for AU Spam Act compliance.
+
+Pre-seed goal: accumulate ~60 days of domain-age + engagement history at major ISPs before the dedicated IP lands. Full `.net` warmup (50/day → 2,000/day) deferred until dedicated IP is approved and assigned.
+
+**Status:** Decision recorded. SES identity + DNS for `.net` provisioned in setup-ses.mjs (Phase 1). Pre-seed implementation pending (Phase 6.5).
+**Impl:** `333Method/src/cron/send-net-preseed.js` (to be created), `333Method/scripts/preseed-recipients.js` (to be created), `333Method/db/migrations/135-net-preseed.sql` (to be created)
+
+---
+
+### DR-184: Split-domain customer portal — auditandfix.app for auth and transactional email (2026-04-09)
+
+**Context:** DR-183 established that mailbox-provider reputation tracks at the organisational domain level. Cold outreach from `auditandfix.com` (333Method, ~247 emails/week) shares reputation with magic-link login emails and purchase confirmation/report delivery emails. If cold-outreach reputation degrades — even briefly during a high-volume campaign — paying customers stop receiving login emails and report delivery. The `.com` domain is both the marketing surface (SEO, landing pages, scan flow) and the transactional identity, making the reputation risk structural.
+
+**Decision:** Split-domain isolation:
+- **`.com` domains** remain the marketing/SEO surface and cold-outreach sending domain. Scan flow, blog, landing pages, 35k-site sample data, citation-gap pages.
+- **`.app` domains** become the customer portal and all transactional sends. `auditandfix.app`: magic links, dashboard, billing, report viewer. `contactreply.app`: future CRAI portal. Sender address: `marcus@auditandfix.app` — replyable per From-address policy (no `noreply@` anywhere).
+- Reputation isolation: `.app` sending domain is never used for cold outreach, so its reputation is driven only by transactional sends (which have very low complaint rates).
+
+**Key architecture decisions:**
+- `auditandfix.app` is a Plesk additional-domain inside the same subscription as `auditandfix.com`. Same FTP user (`paulauditandfix`). Same Linux subscription UID. Both docroots can read the same `customers.sqlite` file via absolute path (no DB migration needed for Stage 1).
+- Customer DB stays in SQLite on Gary's Plesk server until VPS is up (Stage 2: migrate to PG over network).
+- Feature-flag rollback: `USE_APP_PORTAL=1` in `site/.htaccess` makes `.com` redirect to `.app`; unset it to roll back without redeploy.
+- Phase 4 (deleting `.com` portal) only proceeds after 30 days of confirmed `.app` stability.
+- `kind:'transactional'` on all purchase/report emails; `kind:'auth'` on magic-link emails (DR-190).
+
+**From-address policy (all domains):** Every email we send uses a monitored, replyable address. No `noreply@` anywhere. `marcus@auditandfix.app` → forwards to operator inbox via CF Worker (Phase 5.7). `status@auditandfix.net` → same. `marcus@contactreply.app` → Gary's address.
+
+**Status:** Phases 1-2 implemented (SES identities, DNS, Plesk provisioning). Phase 3 (app/ docroot code) pending. Phase 5.1 (SENDER_EMAIL_TRANSACTIONAL) implemented 2026-04-09. Phase 5.5 (From-address policy for demo/onboarding emails) implemented 2026-04-09.
+**Impl:** `mmo-platform/scripts/setup-ses.mjs`, `333Method/src/reports/purchase-confirmation.js`, `333Method/src/reports/report-delivery.js`, `mmo-platform/src/email.js` (DR-190 auth tier), `auditandfix-website/site/api.php` (marcus@ From)
+
+---
+
 ### DR-186: Split SES inbound between auditandfix and CRAI — separate SNS topic + receipt rule (2026-04-09)
 
 **Context:** DR-179 and DR-180 both assumed a single SES receiving pipeline. Under that pipeline, `mmo-inbound-rule` matched 5 domains (auditandfix.com, auditandfix.app, auditandfix.net, contactreplyai.com, contactreply.app) and published to the single `auditandfix` SNS topic. The `email-webhook-worker` (333Method) was the script-managed subscriber. During DR-180 implementation, `crai-api` was manually subscribed to the same `auditandfix` topic (not via `setup-ses.mjs`), creating two problems:
