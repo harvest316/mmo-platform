@@ -6,7 +6,7 @@
  * Idempotent: safe to re-run at any stage.
  *
  * Usage:
- *   node scripts/setup-ses.mjs [--dry-run] [--switch-mx]
+ *   node scripts/setup-ses.mjs [--dry-run] [--switch-mx] [--env test]
  *
  * Required env vars:
  *   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION (default: us-east-1)
@@ -42,8 +42,10 @@ const SWITCH_MX = args.includes('--switch-mx');
 // unsubscribe it from the shared topic, update receipt rules. Use when the
 // rest of the infra is already provisioned and you only need to split.
 const CRAI_SPLIT_ONLY = args.includes('--crai-split-only');
+const ENV_TEST = args.includes('--env') && args[args.indexOf('--env') + 1] === 'test';
 
 if (DRY_RUN) console.log('⚠  DRY RUN — no changes will be made\n');
+if (ENV_TEST) console.log('⚠  TEST MODE — using test SNS topic + worker endpoints\n');
 
 // ---------------------------------------------------------------------------
 // Environment validation
@@ -163,9 +165,11 @@ const CF_WORKER_ENDPOINT  = 'https://email-webhook-worker.auditandfix.workers.de
 // 1. CRAI worker received every 333Method outreach reply (wasteful 404s)
 // 2. 333Method worker received every CRAI inbound email (risk of misprocessing)
 // Fix: separate topic + separate receipt rule for CRAI domains.
-const CRAI_SNS_TOPIC_NAME   = 'crai-inbound';
-const CRAI_RECEIPT_RULE_NAME = 'crai-inbound-rule';
-const CRAI_WORKER_ENDPOINT  = 'https://crai-api.auditandfix.workers.dev/webhooks/ses/email';
+const CRAI_SNS_TOPIC_NAME    = ENV_TEST ? 'crai-inbound-test' : 'crai-inbound';
+const CRAI_RECEIPT_RULE_NAME = ENV_TEST ? 'crai-inbound-test-rule' : 'crai-inbound-rule';
+const CRAI_WORKER_ENDPOINT   = ENV_TEST
+  ? 'https://crai-api-test.auditandfix.workers.dev/webhooks/ses/email'
+  : 'https://crai-api.auditandfix.workers.dev/webhooks/ses/email';
 const AUDITANDFIX_INBOUND_DOMAINS = ['auditandfix.com', 'auditandfix.app', 'auditandfix.net'];
 const CRAI_INBOUND_DOMAINS        = ['contactreplyai.com', 'contactreply.app'];
 
@@ -1286,6 +1290,7 @@ async function main() {
   console.log('AWS SES Provisioning Script');
   console.log('===========================');
   console.log(`Region: ${AWS_REGION}`);
+  console.log(`Environment: ${ENV_TEST ? 'test' : 'production'}`);
   console.log(`Dry run: ${DRY_RUN}`);
   console.log(`Switch MX: ${SWITCH_MX}`);
 
@@ -1374,10 +1379,10 @@ SES_SMTP_PASSWORD=${smtpPassword}
 # ${effectiveTopicArn}
 
 # ── Update ContactReplyAI crai-api SNS_TOPIC_ARN (DR-186 split) ─────────────
-# ContactReplyAI/.env:
-SNS_TOPIC_ARN=${effectiveCraiTopicArn}
+# ContactReplyAI/.env${ENV_TEST ? '.test' : ''}:
+SNS_TOPIC_ARN=${effectiveCraiTopicArn}${ENV_TEST ? '  # ← TEST topic' : ''}
 # crai-api CF Worker secret (run from host terminal):
-# (cd ~/code/ContactReplyAI/workers && npx wrangler secret put SNS_TOPIC_ARN)
+# (cd ~/code/ContactReplyAI/workers && npx wrangler secret put SNS_TOPIC_ARN${ENV_TEST ? ' --env test' : ''})
 # (paste when prompted):
 # ${effectiveCraiTopicArn}
 `);
