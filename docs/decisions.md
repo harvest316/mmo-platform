@@ -4,6 +4,39 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-197: Worker stream W4–W7 — postal-mime, VAPID web push, crypto hard gates, CA-5 enforcement (2026-04-09)
+
+**Context:** CRAI Worker needed: (1) robust SES inbound MIME parsing to replace fragile regex, (2) real VAPID ES256 web push notifications (previously a stub), (3) automated proof that Worker Web Crypto algorithms produce byte-identical output to reference implementations, (4) automated CA-5 enforcement (tenant_id WHERE filter on every tenant-scoped SQL query).
+
+**Decision:**
+1. **postal-mime (W4):** Replace regex text/plain extraction in SES webhook with `postal-mime ^2.4.1` (already in package.json). `await new PostalMime().parse(inlineContent.slice(0, 1_048_576))` with fallback html-strip. 1MB guard added.
+2. **VAPID ES256 (W4):** Implement full RFC 8291/8188 web push: VAPID JWT signed with ECDSA P-256 (ES256) using JWK-imported raw key, ECDH key agreement for content encryption, AES-128-GCM + HKDF-SHA-256 for aes128gcm content encoding. All Web Crypto API (no Node-specific modules — Worker constraint).
+3. **VAPID signature format (W6 hard gate):** Critical gotcha: `subtle.sign({ name: 'ECDSA', hash: 'SHA-256' })` returns 64-byte raw P1363 (r||s) format — NOT DER. Node.js `crypto.sign()` returns DER by default. The crypto-equivalence test suite explicitly verifies this and tests DER→P1363 conversion. Any regression here breaks all push notifications silently.
+4. **Crypto equivalence test suite (W6):** `workers/tests/crypto-equivalence.test.mjs` — 20 tests, 4 suites: HMAC-SHA-256, HMAC-SHA-1 (Twilio), AWS Sig V4, VAPID ES256. Reimplements Worker Web Crypto in Node.js-compatible form and verifies byte-identical output against `node:crypto` reference.
+5. **CA-5 tenant_id scanner (W7):** `workers/tests/tenant-id-scanner.test.mjs` — 55 tests, static analysis of all `sql\`...\`` tagged template literals in `workers/index.js`. Any query on a tenant-scoped table (`crai.conversations`, `crai.messages`, `crai.pending_replies`, `crai.push_subscriptions`, `crai.channels`, `crai.billing_events`, `crai.emergency_escalations`) must include `tenant_id = ${tenantId}`. Found and fixed 3 violations: messages history in webchat handler, two pending_replies UPDATEs.
+6. **Worker contract tests (W7):** `workers/tests/worker-contract.test.mjs` — 15 tests, HTTP contract tests against `mock-worker.mjs`. Covers all 13 authenticated endpoints, 401 guard, 404 handling.
+
+**Status:** Accepted
+**Impl:** `ContactReplyAI/workers/index.js` (commits f1a56da, 785946f); `workers/tests/crypto-equivalence.test.mjs` (69d3ef1); `workers/tests/tenant-id-scanner.test.mjs`, `workers/tests/worker-contract.test.mjs` (785946f)
+
+### DR-196: ContactReplyAI portal P2–P10 full dashboard build (2026-04-09)
+
+**Context:** All authenticated portal pages needed building: conversation list, conversation detail, pending replies, knowledge base editor, settings (business profile, response speed, trust stage, business hours, push notifications), billing, emergency escalations, stats, onboarding flow (6 steps + complete), PWA support.
+
+**Decision:** Built all pages as PHP partials included by render.php, each with dedicated JS and CSS. Shared patterns: `CRAI.api()` for all Worker calls, `CRAISettings.init()` pattern for settings hydration, toast notifications via `CRAI.toast()`. Push notifications implemented as a reusable partial (`notifications-settings.php`) with SW registration, VAPID subscribe/unsubscribe, optimistic localStorage state, and test-push flow. PWA: manifest.json, sw.js (cache-first static, network-first API), offline.html. Settings page includes trust stage progress widget (4 stages: Manual Review → Timed Send → Auto-Reply → Autonomous).
+
+**Status:** Accepted
+**Impl:** Commit 2daadc7 (44 files, 11,104 insertions). Pages, JS, CSS, partials, PWA, path-allowlist tests (62 tests passing).
+
+### DR-195: ContactReplyAI portal code review + security hardening (2026-04-09)
+
+**Context:** Code review pass after P2–P10 build identified blocking security issues and day-2 items.
+
+**Decision:** Blocking fixes (860aae6): XSS vulnerability in toast (textContent not innerHTML), CSRF token read from meta fallback, JS strict mode, conversation sanitisation. Day-2 fixes (903a823): settings.js form validation, push notification error message improvement, stats chart accessibility, onboarding step validation.
+
+**Status:** Accepted
+**Impl:** Commits 860aae6, 903a823
+
 ### DR-194: Unified autoresponder handles customer service + sales — no separate CS path (2026-04-09)
 
 **Context:** With .app portal launching for video subscriptions, customer service requests (cancel, pause, billing, support) will arrive on the same channels as sales replies (email, SMS). Building a separate CS system would duplicate the LLM pipeline.
@@ -54,8 +87,8 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 **Tradeoff accepted:** Wrap-and-notify requires an extra step to respond (can't just hit Reply). This is intentional — the alternative leaks personal email to customers and creates loop risk.
 
-**Status:** Decision recorded. Plain-forward MVP in plan is superseded by this design. Implementation pending (Phase 5.7).
-**Impl:** `333Method/workers/email-webhook/src/forwarder.js` (to be created), `333Method/db/migrations/136-inbound-forwards-log.sql` (to be created)
+**Status:** Implemented (Phase 5.7, commit `3328cd61`).
+**Impl:** `333Method/workers/email-webhook/src/forwarder.js`, `333Method/workers/email-webhook/src/index.js` (forwarder wired into inbound handler), `333Method/db/migrations/136-inbound-forwards-log.sql` (`tel.inbound_forwards` table)
 
 ---
 
