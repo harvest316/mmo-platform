@@ -103,20 +103,23 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 ---
 
-### DR-189: Secrets out of committed config files — Plesk-hosted site pattern (2026-04-09)
+### DR-189: Secrets out of committed config files — Plesk-hosted site pattern (2026-04-09, revised 2026-04-09)
 
-**Context:** The initial plan for `auditandfix.app` and `auditandfix-website` stored SES SMTP credentials (`SES_SMTP_USERNAME`, `SES_SMTP_PASSWORD`), bearer tokens, and API keys in `.htaccess` files. `.htaccess` files are committed to the private `auditandfix-website` repo. Even in a private repo, committed secrets create risk: accidental leak via clone, contributor error, or GitHub breach; and they prevent rotation without a code deploy.
+**Context:** RF-1 — the SES SMTP password was committed in plaintext in an earlier draft of the Phase 5 plan file (`happy-launching-gosling.md`), and `.htaccess` files containing PayPal credentials and worker secrets had previously been committed to git history before the repo was made private (required `git filter-repo` scrubbing, DR-185). Both `site/.htaccess` and `app/.htaccess` were tracked in git despite `.gitignore` listing `site/.htaccess` — once a file is committed, `.gitignore` is silently ignored until `git rm --cached` is run.
 
-**Decision:** Secrets never go in committed `.htaccess` files. Pattern for Plesk-hosted sites:
-- A single `secrets.php` file at `/var/www/vhosts/{domain}/private/secrets.php` (sibling of `httpdocs/`, outside the docroot), mode 0600, owned by the PHP-FPM user.
+**Correction (2026-04-09):** The original decision was framed as "secrets must not go in `.htaccess`," which is an overcorrection. The real principle is: **secrets must not go in committed files.** A properly gitignored `.htaccess` is equally valid as `secrets.php` — both are server-side-only files that never appear in git history. The DR-193 (CRAI) pattern already proves the right approach: only `.htaccess.example` with `<placeholder>` values is committed; the real `.htaccess` is gitignored and deployed out-of-band by Gary.
+
+**Decision:** Secrets never go in committed files. Pattern for Plesk-hosted sites:
+- Only `.htaccess.example` (with `<placeholder>` values for anything server-specific) is committed. The real `.htaccess` is gitignored (`site/.htaccess` and `app/.htaccess` both in `.gitignore`).
+- Secrets are loaded from `private/secrets.php` at `/var/www/vhosts/{domain}/private/secrets.php` (sibling of `httpdocs/`, outside the docroot), mode 0600, owned by the PHP-FPM user. This is the preferred pattern because: (a) `putenv()` is explicit and IDE-greppable, (b) `AllowOverride None` on a misconfigured vhost cannot silently suppress it, (c) it is the conventional PHP secrets pattern.
 - PHP entry points (`api.php`, etc.) `require_once` this file before any SMTP/auth code runs.
 - `.htaccess` only sets non-secret environment variables (`SES_SMTP_HOST`, `SENDER_EMAIL`, `BRAND_NAME`, etc.).
-- `secrets.example.php` is committed as a template; the real `secrets.php` is uploaded out-of-band by Gary via FTP to the `private/` directory.
+- `secrets.example.php` is committed as a template; the real `secrets.php` is uploaded out-of-band by Gary via FTP.
 - Subsequent rotations: upload a new `secrets.php` to the fixed path via FTP. No code deploy needed.
 - IAM policy hardening: `ses:FromAddress` condition per identity so a leaked SMTP credential can't send from arbitrary identities. Per-domain IAM users (one per `auditandfix.com`, `.app`, `.net`, `contactreply.app`).
 
-**Status:** Decision recorded. Implementation pending (Phase 3 / Gary ask for `private/` directory creation).
-**Impl:** `auditandfix-website/site/includes/account/secrets.example.php` (to be created), `app/.htaccess` (non-secret env only)
+**Status:** Implemented. Both `.htaccess` files untracked from git (2026-04-09). `.htaccess.example` files updated to reflect current routing and DR-189 pattern.
+**Impl:** `auditandfix-website/site/.htaccess.example`, `auditandfix-website/app/.htaccess.example`, `auditandfix-website/.gitignore`, `auditandfix-website/app/includes/account/secrets.example.php`
 
 ---
 
