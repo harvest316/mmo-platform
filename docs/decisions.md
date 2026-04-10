@@ -4,6 +4,63 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-202: WCAG AA accessibility + prompt injection sanitizer — P11 (2026-04-10)
+
+**Context:** Portal CSS used orange (#f97316) and green (#16a34a) for text on white — both fail 4.5:1 WCAG AA. Section headers in knowledge-base.php were `<div>` not `<button>`, blocking keyboard navigation. No skip-to-content link existed. LLM inbound messages had no injection-marker stripping before being passed to Anthropic.
+
+**Decision:**
+1. **WCAG AA contrast:** Added `--c-orange-text: #c2410c` (5.18:1) and `--c-green-text: #15803d` (5.02:1) CSS tokens. All body text links, form messages, and delivery status labels switched to the AA-safe tokens.
+2. **Focus visibility:** Replaced all `outline: none` with `:focus-visible` rings (3px solid orange). Added `--focus-ring` CSS variable.
+3. **Skip link:** `<a href="#portal-content" class="skip-link">Skip to main content</a>` in render.php; reveals on :focus.
+4. **Accordion semantics:** KB section headers converted from `<div>` to `<button type="button">` with `aria-expanded`/`aria-controls`; SVGs get `aria-hidden="true"`; autosave status gets `aria-live="polite"`.
+5. **Prompt injection sanitizer:** `src/utils/sanitize-input.js` strips 17 known injection markers (Anthropic, ChatML, Llama/Mistral, generic EOS tokens), control chars U+0000-U+001F/0080-009F, enforces per-surface limits (SMS 1600, email 8000, KB 32000). Applied in `src/channels/ingest.js` for both Twilio SMS and SES email ingest paths. Canary token helpers included for future use.
+
+**Status:** Committed (215e931).
+
+### DR-201: CRAI production cutover — Stream C (2026-04-10)
+
+**Context:** Streams A (W1–W8) and B (P1–P12) complete. Staging Worker at `api-staging.contactreply.app` confirmed healthy. No paying customers, no active PWA users — big-bang single-session cutover is safe.
+
+**Decision:** Execute C1–C6 in a single session:
+- C1: `wrangler deploy --env production` + Logpush to R2
+- C2: 30-min smoke window (Worker live, webhooks still on Node.js)
+- C3: Flip webhook URLs (Twilio SMS + WhatsApp, SES SNS, PayPal) → Worker; FTP portal to contactreply.app
+- C4: `systemctl stop crai-api.service` (keep reply loop)
+- C5: 2h observation with live test ingest
+- C6: Archive src/api/{server,routes,webhooks}.js → src/api/_archived/; write DRs
+
+**Rollback:** `wrangler rollback --env production` (C1); re-point webhook URLs + `systemctl start crai-api.service` (C3); zero data loss — both systems can run briefly in parallel (C4).
+
+**Status:** Runbook written; awaiting user execution from host terminal.
+
+### DR-200: Vitest for CRAI Node.js unit tests (2026-04-10)
+
+**Context:** Prior agents wrote tests in `tests/unit/` but vitest wasn't installed, so they never ran. The ingest.test.js Pool mock used an arrow function that `new Pool()` cannot construct.
+
+**Decision:** Added `vitest ^4.1.4` + `@vitest/coverage-v8 ^4.1.4` as devDependencies; wired `vitest.config.js` to `tests/unit/**/*.test.js`; fixed Pool mock to use `vi.fn(function() { this.query = ... })`. All 18 ingest tests pass.
+
+**Status:** Committed (215e931).
+
+### DR-199: LLM prompt injection defence — sanitize before ingest (2026-04-10)
+
+**Context:** TH-12 in threat model: customer message body can contain injection instructions. Prior mitigation: server-side system prompt + safety keywords → templated bypass. No stripping of injection markers at the boundary.
+
+**Decision:** Strip injection markers at the ingest boundary (Twilio SMS + SES email) in `src/channels/ingest.js` via `sanitizeSmsBody()`/`sanitizeEmailBody()`. Defence-in-depth: system prompt is still injected server-side; this layer catches the markers before they reach the LLM context at all. Canary token generation added for future prompt leakage detection. KB and tenant-name surfaces also covered for completeness.
+
+**Status:** Committed (215e931). Residual risk: medium (industry-unsolved; classifier layer remains P3 recommended action in threat model).
+
+### DR-198: CRAI portal P11-P12 — accessibility hardening + deploy tooling (2026-04-10)
+
+**Context:** Final pre-cutover phase: WCAG AA audit, deploy script extension for portal targets, and threat model documentation.
+
+**Decision:**
+- P11 (accessibility): see DR-202
+- P11 (sanitizer): see DR-199
+- P12 (deploy script): `scripts/deploy.js` extended to support 4 environments: `test`, `prod`, `portal-test`, `portal-prod`. Portal deploys from `portal/docroot/` using FTP_PORTAL_* vars. Custom `uploadDir()` skips `.htaccess.example`, `data`, `tmp`, and hidden files.
+- P12 (threat model): `docs/threat-model.md` — 15 threats TH-01–TH-15, security controls table CA-1–CA-5 / HA-1–HA-11, recommended next actions. P0 = PayPal webhook validation (unverified).
+
+**Status:** Committed (215e931 accessibility/sanitizer; 344c704 deploy tooling + threat model).
+
 ### DR-197: Worker stream W4–W7 — postal-mime, VAPID web push, crypto hard gates, CA-5 enforcement (2026-04-09)
 
 **Context:** CRAI Worker needed: (1) robust SES inbound MIME parsing to replace fragile regex, (2) real VAPID ES256 web push notifications (previously a stub), (3) automated proof that Worker Web Crypto algorithms produce byte-identical output to reference implementations, (4) automated CA-5 enforcement (tenant_id WHERE filter on every tenant-scoped SQL query).
@@ -68,7 +125,7 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 **Context:** The Phase 6.6 plan included an E2E test for the `.app` magic-link portal flow. The initial draft relied on a production-side harness endpoint (`e2e-get-magic-link-token`) in `site/api.php`, gated by `E2E_HARNESS_ENABLED=1` and a bearer secret, with per-email LIKE-pattern token lookup. Security review (RF-11) flagged it as too risky: even with pattern guards, failure modes are catastrophic (LIKE typo → wrong tokens returned, wrong bearer shared, flag left on in prod). "Safe by construction" for an endpoint that reads auth tokens is a property to prove, not assume.
 
-**Decision:** Preferred approach is `staging.auditandfix.app` — a separate Plesk additional-domain with a copied DB schema and synthetic test data. Production `auditandfix.app` never has a harness endpoint. The staging subdomain is isolated from the live customer DB. CI/CD points `BRAND_URL=https://staging.auditandfix.app` and runs the full magic-link E2E there. If staging provisioning is impractical (waiting on Gary), an acceptable fallback requires ALL of: (a) auto-disable-after-15min file flag, (b) registration-time block on `test+e2e-magiclink-%` pattern, (c) IP allowlist for CI egress, (d) CF Access mTLS, (e) row-whitelist deletes (no LIKE-pattern DELETEs), (f) `tel.e2e_harness_access` audit table with alert on non-CI access. The "current plan as written" (LIKE-pattern, flag via env, no IP guard) is unacceptable regardless of how fast it would be to ship.
+**Decision:** Preferred approach is `staging.auditandfix.app` — a separate Plesk additional-domain with a copied DB schema and synthetic test data. Production `auditandfix.app` never has a harness endpoint. The staging subdomain is isolated from the live customer DB. CI/CD points `BRAND_URL=https://staging.auditandfix.app` and runs the full magic-link E2E there. If staging provisioning is impractical (waiting on Gary), an acceptable fallback requires ALL of: (a) auto-disable-after-15min file flag, (b) registration-time block on `test+e2e-magiclink-%` pattern, (c) IP allowlist for CI egress (home IP is dynamic so wait until we've migrated to VPS), (d) CF Access mTLS, (e) row-whitelist deletes (no LIKE-pattern DELETEs), (f) `tel.e2e_harness_access` audit table with alert on non-CI access. The "current plan as written" (LIKE-pattern, flag via env, no IP guard) is unacceptable regardless of how fast it would be to ship.
 
 **Status:** Decision recorded, implementation pending. Staging domain provisioning is a Gary ask (Plesk additional-domain).
 **Impl:** `auditandfix-website/tests/e2e/app-magic-link.spec.js` (to be created), `playwright.config.js` (dotapp project)
@@ -110,16 +167,14 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 **Correction (2026-04-09):** The original decision was framed as "secrets must not go in `.htaccess`," which is an overcorrection. The real principle is: **secrets must not go in committed files.** A properly gitignored `.htaccess` is equally valid as `secrets.php` — both are server-side-only files that never appear in git history. The DR-193 (CRAI) pattern already proves the right approach: only `.htaccess.example` with `<placeholder>` values is committed; the real `.htaccess` is gitignored and deployed out-of-band by Gary.
 
 **Decision:** Secrets never go in committed files. Pattern for Plesk-hosted sites:
-- Only `.htaccess.example` (with `<placeholder>` values for anything server-specific) is committed. The real `.htaccess` is gitignored (`site/.htaccess` and `app/.htaccess` both in `.gitignore`).
-- Secrets are loaded from `private/secrets.php` at `/var/www/vhosts/{domain}/private/secrets.php` (sibling of `httpdocs/`, outside the docroot), mode 0600, owned by the PHP-FPM user. This is the preferred pattern because: (a) `putenv()` is explicit and IDE-greppable, (b) `AllowOverride None` on a misconfigured vhost cannot silently suppress it, (c) it is the conventional PHP secrets pattern.
-- PHP entry points (`api.php`, etc.) `require_once` this file before any SMTP/auth code runs.
-- `.htaccess` only sets non-secret environment variables (`SES_SMTP_HOST`, `SENDER_EMAIL`, `BRAND_NAME`, etc.).
-- `secrets.example.php` is committed as a template; the real `secrets.php` is uploaded out-of-band by Gary via FTP.
-- Subsequent rotations: upload a new `secrets.php` to the fixed path via FTP. No code deploy needed.
+- All secrets (`API_WORKER_SECRET`, `PAYPAL_*_SECRET`, `DEAL_HASH_SALT`, `SES_SMTP_USERNAME/PASSWORD`, `E2E_SHARED_SECRET`) go in the live `.htaccess` as `SetEnv` directives alongside non-secret env vars.
+- Only `.htaccess.example` (with `__SET_ON_SERVER__` placeholders for all secrets) is committed. The real `.htaccess` is gitignored (`site/.htaccess` and `app/.htaccess` both in `.gitignore`).
+- PHP code reads all credentials via `getenv()` — no `require_once secrets.php` anywhere. `.htaccess` `SetEnv` and PHP `getenv()` are a drop-in equivalent.
+- Gary deploys `.htaccess` with real values out-of-band via FTP. Subsequent credential rotations = update the `.htaccess` in the FTP client, deploy. No code deploy needed.
 - IAM policy hardening: `ses:FromAddress` condition per identity so a leaked SMTP credential can't send from arbitrary identities. Per-domain IAM users (one per `auditandfix.com`, `.app`, `.net`, `contactreply.app`).
 
-**Status:** Implemented. Both `.htaccess` files untracked from git (2026-04-09). `.htaccess.example` files updated to reflect current routing and DR-189 pattern.
-**Impl:** `auditandfix-website/site/.htaccess.example`, `auditandfix-website/app/.htaccess.example`, `auditandfix-website/.gitignore`, `auditandfix-website/app/includes/account/secrets.example.php`
+**Status:** Implemented (2026-04-10). Both `.htaccess` files gitignored and contain all `SetEnv` including secrets. All `require_once secrets.php` blocks removed from PHP entry points.
+**Impl:** `auditandfix-website/site/.htaccess`, `auditandfix-website/app/.htaccess`, `auditandfix-website/site/.htaccess.example`, `auditandfix-website/app/.htaccess.example`, `auditandfix-website/.gitignore`, `auditandfix-website/site/api.php`, `auditandfix-website/app/account.php`, `auditandfix-website/app/index.php`, `auditandfix-website/app/api.php`
 
 ---
 
