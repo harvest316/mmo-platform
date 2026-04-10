@@ -2866,3 +2866,260 @@ Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer
 **How to check if VDM is enabled:** SES Console → Virtual Deliverability Manager → if "Enabled", it's billing. Disable to stop.
 
 **Status:** Deferred
+
+### DR-182: Native mobile SMS injection rejected — iOS structurally impossible, Android politically blocked (2026-04-10)
+
+**Context:** Scoping of deployment Mode E (Android SMS injection via Play Store app). Two paths: (A) CRAI builds a custom Android app that reads/writes SMS via `READ_SMS`/`SEND_SMS` permissions, (B) use existing open-source gateway apps (httpSMS, SMS Gateway for Android). Path A requires Play Store submission with SMS Permissions Declaration; Play Store policy restricts `READ_SMS`/`SEND_SMS` to default SMS apps or carrier-approved apps — CRAI cannot meet this bar. iOS has no SMS API whatsoever (entitlements locked to Apple + carriers). Mode F (open-source Android gateway, user installs) remains viable.
+
+**Decision:** Mode E (CRAI-built Android SMS app) rejected. Mode F (user installs open-source Android gateway app, CRAI provides webhook receiver) approved for research spike under $200 per Decision 5. iOS native SMS path is structurally impossible; no further investigation warranted.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §3
+
+---
+
+### DR-183: Provisioner credential model — scoped AWS IAM, no runtime CF token, Twilio API key with future subaccount path (2026-04-10)
+
+**Context:** Three provisioning credential questions arose from the Thread B audit: (1) Should CF API token be used at runtime for per-tenant DNS? (2) Should Twilio master Auth Token be used for number operations? (3) Is the existing AWS IAM scoping sufficient?
+
+**Decision:**
+1. **AWS**: `ses-sender` for runtime sending, `crai-provisioner` for onboarding only. Permission boundary on `ses-sender` caps effective rights to `ses:Send*`. `iam:PutUserPolicy` replaced with `iam:AttachUserPolicy` from managed-policy ARN allowlist (DR-194 detail).
+2. **Cloudflare**: Do NOT introduce a runtime CF API token. All inbound mail lands on shared subdomain (static wildcard). Outbound DNS is on tenant's domain (not ours). If ever needed, scope to `contactreplyai.com` only, never `auditandfix.com`.
+3. **Twilio**: Create named API Key `crai-provisioner`; keep `TWILIO_AUTH_TOKEN` for webhook signature validation only (cannot replace). Add `TWILIO_PROVISIONER_API_KEY_SID` + `TWILIO_PROVISIONER_API_KEY_SECRET` env vars.
+
+**Status:** Accepted
+**Impl:** `docs/workflows/WORKFLOW-tenant-provisioning.md` Appendix B, `.env.example`
+
+---
+
+### DR-184: `dev.auditandfix.com` is the AWS root login alias — never touch under any provisioning automation (2026-04-10)
+
+**Context:** `dev.auditandfix.com` is configured as an AWS account alias, effectively making it the URL for the AWS root console login. It is NOT a web-facing subdomain. Any automation that modifies DNS records on `auditandfix.com` risks overwriting or deleting this record, locking out AWS root access.
+
+**Decision:** `dev.auditandfix.com` is a permanently sacred DNS record. No provisioning code, CF Worker, or automation script may touch any record named `dev` in the `auditandfix.com` zone. This must be hard-coded as a never-touch exclusion in any DNS automation that operates on `auditandfix.com`. Documented in memory, workflow doc Appendix B, and this DR.
+
+**Status:** Accepted
+**Impl:** `docs/workflows/WORKFLOW-tenant-provisioning.md` Appendix B §B4, memory `feedback_dev_auditandfix_subdomain.md`
+
+---
+
+### DR-185: Onboarding sequence — Mode B live on Day 0, Twilio number provisioned immediately, porting initiated at Step 2 (2026-04-10)
+
+**Context:** The customer journey requires bridging the gap between signup and port completion (5–42 days). During that window the customer must be getting AI value or they will churn.
+
+**Decision:** Day 0 sequence: (1) Pay $97 trial start; (2) CRAI provisions a temporary Twilio number immediately; (3) GBP API auto-updates tenant's Google Business Profile phone to the temp number; (4) Marcus walks tenant through Hipages/YP AU manual update; (5) AI is live on email (Mode B subdomain) + web chat immediately; (6) Optional: call forwarding from tenant's carrier to temp number; (7) Missed-call → voicemail → AI SMS followup if call forwarding enabled. Days 1–7: Twilio Hosted Number Order submitted, port processes in background. Days 5–42: Port completes, GBP auto-updated back to ported (original) number, temp number released.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §13
+
+---
+
+### DR-186: Pay-first sequencing accepted — conditional on post-payment friction being <5 min and <2 clicks (2026-04-10)
+
+**Context:** Standard SaaS practice is to show the product before charging. Gary's instinct was to charge $97 first, then onboard. This creates ACL §54/§60 refund risk and trust damage if the post-payment work is significant. However, under Mode A (porting + OAuth), post-payment work is trivially small: sign one LOA PDF (2 min) + click one OAuth consent button.
+
+**Decision:** Pay-first is acceptable IFF post-payment customer effort is <5 minutes and <2 clicks. Mode A meets this bar. Mode B + DNS-port flow does not. The conditional rule must be enforced: if a new deployment mode requires more than 2 clicks or >5 min of customer work post-payment, the mode must show a friction preview before the payment screen.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §12
+
+---
+
+### DR-187: DR-133 overturned — Gmail/Outlook OAuth approved conditional on CASA Tier 3 + Google/Microsoft verification (2026-04-10)
+
+**Context:** DR-133 rejected Gmail/Outlook OAuth on privacy grounds (LLM transmission of mailbox content = high PII risk). Subsequent scoping revealed that (a) CRAI's use case fits the Google OAuth restricted-scope program which allows sensitive scope approval without full CASA if annual security review is passed, (b) the real gating factor is CASA Tier 3 assessment which explicitly covers server-side LLM transmission, and (c) deferred OAuth = Mode B (subdomain forwarding) which is significantly worse UX and harder to sell.
+
+**Decision:** Gmail/Outlook OAuth (Mode A email) is approved in principle. Gate conditions before any live OAuth tenant: (1) CASA Tier 3 assessment complete + passed; (2) Google OAuth restricted-scope verification application submitted and approved; (3) Microsoft Azure app publisher verification complete; (4) Envelope encryption for refresh tokens implemented (DR-192); (5) APP 5/6/8 notice templates deployed. Gary's Decision 2 defers all of this until Pty Ltd formation. Phase 1 ships Mode B only.
+
+**Status:** Accepted (deferred to Pty Ltd formation)
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §6, §10
+
+---
+
+### DR-188: Mode D (carrier conditional forwarding) rejected entirely (2026-04-10)
+
+**Context:** Mode D was defined as using carrier call/SMS forwarding to redirect inbound messages to CRAI. Two fatal flaws: (1) Australian carriers do not offer conditional or unconditional SMS forwarding — this is a hard technical impossibility, not a policy issue; (2) even if SMS forwarding existed, CRAI replies would come from a different number than the tenant's, confusing customers and breaking the "replies from your number" value proposition.
+
+**Decision:** Mode D is rejected and removed from the viable mode set. The term "Mode D" should not appear in onboarding or marketing copy. Customers who ask about forwarding their existing number should be directed to Mode A (porting) or Mode C (call forwarding only for voice, not SMS).
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §2, §4
+
+---
+
+### DR-189: WhatsApp is opt-in add-on, deferred by default (2026-04-10)
+
+**Context:** WhatsApp Business has two modes: (1) the consumer WhatsApp Business app (single device, no API, no automation), and (2) WhatsApp Business API (WABA) via a BSP like Twilio. The migration from app to WABA is one-way — once a number is on WABA, it cannot go back to the consumer app. Australian tradies who actively use WhatsApp Business app to chat with customers will permanently lose that capability on migration.
+
+**Decision:** WhatsApp is a Phase 2 opt-in add-on (+$29/mo) that requires explicit "I understand I cannot use the WhatsApp app anymore on this number" consent. Onboarding wizard surfaces a three-way question: (A) I don't use WhatsApp for business → skip; (B) I use WhatsApp Business app actively → defer migration, explain trade-off; (C) I'm willing to migrate to WABA → proceed. Default customer journey does not include WhatsApp in Phase 1.
+
+**Status:** Accepted (deferred to Phase 2)
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §7a
+
+---
+
+### DR-190: No proactive concierge onboarding calls — async self-serve with AI voice escalation (2026-04-10)
+
+**Context:** Original plan included Marcus making proactive Zoom/phone calls to help tenants through directory updates and onboarding friction. This doesn't scale and creates a staffing dependency at the exact moment CRAI is trying to prove unit economics.
+
+**Decision:** Proactive onboarding calls removed. Replace with: (1) GBP API for automatic directory update (no human needed); (2) deep-link checklist that takes customer to the exact settings page they need; (3) short how-to videos for Hipages/YP AU manual steps; (4) ElevenLabs AI voice stuck-recovery triggered by "I'm stuck" button or 5-minute idle on any onboarding step (inbound only, customer-initiated, ~$0.10–0.15/min); (5) human escalation (email/Slack DM to Marcus) only if AI voice cannot resolve. This keeps Marcus available for sales, not support.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §7b
+
+---
+
+### DR-191: Onboarding wizard defaults everyone to Mode C on Day 0; upgrade prompts data-driven after 14 days (2026-04-10)
+
+**Context:** v1 and v2 of the onboarding plan had the wizard branch early based on self-diagnosed channel mix ("where do most enquiries come from?"). Reality Checker review identified this as a UX anti-pattern: customers don't know their channel mix, will guess, and will be placed on the wrong mode. Additionally, asking customers to make a deployment-architecture decision on Day 0 before they've seen value creates unnecessary friction.
+
+**Decision:** Onboarding wizard does NOT branch on self-diagnosed channel mix. Default: everyone starts on Mode C (call forwarding + Mode B email subdomain) on Day 0. After 14 days of data, dashboard surfaces data-driven upgrade prompts: "You've received 23 inbound calls and 8 texts — would you like to port your number so we can reply to texts too?" Branching question retained only for the SMS-vs-call-vs-email information-only display in the wizard, not for routing to a different setup path.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §2, §7b
+
+---
+
+### DR-192: OAuth refresh tokens stored with envelope encryption — per-tenant DEK + KMS CMK (2026-04-10)
+
+**Context:** OAuth refresh tokens for Gmail/Microsoft Graph grant long-lived mailbox access. If the database is breached, a plaintext token dump gives the attacker access to every tenant's email account. CASA Tier 3 assessment requires demonstrating that credential storage meets a documented security standard. NDB (Notifiable Data Breaches) scheme under the Privacy Act 1988 applies if tokens are exposed without adequate encryption.
+
+**Decision:** OAuth refresh tokens must be stored with envelope encryption: per-tenant data encryption key (DEK) encrypted by a KMS-managed customer master key (CMK). Decryption must be audit-logged (who decrypted, when, from which service). This is non-negotiable — without it, CASA fails and NDB risk is unacceptable. No OAuth tenant can go live until this is implemented.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §6 (pre-condition for DR-187 activation)
+
+---
+
+### DR-193: Twilio subaccount-per-tenant from day one; master API key blast radius unacceptable (2026-04-10)
+
+**Context:** v2 plan deferred Twilio subaccount isolation to Phase 2. Security review identified this as unacceptable: a compromised master API key can read, send, and delete numbers for every tenant simultaneously. Additionally, usage controls (spend limits, geo permissions) cannot be set per-tenant without subaccounts.
+
+**Decision:** Twilio subaccount-per-tenant is required from MVP day one, NOT deferred to Phase 2. Each tenant provisioning creates a Twilio subaccount. Voice/SMS Geo Permissions set to AU-only on each subaccount. Usage Triggers: $50/day per subaccount (auto-suspend), $500/day master (auto-suspend). TWILIO_AUTH_TOKEN (master) retained for webhook validation only; all number operations use the provisioner API key against the tenant's subaccount.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §10 (provisioning architecture)
+
+---
+
+### DR-194: AWS provisioning architecture — IAM permission boundary + AttachUserPolicy from allowlist + provisioner out of CF Worker (2026-04-10)
+
+**Context:** Security review identified three gaps in the AWS provisioning design: (1) no permission boundary on `ses-sender` means a compromised key could be used to call any SES API; (2) `iam:PutUserPolicy` allows the provisioner to write arbitrary inline policy, not just add the specific identity ARN needed; (3) running IAM-mutating code inside a CF Worker (shared execution environment) increases blast radius.
+
+**Decision:**
+1. Add IAM permission boundary to `ses-sender` capping effective rights to `ses:Send*` only.
+2. Replace `iam:PutUserPolicy` with `iam:AttachUserPolicy` operating from a pre-approved managed-policy ARN allowlist — provisioner can only attach policies from the allowlist, not write arbitrary policy.
+3. Move provisioning service (IAM + SES operations) OUT of CF Worker into a separate mTLS-isolated service with IAM Roles Anywhere or OIDC federation. CF Worker retains only tenant onboarding orchestration; IAM/SES calls proxied through the isolated service.
+
+**Status:** Accepted
+**Impl:** `docs/workflows/WORKFLOW-tenant-provisioning.md` Appendix B §B1, to be implemented in provisioning service
+
+---
+
+### DR-195: Number porting LOA verification — dual-factor proof + ABN Lookup + 24h hold (2026-04-10)
+
+**Context:** Twilio's Hosted Number Order flow auto-generates an LOA via HelloSign. The risk: a fraudulent or mistaken port of a tenant's competitor's number, or a malicious actor porting a high-value number they don't own. Once a port is submitted, reversing it takes days and generates carrier fees.
+
+**Decision:** Before submitting a Hosted Number Order, CRAI must verify: (1) bill upload showing the number belongs to the business (PDF/image, manual or AI-assisted check); (2) OTP sent to the number being ported, customer must enter it in dashboard; (3) ABN Lookup API call to verify ABN matches the billing entity; (4) 24-hour hold on first port submission per tenant (fraud cooling window); (5) all verification evidence stored as audit trail. Dual-factor proof requirement is non-waivable even in demo/test flows.
+
+**Status:** Accepted
+**Impl:** To be built in porting flow (Phase 1 provisioning work)
+
+---
+
+### DR-196: Billing triggers on first AI reply sent — $0 trial, no auth/capture, cleanup cron for abandoned tenants (2026-04-10)
+
+**Context:** "No charge until we do something useful" is a strong trust signal for tradies who are skeptical of SaaS. PayPal's $0 trial subscription covers this. The billing trigger question: what counts as "doing something useful"? Auth/capture (charge on port completion) was considered but adds complexity.
+
+**Decision:** PayPal $0 trial period. Billing triggers on first AI-generated reply sent (any channel). This is the simplest implementation and aligns with the customer's perception of value. Port completion is NOT the trigger (customer might port but never get a message). Cleanup cron: tenants with zero AI replies and zero activity for 30 days are suspended and their resources (Twilio subaccount, SES identity) cleaned up. Cleanup is reversible — tenant can re-activate by logging in.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §13 (billing trigger); cleanup cron to be built
+
+---
+
+### DR-197: GBP Manager access — break-glass, compartmentalised, append-only audit log, allowlisted fields (2026-04-10)
+
+**Context:** CRAI needs to update tenant Google Business Profile phone numbers on their behalf (Day 0 to temp number, Day 5–42 back to ported number). GBP Manager access is account-level (not OAuth per tenant). A breach of the GBP manager account gives access to all managed business profiles.
+
+**Decision:** GBP Manager access is break-glass, not continuous. Compartmentalised: each Google account manages ~10–20 tenants max (blast radius limit). Per-edit append-only audit log (who updated, which field, old value, new value, timestamp). Server-side allowlist on writeable fields: `primaryPhone` only — no address, hours, categories, or description changes permitted via automation. All GBP-holding Google accounts enrolled in Google Advanced Protection Program with hardware-key MFA.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §7b
+
+---
+
+### DR-198: CASA Tier 3 (not Tier 2) — server-side LLM transmission triggers higher tier (2026-04-10)
+
+**Context:** v2 plan estimated CASA Tier 2 ($2K–$5K). Legal review identified that CRAI's architecture — server-side storage of mailbox content + transmission to OpenAI/Anthropic LLM APIs — places it in Tier 3 under Google's Cloud Application Security Assessment framework. Tier 3 covers applications with access to "sensitive or restricted" OAuth scopes that also perform server-side processing of the accessed data.
+
+**Decision:** CRAI must budget for CASA Tier 3: $5K–$15K USD/yr from Google-approved assessors (Leviathan Security, NCC Group, etc.). Annual re-verification required. Assessment must run under the Pty Ltd entity (DR-187 gate condition). v2 estimate of Tier 2 is superseded.
+
+**Status:** Accepted
+**Impl:** `docs/scoping/deployment-modes-and-friction.md` §10 (compliance matrix)
+
+---
+
+### DR-199: Mode A email — historical-data exclusion via `after:{grant_timestamp}` filter (2026-04-10)
+
+**Context:** Gmail API does not limit read access to post-grant messages by default. A tenant who grants OAuth access effectively gives CRAI the ability to read their entire mailbox history, not just new messages. This creates GDPR/Privacy Act exposure (more data than necessary), CASA scope creep risk, and potential for training-data misuse claims.
+
+**Decision:** All Gmail API queries must include `after:{grant_timestamp}` filter (Unix timestamp of OAuth grant). CRAI must never read, index, or persist messages older than the OAuth grant moment. This filter must be hard-coded in the Gmail integration layer and covered by a unit test that verifies the filter is always present. The DPA template must document this exclusion explicitly.
+
+**Status:** Accepted
+**Impl:** To be enforced in Gmail integration (Phase 2 OAuth work)
+
+---
+
+### DR-200: APP 5 privacy notice — deployed to tenant website footer + SMS auto-reply + Mode B email auto-reply (2026-04-10)
+
+**Context:** Australian Privacy Act APP 5 requires that when CRAI collects personal information from third parties (i.e., the tradie's customers who send inbound messages), it must take reasonable steps to notify those individuals. A checkbox in the onboarding flow is not sufficient — the notice must actually reach the end-users.
+
+**Decision:** CRAI provides an APP 5 notice template to each tenant during onboarding. Tenant must confirm deployment to: (1) their website footer (copy-paste snippet provided); (2) SMS auto-reply message (e.g., "Replies handled by AI — privacy notice: [URL]"); (3) Mode B email auto-reply signature. Confirmation is not a checkbox — onboarding is not marked complete until Marcus has verified at least one of the three. Templates stored in `docs/compliance/`.
+
+**Status:** Accepted
+**Impl:** To be built in onboarding flow; templates in `docs/compliance/`
+
+---
+
+### DR-201: CSP status under Telecommunications Act 1997 — telco lawyer required before any port goes live (2026-04-10)
+
+**Context:** By providing number porting services and operating Twilio subaccounts that route calls/SMS for tenants, CRAI may be a Carriage Service Provider (CSP) under the Telecommunications Act 1997. CSP status triggers obligations under the TCP Code C628:2019 (complaint handling, contract disclosure, etc.). This is not a question Claude can answer — it requires a qualified telco lawyer.
+
+**Decision:** Engage a telco lawyer (estimated $1K–$3K AUD one-time) to determine CSP status before any number port goes live. This is a potentially blocking dependency for Phase 1. If CRAI is a CSP, compliance obligations must be scoped and implemented before launching porting. TCP Code compliance is not optional.
+
+**Status:** Accepted (blocking — must resolve before Phase 1 porting launch)
+**Impl:** User action required — commission telco lawyer. `docs/scoping/deployment-modes-and-friction.md` §10 compliance table
+
+---
+
+### DR-202: Outbound content safety filters — defamation, licensed-trade bookings, third-party statements (2026-04-10)
+
+**Context:** CRAI generates AI replies on behalf of tradies. Under Voller v Nationwide News (2021, HCA), a publisher of a platform that facilitates defamatory statements can be liable even without knowledge of the specific content. If CRAI's AI generates a reply that defames a competitor, disparages another business, or books a job requiring a licence the tradie doesn't hold, CRAI bears liability. PI insurance (DR-203) partially mitigates financial exposure but does not remove liability.
+
+**Decision:** Content filter on every outbound reply (SMS, email, chat, WhatsApp): (1) no negative third-party statements (competitor names, negative comparisons); (2) refuse to book jobs involving electrical, gas, plumbing, asbestos, refrigerant work without explicit licence check confirmation in the tenant's knowledge base; (3) no claims about the AI's own identity as human. Filter implemented as a post-generation pass before send. Failures → human review queue, not silent drop.
+
+**Status:** Accepted
+**Impl:** To be built in dispatch layer (`src/services/dispatch.js`); pre-condition for live tenants
+
+---
+
+### DR-203: PI insurance — must explicitly cover AI-generated communications (2026-04-10)
+
+**Context:** Standard Tech E&O (Errors & Omissions) policies routinely carve out AI-generated content from coverage. A policy that doesn't explicitly cover "AI-generated communications issued on behalf of clients" may not pay out if a CRAI-generated reply causes a client loss (missed booking, defamation, incorrect advice).
+
+**Decision:** PI (Professional Indemnity) insurance policy for CRAI must explicitly name AI-generated communications in the coverage scope. Budget $5K–$15K AUD/yr for ~$2M cover. Policy must be in place before any live tenant goes active. Standard Tech E&O policies without AI coverage explicitly stated are not acceptable. Required before live tenants regardless of Pty Ltd formation status — personal liability is worse.
+
+**Status:** Accepted (required before live tenants)
+**Impl:** User action required. `TODO.md` Pre-Revenue Checklist
+
+---
+
+### DR-204: Sender consolidation — `workers/index.js` lines 372–463 contains parallel sender implementation (2026-04-10)
+
+**Context:** v2 of the deployment modes plan identified `src/services/dispatch.js` as the primary sender abstraction that needs to be updated for OAuth/Mode A. Reality Checker review identified a second, parallel sender implementation in `workers/index.js` lines 372–463 (`sendReply()`, `sendSms()`, `sendEmailViaSES()`, etc.) that was missed entirely. This implementation duplicates significant logic and does not go through `dispatch.js`.
+
+**Decision:** Any OAuth abstraction (Gmail client, Microsoft Graph client) must land in BOTH `src/services/dispatch.js` AND `workers/index.js`, OR the Worker path must be explicitly deprecated and all sends routed through `dispatch.js` first. Silent divergence is unacceptable — if the Worker path stays on Mode B credentials forever, this must be documented as an intentional choice with a `// TODO: migrate to dispatch.js (DR-204)` comment. Failing loudly on unsupported modes is preferred over silent fallback.
+
+**Status:** Accepted
+**Impl:** `workers/index.js` lines 372–463; `src/services/dispatch.js`
