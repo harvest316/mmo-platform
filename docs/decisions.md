@@ -127,8 +127,8 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 **Decision:** Preferred approach is `staging.auditandfix.app` — a separate Plesk additional-domain with a copied DB schema and synthetic test data. Production `auditandfix.app` never has a harness endpoint. The staging subdomain is isolated from the live customer DB. CI/CD points `BRAND_URL=https://staging.auditandfix.app` and runs the full magic-link E2E there. If staging provisioning is impractical (waiting on Gary), an acceptable fallback requires ALL of: (a) auto-disable-after-15min file flag, (b) registration-time block on `test+e2e-magiclink-%` pattern, (c) IP allowlist for CI egress (home IP is dynamic so wait until we've migrated to VPS), (d) CF Access mTLS, (e) row-whitelist deletes (no LIKE-pattern DELETEs), (f) `tel.e2e_harness_access` audit table with alert on non-CI access. The "current plan as written" (LIKE-pattern, flag via env, no IP guard) is unacceptable regardless of how fast it would be to ship.
 
-**Status:** Decision recorded, implementation pending. Staging domain provisioning is a Gary ask (Plesk additional-domain).
-**Impl:** `auditandfix-website/tests/e2e/app-magic-link.spec.js` (to be created), `playwright.config.js` (dotapp project)
+**Status:** Fallback path shipped (2026-04-10). `E2E_HARNESS_ENABLED` + bearer token + email regex gates are live. IP allowlist deferred: DDNS-based allowlisting in CF doesn't work reliably (CF evaluates rules at request time, doesn't resolve dynamic hostnames). Given triple-gate construction, risk is acceptable without IP allowlist. CF Access mTLS and `tel.e2e_harness_access` audit table remain as future hardening. Staging subdomain (`staging.auditandfix.app`) remains the long-term preferred path.
+**Impl:** `auditandfix-website/site/api.php` (e2eGetMagicLinkToken, e2eCleanupTestData), `auditandfix-website/tests/e2e/app-magic-link.spec.js`
 
 ---
 
