@@ -3123,3 +3123,36 @@ Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer
 
 **Status:** Accepted
 **Impl:** `workers/index.js` lines 372–463; `src/services/dispatch.js`
+
+---
+
+### DR-205: GBP API integration — scheduled for 2026-04-16 (Thursday) (2026-04-10)
+
+**Context:** Google Business Profile (GBP) is the single most important directory for AU local search traffic (Maps + Search). The old GBP Business Messages API was deprecated July 2024. The replacement for managing profile data (NAP — Name, Address, Phone) is the official Google Business Profile API (v1). This is distinct from messaging — it's for reading and updating listing info on behalf of clients.
+
+**Decision:** Build a GBP profile management integration as Phase 2 priority. Scope: read tenant's NAP via the GBP API, surface mismatches in the directory listings dashboard, allow operator to push NAP corrections. Key constraints: gated approval (14-day Google review), per-client OAuth (each tenant must grant access), scope: `plus.business.manage`, 300 req/min, 10 edits/min per listing, no sandbox available. Build target: 2026-04-16.
+
+**Status:** Accepted — scheduled
+**Impl:** Phase 2, `workers/index.js` + new `src/services/gbp.js`; `docs/directory-recovery.md` §GBP API
+
+---
+
+### DR-206: Marcus flag mechanism — hidden FLAG blocks in LLM replies (2026-04-10)
+
+**Context:** During conversations with customers, the AI assistant will encounter valuable intelligence: customers correcting wrong listing data ("your hipages number is wrong"), customers expressing frustration ("I've been trying to call for days"), or issues worth the operator knowing about. This data is currently lost. A separate "flag detection" API call would add latency and cost.
+
+**Decision:** The LLM system prompt instructs the model to append hidden `<!-- FLAG: {"type":"...","subject":"...","description":"...","suggested_value":"..."} -->` blocks after its reply when it detects data corrections, frustrations, issues, or positive feedback. The Worker strips these blocks before sending the reply to the customer, then writes them to `crai.operator_flags` (flag_type, subject, description, suggested_value, conversation_id). `npm run status` surfaces new flags for operator review. Flag types: data_correction, frustration, issue, feedback.
+
+**Status:** Accepted
+**Impl:** `workers/index.js` — `buildSystemPrompt()` + `generateReply()`; `crai.operator_flags` (migration 007); `scripts/status.js`
+
+---
+
+### DR-207: Directory listing scan — seed on onboarding complete (2026-04-10)
+
+**Context:** During onboarding, CRAI should scan for existing directory listings across all major AU directories to surface citation opportunities and data mismatches. The scan result feeds: (1) the operator status report (npm run status); (2) future BrightLocal citation add-on upsell; (3) directory correction guidance in the LLM prompt.
+
+**Decision:** On `PUT /api/onboarding/complete`, seed `crai.directory_listings` rows for all 10 known directories with `found=NULL` (not yet checked). Directories: gbp, hipages, oneflare, serviceseeking, yellowpages, truelocal, womo, localsearch, houzz, yelp_au. Actual scan (automated or manual research) fills in `found`, `listed_name`, `listed_phone`, `notes`. `npm run status` alerts operator when ≥10 tenants have unchecked/incorrect listings on BrightLocal-covered directories (yellowpages, truelocal, localsearch, womo).
+
+**Status:** Accepted
+**Impl:** `workers/index.js` `PUT /api/onboarding/complete`; `crai.directory_listings` (migration 007); `scripts/status.js`
