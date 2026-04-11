@@ -3156,3 +3156,31 @@ Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer
 
 **Status:** Accepted
 **Impl:** `workers/index.js` `PUT /api/onboarding/complete`; `crai.directory_listings` (migration 007); `scripts/status.js`
+
+---
+
+### DR-208: GBP API access — case submitted, 60-day prereq not yet met (2026-04-11)
+
+**Context:** Google requires the GBP profile to be verified for 60+ days before granting API access. The profile was not yet at that threshold when the application was submitted.
+
+**Decision:** Submitted case 8-5877000040787 at https://support.google.com/business/contact/api_default on 2026-04-11. Check case status 2026-04-21. Resubmit ~2026-06-10 (60-day prereq met) — preferably using the new A&F Google account rather than the main account (which had a warning on it). Resubmit URL: https://support.google.com/business/contact/api_default
+
+**Status:** Pending (resubmit 2026-06-10)
+**Impl:** GBP build deferred until access granted; scheduled for completion after access (DR-205)
+
+### DR-209: 2Step customer portal — Phase 2 video review dashboard (2026-04-11)
+
+**Context:** The auditandfix.app customer portal had a Phase 1 placeholder dashboard ("coming soon"). Phase 2 needs to show delivered videos, subscription status, and audit reports for 2Step subscribers.
+
+**Decision:**
+1. **Data model**: Used the existing `customer_products` table (customers.sqlite) rather than reading directly from 2Step's SQLite DB. Added `metadata TEXT` column (migration 002) to hold a JSON blob per product — video hash, poster_url, tier, next_billing_date, billing_amount, etc. Keeps the portal self-contained; 2Step pipeline populates it at delivery time.
+2. **Video links**: Dashboard links to `{COM_DOMAIN}/v/{hash}` (auditandfix.com video pages). Videos and posters are hosted on .com; .app just links out.
+3. **Subscription tiers**: `monthly_4` (4/year), `monthly_8` (8/year), `monthly_12` (12/year) — matching 2Step's tier taxonomy.
+4. **Empty state**: Friendly holding page when no products yet linked (account created before first delivery).
+5. **COM_DOMAIN env var**: Dashboard reads `COM_DOMAIN` env (falls back to `https://` + `BRAND_DOMAIN`). No hardcoded domain — required by PII pre-commit hook.
+6. **Security**: `poster_url` validated as HTTP(S) URL via `filter_var(FILTER_VALIDATE_URL)` + scheme regex before output to `img src`. All other user-derived strings go through `htmlspecialchars`.
+
+**Pending:** 2Step pipeline provisioning hook — when a video is delivered, create customer + customer_products rows in customers.sqlite (not yet built).
+
+**Status:** Committed (3c3bab9 + poster-url fix)
+**Impl:** `app/includes/account/dashboard.php`, `site/assets/css/account.css`, `site/db/migrations/customers/002-metadata-column.sql`
