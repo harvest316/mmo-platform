@@ -4,6 +4,38 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-208: CRAI onboarding pre-population from 333Method cross-sell data (2026-04-12)
+
+**Context:** CRAI onboarding wizard asks 6 steps of questions (business profile, hours, services, FAQs, channels, review). For prospects who came in via 333Method cold outreach, we already know: business name, phone, city/state, trade (inferred from keyword), and may have inbound reply messages that reveal what topics the prospect cares about (emergency call-outs, weekends, pricing, etc.). Asking them to type this in again creates unnecessary friction.
+
+**Decision:**
+
+1. **Bridge via Worker (not portal-side PG query):** Portal runs on Gary's shared hosting — no local PG access. CF Worker (Neon) is the only shared data store the portal can reach. 333Method pushes data to the Worker at cross-sell time; the Worker applies it at sign-up time.
+
+2. **`crai.prospect_hints` table (migration 008):** Stores per-email hints: business_name, phone, city, state, country_code, trade, service_area, conversation_topics[], conversation_excerpt. Keyed by `lower(email)`. `used_at` stamped after consumption.
+
+3. **`POST /api/internal/seed-prospect` (X-Seed-Secret):** New Worker endpoint. 333Method seeder calls this when a domain enters `msgs.cross_sell_queue`. Upserts the hint — later cross-sell signals enrich, don't overwrite. Secret rotated independently of other Worker secrets.
+
+4. **`BILLING.SUBSCRIPTION.ACTIVATED` enrichment:** After new tenant insert, Worker queries `prospect_hints` by email. If found (and `used_at IS NULL`), builds `knowledge_base` prefill (`step1`, `step3`, `step4`) and stamps `used_at`. Non-fatal — tenant is created either way.
+
+5. **knowledge_base shape:** `{meta: {prefill_source, prefill_at, has_conversation, conversation_topics[]}, step1: {business_name, business_type, location, phone, email}, step3: {service_area}, step4: {faqs: [{question, answer:''}]}}`. `OB.prefill()` already reads this format — no frontend mechanism changes needed.
+
+6. **Trade inference:** Keyword → trade map (plumber, electrician, hvac, builder, cleaner, painter, landscaper, pest-control, locksmith, other). Same map maintained in both Worker (`index.js`) and seeder (`crai-prospect-seeder.js`).
+
+7. **Business name from domain:** Strip protocol/www/TLD, split hyphens, title-case. Marked as suggested (banner shown). No LLM call at seed time — defer to future enhancement.
+
+8. **FAQ detection:** 9 topic patterns (emergency, weekend, quote, guarantee, licensed, area, time, booking, same_day) scanned over inbound 333Method message bodies. Matched topics → FAQ templates with empty answers. User fills in the answers.
+
+9. **Portal UX:** Step 1 shows blue info banner when `meta.prefill_source === '333method'`. Step 4 shows green hint note above FAQ list when `meta.has_conversation === true`.
+
+**Status:** Committed. Production deploy steps required:
+- Apply `migrations/008-prospect-hints.sql` to Neon production
+- `npx wrangler secret put SEED_API_SECRET` (generate: `openssl rand -hex 32`)
+- Add `CRAI_WORKER_URL` + `CRAI_SEED_API_SECRET` to `333Method/.env.secrets`
+- Wire `seedProspect(contactId)` into cross_sell_queue insertion flow
+
+**References:** `ContactReplyAI/migrations/008-prospect-hints.sql`, `ContactReplyAI/workers/index.js` (handleSeedProspect, buildKnowledgeBaseFromHint), `333Method/src/utils/crai-prospect-seeder.js`
+
 ### DR-202: WCAG AA accessibility + prompt injection sanitizer — P11 (2026-04-10)
 
 **Context:** Portal CSS used orange (#f97316) and green (#16a34a) for text on white — both fail 4.5:1 WCAG AA. Section headers in knowledge-base.php were `<div>` not `<button>`, blocking keyboard navigation. No skip-to-content link existed. LLM inbound messages had no injection-marker stripping before being passed to Anthropic.
