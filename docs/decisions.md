@@ -3216,3 +3216,22 @@ Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer
 
 **Status:** Committed (3c3bab9 + poster-url fix)
 **Impl:** `app/includes/account/dashboard.php`, `site/assets/css/account.css`, `site/db/migrations/customers/002-metadata-column.sql`
+
+### DR-210: PayPal subscription flow — provisionSubscription() wired to portal (2026-04-13)
+
+**Context:** After a 2Step subscriber completes PayPal checkout, the customer portal (auditandfix.app) had no account. The subscription was verified and stored in subscriptions.sqlite and forwarded to the CF Worker, but `provision-product` on the .app portal was never called. Customers logging into the portal would see an empty dashboard.
+
+**Decision:**
+1. **`provisionSubscription()` helper** added to `site/api.php`. Calls `https://auditandfix.app/api?action=provision-product` with Bearer `PORTAL_PROVISION_SECRET`. Idempotent (same subscription_id → update, not duplicate). Fire-and-forget (never throws, logs on error).
+2. **Two call sites**: `activateSubscription()` (front-end PayPal return path) and `handlePayPalWebhook()` (BILLING.SUBSCRIPTION.ACTIVATED — covers direct plan-link purchasers who bypass the JS flow).
+3. **Bug fix**: `activateSubscription()` had a missing `->execute([$subscriptionId])` on the row fetch (line was `prepare()->fetch()` — always returned false, so CF Worker was never notified). Fixed by extracting the row fetch with proper execute before the CF Worker block.
+4. **Row fetch refactor**: Row fetch moved outside the `if (CF_WORKER_URL)` guard so both CF Worker and portal provisioning use the same fetched row.
+5. **New constants**: `APP_PORTAL_URL` and `PORTAL_PROVISION_SECRET` added to `site/includes/config.php`.
+6. **Metadata passed**: tier, currency, billing_amount (if known), videos_per_year, video_hash. Fields are null-filtered so the portal metadata column stays clean for partial webhook activations.
+
+**New env vars required on Hostinger (both com and app hosts):**
+- `APP_PORTAL_URL` — defaults to `https://auditandfix.app` (only needed to override)
+- `PORTAL_PROVISION_SECRET` — shared secret between .com and .app; must be set on both hosts
+
+**Status:** Committed
+**Impl:** `site/api.php` (provisionSubscription, activateSubscription, handlePayPalWebhook), `site/includes/config.php`
