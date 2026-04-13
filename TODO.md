@@ -66,7 +66,7 @@ domains, isolated from cold-outreach reputation on the .com domains.
 
 Tasks:
 - [x] Add both to `mmo-platform/scripts/setup-ses.mjs` DOMAINS list
-- [x] Run `setup-ses.mjs` — SES identities, DKIM CNAMEs, MAIL FROM, MX, SPF, DMARC for both `.app` domains (2026-04-09). 2 apex DKIM pending propagation (auditandfix.app, auditandfix.net)
+- [x] Run `setup-ses.mjs` — SES identities, DKIM CNAMEs, MAIL FROM, MX, SPF, DMARC for both `.app` domains (2026-04-09). DKIM propagation confirmed 2026-04-13.
 - [x] Update `auditandfix-website/site/api.php` demo + onboarding emails to use `marcus@auditandfix.app`
 - [x] Update CRAI dispatch to send AI replies from `marcus@contactreply.app` (workers/index.js + src/services/dispatch.js)
 - [x] Update `auditandfix-website` magic link — `SENDER_EMAIL` in `.htaccess` switched to `marcus@auditandfix.app`, deployed via FTP
