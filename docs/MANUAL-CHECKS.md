@@ -33,3 +33,5 @@ https://scraper.systems/
 https://www.zerobounce.net/members/tools/results/inbox
 https://mail-tester.com/
 https://app.glockapps.com/inbox-insight/spam-tests/create-manual-test/root
+
+GBP API request: https://support.google.com/business/?hl=en&dark=1&sjid=4447216292244727801-NC&authuser=0#topic=4596754

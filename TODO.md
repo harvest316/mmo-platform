@@ -1,5 +1,50 @@
 # TODO
 
+## DMARC: Graduate marketing domains to p=reject (due 2026-05-11)
+
+**Strategy:**
+- Transactional domains (`auditandfix.app`, `contactreply.app`) — stay at `p=quarantine` permanently.
+  Transactional mail (auth, billing, onboarding) must never hard-reject on misconfiguration.
+- Marketing/outreach domains (`auditandfix.com`, `contactreplyai.com`) — move to `p=reject`
+  once 4 weeks of clean RUA history confirmed.
+
+**Before changing either domain, check Cloudflare DMARC Management:**
+- CF Dashboard → auditandfix.com → Email → DMARC Management
+- CF Dashboard → contactreplyai.com → Email → DMARC Management
+- Confirm: only spoofing attempts in the failure reports, no legitimate sources failing
+
+**To flip (edit DNS TXT record at `_dmarc.<domain>`):**
+- Change `p=quarantine` → `p=reject` — nothing else changes
+- auditandfix.com current: `v=DMARC1; p=quarantine; rua=mailto:...cloudflare...; ruf=mailto:dmarc@auditandfix.uriports.com; fo=1:d:s`
+- contactreplyai.com current: `v=DMARC1; p=quarantine; rua=mailto:...cloudflare...; ruf=mailto:dmarc@auditandfix.uriports.com; fo=1:d:s`
+
+- [ ] Check CF DMARC Management for auditandfix.com — confirm clean
+- [ ] Flip auditandfix.com to `p=reject`
+- [ ] Check CF DMARC Management for contactreplyai.com — confirm clean
+- [ ] Flip contactreplyai.com to `p=reject`
+
+---
+
+## Upgrade URIports to Stone plan (USD $30/mo)
+
+URIports Stone adds:
+- **API access** — pull violation reports programmatically → auto-fix CSP/COOP/Permissions-Policy
+  violations in .htaccess without manual review (build into AgentSystem or a 333Method-style cron)
+- **Hosted MTA-STS** — they serve `mta-sts.<domain>/.well-known/mta-sts.txt` for you;
+  no extra Worker to maintain. Cover all four domains: auditandfix.com, auditandfix.app,
+  contactreplyai.com, contactreply.app
+- TLS-RPT endpoint also included (complements MTA-STS)
+
+Tasks:
+- [ ] Upgrade account at uriports.com
+- [ ] Enable hosted MTA-STS for all 4 domains via URIports dashboard
+- [ ] Add `_mta-sts.<domain>` TXT records (URIports provides values) — all 4 at once
+- [ ] Add `_smtp._tls.<domain>` TXT records for TLS-RPT — all 4 domains
+- [ ] Wire URIports API into AgentSystem: poll weekly, parse new violations, auto-patch .htaccess
+  and FTP-deploy (same pattern as existing fix dispatcher — see AgentSystem CLAUDE.md)
+
+---
+
 ## Buy contactreply.ai domain when funds available
 
 `contactreply.ai` is available for ~$80/yr. Bought as the proper brand for
