@@ -15,9 +15,9 @@
     "./rate-limiter.js": "./rate-limiter.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
+    "better-sqlite3": "^12.9.0",
     "bottleneck": "^2.19.5",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.4.2",
     "opossum": "^9.0.0"
   }
 }
