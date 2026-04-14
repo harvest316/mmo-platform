@@ -124,7 +124,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_crai_test_prospect_hints_email
 
 /**
  * DDL for m333_test. Covers sites, messages, processed_webhooks, purchases —
- * the subset the PayPal payment path touches.
+ * the subset the PayPal payment path touches — plus the cross-sell queue tables
+ * (cross_sell_queue + contacts) used by tests/cross-service.test.js to simulate
+ * a 333Method inbound reply that triggers a CRAI prospect seed.
+ *
+ * Note: production locates `cross_sell_queue` and `contacts` in the `msgs`
+ * schema, not `m333`. We co-locate both in `m333_test` here so the webhook E2E
+ * suite owns a single test-schema namespace; the cross-service test supplies
+ * its payload to the seeder directly via seedProspectFromData() — it does not
+ * rely on the seeder's own `msgs.contacts` / `m333.sites` query paths (those
+ * would require a full production schema clone). The simulated queue row is
+ * inserted purely for scenario realism + assertion context.
  */
 const M333_TEST_DDL = `
 CREATE SCHEMA IF NOT EXISTS m333_test;
@@ -169,6 +179,27 @@ CREATE TABLE IF NOT EXISTS m333_test.purchases (
   error_message     TEXT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS m333_test.contacts (
+  id                 BIGSERIAL PRIMARY KEY,
+  domain             TEXT,
+  business_name      TEXT,
+  phone              TEXT,
+  email              TEXT,
+  first_seen_project TEXT,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS m333_test.cross_sell_queue (
+  id             SERIAL PRIMARY KEY,
+  contact_id     INTEGER REFERENCES m333_test.contacts(id),
+  source_project TEXT NOT NULL,
+  target_project TEXT NOT NULL,
+  reason         TEXT NOT NULL,
+  status         TEXT DEFAULT 'pending',
+  payload        JSONB,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 `;
 
@@ -231,6 +262,8 @@ export async function resetM333TestSchema() {
     TRUNCATE TABLE m333_test.purchases RESTART IDENTITY CASCADE;
     TRUNCATE TABLE m333_test.messages RESTART IDENTITY CASCADE;
     TRUNCATE TABLE m333_test.sites RESTART IDENTITY CASCADE;
+    TRUNCATE TABLE m333_test.cross_sell_queue RESTART IDENTITY CASCADE;
+    TRUNCATE TABLE m333_test.contacts RESTART IDENTITY CASCADE;
   `);
 }
 

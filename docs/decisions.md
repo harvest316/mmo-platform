@@ -4,6 +4,29 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-219: cross-service PayPal + cross-sell E2E (2026-04-14)
+
+**Context:** DR-218 covered the CRAI Worker and seed-prospect endpoint in isolation (HTTP fixtures hitting the Worker directly). DR-208 stood up the 333Method→CRAI cross-sell signal (`333Method/src/utils/crai-prospect-seeder.js` → `/api/internal/seed-prospect` → `prospect_hints` → `knowledge_base` prefill on ACTIVATED). Nothing was exercising the full chain with real 333Method source code driving the HTTP call — a regression in the seeder module (renamed env var, changed URL shape, dropped header) would not be caught by the existing tests.
+
+**Decision:** Added `mmo-platform/tests/e2e/paypal/tests/cross-service.test.js` — 3 tests that dynamic-import `~/code/333Method/src/utils/crai-prospect-seeder.js` and drive `seedProspectFromData()` against the CRAI Miniflare Worker:
+
+1. **Happy path** — insert a simulated inbound-reply scenario into `m333_test.contacts` + `m333_test.cross_sell_queue`, call `seedProspectFromData()` with the extracted payload, assert `crai_test.prospect_hints` row, fire `BILLING.SUBSCRIPTION.ACTIVATED` for the same email, assert the resulting `crai_test.tenants` row has `billing_status='trial'`, `billing_plan='founding'`, `knowledge_base` populated via `buildKnowledgeBaseFromHint()`, and the hint's `used_at` is stamped.
+2. **Auth failure** — POST with a mismatched `X-Seed-Secret` → 401 from the Worker, no hint inserted; subsequent ACTIVATED for the same email creates a tenant with `knowledge_base = {}` (no prefill source available).
+3. **Fidelity round-trip** — seed a richer payload (different trade/city/topics), verify every field surfaces in the tenant's `knowledge_base.step1`/`step3`/`step4.faqs` after activation.
+
+**Why `seedProspectFromData()` rather than `seedProspect(contactId)`:** the full `seedProspect()` reads hard-coded `msgs.contacts`, `m333.sites`, `m333.messages` — production schemas that cannot be swapped to test schemas without patching the 333Method source. `seedProspectFromData()` is the payload-driven sibling used by the 2Step PayPal webhook path (DR-208) and exercises the identical Worker-facing HTTP call, which is the signal boundary the E2E test is meant to prove.
+
+**Scaffold tweaks:**
+
+- **`helpers/neon-test.js`** — `M333_TEST_DDL` gains `m333_test.contacts` + `m333_test.cross_sell_queue` tables (with a `payload JSONB` column) and `resetM333TestSchema()` truncates them. The queue row is inserted for scenario realism; the seeder call uses a derived payload.
+- **Module-level-const env capture:** 333Method's seeder captures `WORKER_URL` + `SEED_API_SECRET` as `const`s at import time (lines 20-21). The test sets `CRAI_WORKER_URL` (from `mf.ready`) and `CRAI_SEED_API_SECRET` **before** dynamic-importing the module inside `beforeAll`. For the auth-failure test we hit the Worker endpoint directly with `fetch()` and the wrong header — re-importing the seeder with a different secret would require `vi.resetModules()` per test, which is noisier than directly exercising the identical Worker auth branch.
+
+**Files:**
+- `mmo-platform/tests/e2e/paypal/tests/cross-service.test.js` (new)
+- `mmo-platform/tests/e2e/paypal/helpers/neon-test.js` (extended DDL + reset)
+
+**Status:** accepted; 3/3 tests pass alongside the existing 8 seed-prospect tests (11 passing, ~4.6s).
+
 ### DR-218: CRAI Worker PayPal + seed-prospect E2E coverage (2026-04-14)
 
 **Context:** DR-215 landed the Vitest scaffold with fixtures + helpers; DR-216 covered api.php; DR-217 covered 333Method. The CRAI Worker (`~/code/ContactReplyAI/workers/index.js`, `/webhooks/paypal` + `/api/internal/seed-prospect`) was the remaining uncovered handler.
