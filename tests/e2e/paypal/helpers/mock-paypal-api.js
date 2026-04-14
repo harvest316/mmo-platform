@@ -46,15 +46,15 @@ function buildDefaultHandlers(opts = {}) {
   const subOverrides = opts.subscriptionOverrides ?? {};
   const verificationStatus = opts.verificationStatus ?? 'SUCCESS';
 
-  // Handlers must cover BOTH api-m.paypal.com and api-m.sandbox.paypal.com
-  // (plus the arbitrary localhost address used for PHP PAYPAL_API_BASE)
-  // so we use absolute URL patterns with a wildcard. msw's matcher accepts
-  // glob-style paths.
+  // Handlers only cover api-m.paypal.com + api-m.sandbox.paypal.com.
+  // The local HTTP bridge (see `listener` below) rewrites incoming requests to
+  // https://api-m.sandbox.paypal.com before re-dispatching them through msw,
+  // so PHP requests to http://127.0.0.1:<port> still resolve via these handlers.
+  // Wildcard hosts (e.g. http://127.0.0.1:*) would break path-to-regexp v6+ in
+  // the msw dependency chain — avoided here.
   const hosts = [
     'https://api-m.paypal.com',
     'https://api-m.sandbox.paypal.com',
-    'http://127.0.0.1:*',
-    'http://localhost:*',
   ];
 
   const handlers = [];

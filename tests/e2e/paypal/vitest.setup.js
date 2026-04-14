@@ -31,6 +31,12 @@ beforeAll(async () => {
     process.env.PGHOST = '/run/postgresql';
     process.env.PGDATABASE = process.env.PGDATABASE || 'mmo';
   }
+  // pg's libpq-shim doesn't read OS user like psql does — set PGUSER explicitly
+  // so connection startup packets include a user name on sockets that don't
+  // have one wired in DATABASE_URL.
+  if (!process.env.PGUSER && !process.env.DATABASE_URL) {
+    process.env.PGUSER = process.env.USER || 'jason';
+  }
 
   await setupCraiTestSchema();
   await setupM333TestSchema();

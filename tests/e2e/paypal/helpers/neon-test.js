@@ -172,19 +172,40 @@ CREATE TABLE IF NOT EXISTS m333_test.purchases (
 );
 `;
 
-export async function setupCraiTestSchema() {
+/**
+ * Run DDL under a Postgres session-level advisory lock so that parallel
+ * vitest forks don't race on `CREATE SCHEMA IF NOT EXISTS` / `CREATE INDEX`.
+ * Even with IF NOT EXISTS guards, Postgres raises a
+ * "duplicate key value violates unique constraint pg_namespace_nspname_index"
+ * when two concurrent connections see no schema and both insert.
+ *
+ * The 32-bit lock key is arbitrary but stable per setup function so crai + m333
+ * setups can proceed independently.
+ */
+async function runUnderAdvisoryLock(lockKey, sql, params = []) {
   const p = getPool();
-  await p.query(CRAI_TEST_DDL);
+  const client = await p.connect();
+  try {
+    await client.query('SELECT pg_advisory_lock($1)', [lockKey]);
+    await client.query(sql, params);
+  } finally {
+    try { await client.query('SELECT pg_advisory_unlock($1)', [lockKey]); } catch {}
+    client.release();
+  }
+}
+
+export async function setupCraiTestSchema() {
+  await runUnderAdvisoryLock(0x70ca1750, CRAI_TEST_DDL);
   // Seed the same row production migration 002 inserts.
-  await p.query(
+  await runUnderAdvisoryLock(
+    0x70ca1750,
     `INSERT INTO crai_test.site_stats (key, int_value) VALUES ('founding_taken', 0)
      ON CONFLICT (key) DO NOTHING`,
   );
 }
 
 export async function setupM333TestSchema() {
-  const p = getPool();
-  await p.query(M333_TEST_DDL);
+  await runUnderAdvisoryLock(0x70ca1751, M333_TEST_DDL);
 }
 
 /**

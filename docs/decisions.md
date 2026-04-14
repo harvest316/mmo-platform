@@ -4,6 +4,34 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-216: api.php PayPal webhook E2E coverage — Phase 4 (2026-04-14)
+
+**Context:** DR-215 landed the scaffold (fixtures + helpers + config) but no tests. Before taking real money through the live PayPal endpoint (DR-213 resolved by DR-214) we need regression coverage for every event × endpoint combination on `handlePayPalWebhook()` in `auditandfix-website/site/api.php:1800`.
+
+**Decision:** Added two Vitest files exercising the 2Step webhook paths end-to-end against `php -S` + msw-mocked PayPal API:
+
+1. **`tests/api-php-live.test.js`** — 13 tests against `?action=paypal-webhook` covering ACTIVATED (AU monthly_4, US monthly_8, GB monthly_12 tier derivation), CANCELLED, SUSPENDED, idempotency (double-fire produces single row, `activated_at` doesn't regress), verify-failed paths (retrieve-verify 404 + 401 both ack 200 with `{"status":"verify_failed"}` and write no row — DR-213 cited behaviour confirmed), unknown plan_id documented as `tier='unknown'` but row still written, unknown event ignored, empty body 400, malformed JSON 400, missing resource.id 400.
+
+2. **`tests/api-php-sandbox.test.js`** — 6 tests against `?action=paypal-webhook-sandbox` covering sandbox-only DB write (`data/subscriptions-sandbox.sqlite` populated, `data/subscriptions.sqlite` untouched), cross-endpoint segregation (same subscription_id fired at both endpoints yields one row per DB), CANCELLED only mutates sandbox ledger, strict-creds fail-loud (missing `PAYPAL_SANDBOX_CLIENT_ID` → 500 `sandbox_credentials_missing`, same for secret), live endpoint still serves when sandbox creds are stripped.
+
+**Scaffold tweaks applied during implementation:**
+
+- **`helpers/mock-paypal-api.js`** — removed `http://127.0.0.1:*` and `http://localhost:*` host entries from the default handler set. msw's path-to-regexp v6+ dependency throws `Missing parameter name at <N>` on wildcard hosts. The local HTTP bridge already rewrites PHP-origin requests to `https://api-m.sandbox.paypal.com` before re-dispatching through msw, so the wildcard handlers were redundant.
+- **`helpers/neon-test.js`** — wrapped DDL in `pg_advisory_lock()` to prevent parallel vitest forks from racing on `CREATE SCHEMA IF NOT EXISTS`. Even with `IF NOT EXISTS`, Postgres raises `duplicate key value violates unique constraint "pg_namespace_nspname_index"` when two concurrent connections both insert.
+- **`vitest.setup.js`** — set `PGUSER=$USER` as a default because node-`pg` doesn't read OS user from the unix socket environment the way `libpq`/`psql` does.
+
+**Behavioural findings (no api.php changes needed):**
+
+- Retrieve-verify 404/401 correctly acks 200 with `verify_failed` so PayPal stops retrying (matches `api.php:1849-1851`).
+- Unknown plan_id still writes a row with `plan_tier='unknown'` — intentional defensive behaviour.
+- `provisionSubscription()`, `craiSeedProspect()`, `sendViaSesSmtp()` side effects all no-op safely when their env vars / SES creds are unset (try/catch + short cURL timeouts).
+
+**Status:** Accepted. All 19 tests pass (`npx vitest run tests/api-php-live.test.js tests/api-php-sandbox.test.js`). Phase 4 remaining: CRAI Worker, m333 Worker + poller, seed-prospect, negative-paths, cross-service.
+
+**Impl:** `mmo-platform/tests/e2e/paypal/tests/api-php-live.test.js`, `mmo-platform/tests/e2e/paypal/tests/api-php-sandbox.test.js`; tweaks to `helpers/mock-paypal-api.js`, `helpers/neon-test.js`, `vitest.setup.js`.
+
+---
+
 ### DR-215: PayPal webhook E2E test scaffold — fixtures + helpers (2026-04-14)
 
 **Context:** Three live PayPal webhook handlers (`api.php` 2Step, CRAI Worker at `/webhooks/paypal`, 333Method R2 collector Worker + local poller) were cut over to production (DR-201/212/213) without regression coverage. Before taking real money we need a Vitest-unified E2E suite that exercises every supported event × every handler against mocked PayPal APIs.
