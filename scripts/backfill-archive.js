@@ -22,8 +22,18 @@
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { config as dotenvConfig } from 'dotenv';
 import { getAll, run } from '../../333Method/src/utils/db.js';
 import '../../333Method/src/utils/load-env.js';
+
+// Also load mmo-platform's own .env so ARCHIVE_* vars are available.
+// dotenv never overwrites already-set env vars.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const mmoRoot = path.resolve(__dirname, '..');
+dotenvConfig({ path: path.join(mmoRoot, '.env'),        quiet: true });
+dotenvConfig({ path: path.join(mmoRoot, '.env.secrets'), quiet: true });
 
 // ── Config ──────────────────────────────────────────────────────────────────
 

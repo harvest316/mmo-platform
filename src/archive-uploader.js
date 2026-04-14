@@ -35,7 +35,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomBytes } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { config as dotenvConfig } from 'dotenv';
 import { getAll, getOne, run } from '../../333Method/src/utils/db.js';
+
+// Load mmo-platform's own .env files so ARCHIVE_* vars are available when this
+// module runs inside the 333Method cron process (which only loads 333Method/.env*).
+// dotenv never overwrites already-set env vars, so shell/CI overrides are respected.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const mmoRoot = path.resolve(__dirname, '..');
+dotenvConfig({ path: path.join(mmoRoot, '.env'),        quiet: true });
+dotenvConfig({ path: path.join(mmoRoot, '.env.secrets'), quiet: true });
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
