@@ -1,0 +1,30 @@
+{
+  "notes": "333Method — BILLING.SUBSCRIPTION.PAYMENT.FAILED. Worker logs warning with subscription id + status. Appends to R2 with subscription:true. Not processed by m333 poller.",
+  "headers": {
+    "paypal-transmission-id": "a158097a-3cf3-11ef-9015-d108b9cadb50",
+    "paypal-transmission-time": "2026-04-20T10:00:11Z",
+    "paypal-transmission-sig": "MockM333SubPaymentFailedSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33309PAYFAIL-23456789ABCDEF01",
+    "event_version": "1.0",
+    "create_time": "2026-04-20T10:00:09.555Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.PAYMENT.FAILED",
+    "summary": "Subscription payment failed",
+    "resource": {
+      "id": "I-M3332STEPCREATED001",
+      "plan_id": "P-4CS71501D47643346NHBAEGI",
+      "quantity": "1",
+      "subscriber": { "email_address": "audit.sub@example.com" },
+      "billing_info": { "outstanding_balance": { "currency_code": "AUD", "value": "139.00" }, "failed_payments_count": 1 },
+      "status": "ACTIVE",
+      "status_update_time": "2026-04-20T10:00:09Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33309PAYFAIL-23456789ABCDEF01\",\"event_type\":\"BILLING.SUBSCRIPTION.PAYMENT.FAILED\",\"resource\":{\"id\":\"I-M3332STEPCREATED001\",\"subscriber\":{\"email_address\":\"audit.sub@example.com\"},\"status\":\"ACTIVE\",\"billing_info\":{\"failed_payments_count\":1}}}"
+}

@@ -1,0 +1,39 @@
+{
+  "notes": "CRAI — PAYMENT.SALE.COMPLETED. Safety-net path: billing_status set to 'active' via statusMap (DR-196 — PayPal trial ends naturally and first post-trial payment should ensure active). Uses resource.billing_agreement_id to resolve tenant.",
+  "headers": {
+    "paypal-transmission-id": "07b8c9d0-3cf3-11ef-9015-c7e8f9a0b1dc",
+    "paypal-transmission-time": "2026-04-21T10:01:23Z",
+    "paypal-transmission-sig": "MockCraiSaleCompletedSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-CRAI07SALE-01234567890ABCDE",
+    "event_version": "1.0",
+    "create_time": "2026-04-21T10:01:20.001Z",
+    "resource_type": "sale",
+    "resource_version": "2.0",
+    "event_type": "PAYMENT.SALE.COMPLETED",
+    "summary": "Payment completed for $99 AUD",
+    "resource": {
+      "id": "9AB98765CD4321098",
+      "state": "completed",
+      "amount": {
+        "total": "99.00",
+        "currency": "AUD",
+        "details": { "subtotal": "99.00" }
+      },
+      "payment_mode": "INSTANT_TRANSFER",
+      "protection_eligibility": "ELIGIBLE",
+      "transaction_fee": { "value": "3.53", "currency": "AUD" },
+      "invoice_number": "",
+      "custom": "",
+      "parent_payment": "PAYID-0000001AA00001",
+      "billing_agreement_id": "I-CRAIFOUNDING0001",
+      "create_time": "2026-04-21T10:01:15Z",
+      "update_time": "2026-04-21T10:01:18Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-CRAI07SALE-01234567890ABCDE\",\"event_type\":\"PAYMENT.SALE.COMPLETED\",\"resource\":{\"id\":\"9AB98765CD4321098\",\"state\":\"completed\",\"amount\":{\"total\":\"99.00\",\"currency\":\"AUD\"},\"billing_agreement_id\":\"I-CRAIFOUNDING0001\"}}"
+}

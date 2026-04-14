@@ -1,0 +1,41 @@
+{
+  "notes": "333Method — PAYMENT.CAPTURE.REFUNDED. Worker appends to R2. Poller skips (not in processed event types list), so no automatic refund handling — manual refund reconciliation required today.",
+  "headers": {
+    "paypal-transmission-id": "5c030425-3cf3-11ef-9015-cc03d4e5f60b",
+    "paypal-transmission-time": "2026-04-15T08:30:20Z",
+    "paypal-transmission-sig": "MockM333CaptureRefundedSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33304REFUND-DEF0123456789ABC",
+    "event_version": "1.0",
+    "create_time": "2026-04-15T08:30:17.777Z",
+    "resource_type": "refund",
+    "resource_version": "2.0",
+    "event_type": "PAYMENT.CAPTURE.REFUNDED",
+    "summary": "A $337.00 AUD capture was refunded.",
+    "resource": {
+      "id": "9R3344556677889",
+      "status": "COMPLETED",
+      "amount": { "currency_code": "AUD", "value": "337.00" },
+      "note_to_payer": "Refund per customer request.",
+      "seller_payable_breakdown": {
+        "gross_amount": { "currency_code": "AUD", "value": "337.00" },
+        "paypal_fee": { "currency_code": "AUD", "value": "0.00" },
+        "net_amount": { "currency_code": "AUD", "value": "337.00" },
+        "total_refunded_amount": { "currency_code": "AUD", "value": "337.00" }
+      },
+      "invoice_id": "",
+      "custom_id": "site_42_conv_17",
+      "links": [
+        { "href": "https://api.sandbox.paypal.com/v2/payments/refunds/9R3344556677889", "rel": "self", "method": "GET" },
+        { "href": "https://api.sandbox.paypal.com/v2/payments/captures/1C488812KK739240E", "rel": "up", "method": "GET" }
+      ],
+      "create_time": "2026-04-15T08:30:10Z",
+      "update_time": "2026-04-15T08:30:15Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33304REFUND-DEF0123456789ABC\",\"event_type\":\"PAYMENT.CAPTURE.REFUNDED\",\"resource\":{\"id\":\"9R3344556677889\",\"status\":\"COMPLETED\",\"amount\":{\"currency_code\":\"AUD\",\"value\":\"337.00\"},\"custom_id\":\"site_42_conv_17\"}}"
+}

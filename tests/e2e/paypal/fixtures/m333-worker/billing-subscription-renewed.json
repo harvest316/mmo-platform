@@ -1,0 +1,36 @@
+{
+  "notes": "333Method — BILLING.SUBSCRIPTION.RENEWED (2Step, monthly cycle). Worker appends to R2 with subscription:true. Not processed by m333 poller.",
+  "headers": {
+    "paypal-transmission-id": "b2690a8b-3cf3-11ef-9015-d209cadbec61",
+    "paypal-transmission-time": "2026-05-14T10:00:50Z",
+    "paypal-transmission-sig": "MockM333SubRenewedSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33310SUBRENEW-3456789ABCDEF012",
+    "event_version": "1.0",
+    "create_time": "2026-05-14T10:00:48.444Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.RENEWED",
+    "summary": "Subscription renewed",
+    "resource": {
+      "id": "I-M3332STEPCREATED001",
+      "plan_id": "P-4CS71501D47643346NHBAEGI",
+      "quantity": "1",
+      "subscriber": { "email_address": "audit.sub@example.com" },
+      "billing_info": {
+        "outstanding_balance": { "currency_code": "AUD", "value": "0.0" },
+        "cycle_executions": [{ "tenure_type": "REGULAR", "sequence": 1, "cycles_completed": 1, "total_cycles": 0 }],
+        "last_payment": { "amount": { "currency_code": "AUD", "value": "139.00" }, "time": "2026-05-14T10:00:40Z" },
+        "next_billing_time": "2026-06-14T10:00:00Z",
+        "failed_payments_count": 0
+      },
+      "status": "ACTIVE",
+      "status_update_time": "2026-05-14T10:00:48Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33310SUBRENEW-3456789ABCDEF012\",\"event_type\":\"BILLING.SUBSCRIPTION.RENEWED\",\"resource\":{\"id\":\"I-M3332STEPCREATED001\",\"subscriber\":{\"email_address\":\"audit.sub@example.com\"},\"status\":\"ACTIVE\"}}"
+}

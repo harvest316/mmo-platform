@@ -1,0 +1,46 @@
+{
+  "notes": "333Method — CHECKOUT.ORDER.APPROVED. Worker appends to R2 paypal-events.json. Poll-paypal-events.js then passes resource.id as orderId to processPaymentComplete(). purchase_units[0].reference_id='site_42_conv_17' so webhook-handler.js parses siteId=42, messageId=17.",
+  "headers": {
+    "paypal-transmission-id": "29d0e1f2-3cf3-11ef-9015-c9f0a1b2c3fe",
+    "paypal-transmission-time": "2026-04-14T05:10:15Z",
+    "paypal-transmission-sig": "MockM333CheckoutSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33301ORDER-ABCDEF0123456789",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T05:10:12.001Z",
+    "resource_type": "checkout-order",
+    "resource_version": "2.0",
+    "event_type": "CHECKOUT.ORDER.APPROVED",
+    "summary": "An order has been approved by buyer.",
+    "resource": {
+      "id": "5O190127TN3649126",
+      "intent": "CAPTURE",
+      "status": "APPROVED",
+      "purchase_units": [{
+        "reference_id": "site_42_conv_17",
+        "amount": {
+          "currency_code": "AUD",
+          "value": "337.00",
+          "breakdown": { "item_total": { "currency_code": "AUD", "value": "337.00" } }
+        },
+        "payee": { "email_address": "payee@auditandfix.com" },
+        "description": "CRO Audit Report"
+      }],
+      "payer": {
+        "name": { "given_name": "Pat", "surname": "Payer" },
+        "email_address": "pat.payer@example.com",
+        "payer_id": "M333PAYER01",
+        "address": { "country_code": "AU" }
+      },
+      "create_time": "2026-04-14T05:09:55Z",
+      "links": [
+        { "href": "https://api.sandbox.paypal.com/v2/checkout/orders/5O190127TN3649126", "rel": "self", "method": "GET" }
+      ]
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33301ORDER-ABCDEF0123456789\",\"event_type\":\"CHECKOUT.ORDER.APPROVED\",\"resource\":{\"id\":\"5O190127TN3649126\",\"status\":\"APPROVED\",\"purchase_units\":[{\"reference_id\":\"site_42_conv_17\",\"amount\":{\"currency_code\":\"AUD\",\"value\":\"337.00\"}}],\"payer\":{\"email_address\":\"pat.payer@example.com\"}}}"
+}

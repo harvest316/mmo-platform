@@ -1,0 +1,40 @@
+{
+  "notes": "2Step — BILLING.SUBSCRIPTION.CANCELLED for a previously active AU monthly_4 sub. api.php updates status='cancelled' on the existing row (ON CONFLICT DO UPDATE at api.php:1879).",
+  "headers": {
+    "paypal-transmission-id": "ef8ff3f3-3cf3-11ef-9015-3f5caf43b5e7",
+    "paypal-transmission-time": "2026-04-14T02:00:22Z",
+    "paypal-transmission-sig": "MockTransmissionSignatureCancelled==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-9CD45678EF9012345-2DE10987FA6543210",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T02:00:20.111Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.CANCELLED",
+    "summary": "Subscription cancelled",
+    "resource": {
+      "id": "I-AU4MONTHLY0001TEST",
+      "plan_id": "P-4CS71501D47643346NHBAEGI",
+      "quantity": "1",
+      "subscriber": {
+        "name": { "given_name": "Jane", "surname": "Smith" },
+        "email_address": "jane.smith-au@example.com",
+        "payer_id": "AUPAYER0001TEST"
+      },
+      "billing_info": {
+        "outstanding_balance": { "currency_code": "AUD", "value": "0.0" },
+        "failed_payments_count": 0
+      },
+      "create_time": "2026-04-14T01:15:00Z",
+      "update_time": "2026-04-14T02:00:20Z",
+      "status": "CANCELLED",
+      "status_update_time": "2026-04-14T02:00:20Z",
+      "status_change_note": "Subscriber cancelled via PayPal account dashboard."
+    }
+  },
+  "body_raw": "{\"id\":\"WH-9CD45678EF9012345-2DE10987FA6543210\",\"event_version\":\"1.0\",\"create_time\":\"2026-04-14T02:00:20.111Z\",\"resource_type\":\"subscription\",\"event_type\":\"BILLING.SUBSCRIPTION.CANCELLED\",\"summary\":\"Subscription cancelled\",\"resource\":{\"id\":\"I-AU4MONTHLY0001TEST\",\"plan_id\":\"P-4CS71501D47643346NHBAEGI\",\"subscriber\":{\"email_address\":\"jane.smith-au@example.com\"},\"status\":\"CANCELLED\",\"status_update_time\":\"2026-04-14T02:00:20Z\"}}"
+}

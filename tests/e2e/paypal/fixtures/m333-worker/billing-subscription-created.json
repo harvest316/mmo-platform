@@ -1,0 +1,43 @@
+{
+  "notes": "333Method — BILLING.SUBSCRIPTION.CREATED. Worker appends to R2 with subscription:true flag. The 2Step subscription lifecycle is handled by api.php (not the R2 worker/poller), so this event is collected for audit but no downstream processing in 333Method.",
+  "headers": {
+    "paypal-transmission-id": "7e250647-3cf3-11ef-9015-ce05f6a7b82d",
+    "paypal-transmission-time": "2026-04-14T05:02:10Z",
+    "paypal-transmission-sig": "MockM333SubCreatedSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33306SUBCREATE-F0123456789ABCDE",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T05:02:08.111Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.CREATED",
+    "summary": "Subscription created",
+    "resource": {
+      "id": "I-M3332STEPCREATED001",
+      "plan_id": "P-4CS71501D47643346NHBAEGI",
+      "quantity": "1",
+      "subscriber": {
+        "name": { "given_name": "Audit", "surname": "Subscriber" },
+        "email_address": "audit.sub@example.com",
+        "payer_id": "M333SUBSCRIBER01"
+      },
+      "billing_info": {
+        "outstanding_balance": { "currency_code": "AUD", "value": "0.0" },
+        "cycle_executions": [{ "tenure_type": "REGULAR", "sequence": 1, "cycles_completed": 0, "total_cycles": 0 }],
+        "failed_payments_count": 0
+      },
+      "create_time": "2026-04-14T05:02:00Z",
+      "update_time": "2026-04-14T05:02:08Z",
+      "status": "APPROVAL_PENDING",
+      "status_update_time": "2026-04-14T05:02:08Z",
+      "links": [
+        { "href": "https://www.sandbox.paypal.com/webapps/billing/subscriptions?ba_token=BA-7ABCDE", "rel": "approve", "method": "GET" }
+      ]
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33306SUBCREATE-F0123456789ABCDE\",\"event_type\":\"BILLING.SUBSCRIPTION.CREATED\",\"resource\":{\"id\":\"I-M3332STEPCREATED001\",\"plan_id\":\"P-4CS71501D47643346NHBAEGI\",\"subscriber\":{\"email_address\":\"audit.sub@example.com\"},\"status\":\"APPROVAL_PENDING\"}}"
+}

@@ -1,0 +1,43 @@
+{
+  "notes": "2Step — US monthly_8 (USD, $179/mo) BILLING.SUBSCRIPTION.ACTIVATED. plan_id from get2StepPlanId('US','monthly_8').",
+  "headers": {
+    "paypal-transmission-id": "cd6dd1f1-3cf3-11ef-9015-3f5caf43b5e5",
+    "paypal-transmission-time": "2026-04-14T01:16:05Z",
+    "paypal-transmission-sig": "MockTransmissionSignatureUSMonthly8==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-7AB23456CD7890123-0BC98765DE4321098",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T01:16:03.456Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+    "summary": "Subscription activated",
+    "resource": {
+      "id": "I-US8MONTHLY0002TEST",
+      "plan_id": "P-1XC37446E65108518NHBAEGA",
+      "start_time": "2026-04-14T01:16:00Z",
+      "quantity": "1",
+      "subscriber": {
+        "name": { "given_name": "John", "surname": "Doe" },
+        "email_address": "john.doe-us@example.com",
+        "payer_id": "USPAYER0002TEST",
+        "shipping_address": { "address": { "country_code": "US" } }
+      },
+      "billing_info": {
+        "outstanding_balance": { "currency_code": "USD", "value": "0.0" },
+        "last_payment": { "amount": { "currency_code": "USD", "value": "179.00" }, "time": "2026-04-14T01:16:02Z" },
+        "next_billing_time": "2026-05-14T10:00:00Z",
+        "failed_payments_count": 0
+      },
+      "create_time": "2026-04-14T01:15:30Z",
+      "update_time": "2026-04-14T01:16:03Z",
+      "status": "ACTIVE",
+      "status_update_time": "2026-04-14T01:16:03Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-7AB23456CD7890123-0BC98765DE4321098\",\"event_version\":\"1.0\",\"create_time\":\"2026-04-14T01:16:03.456Z\",\"resource_type\":\"subscription\",\"resource_version\":\"2.0\",\"event_type\":\"BILLING.SUBSCRIPTION.ACTIVATED\",\"summary\":\"Subscription activated\",\"resource\":{\"id\":\"I-US8MONTHLY0002TEST\",\"plan_id\":\"P-1XC37446E65108518NHBAEGA\",\"subscriber\":{\"name\":{\"given_name\":\"John\",\"surname\":\"Doe\"},\"email_address\":\"john.doe-us@example.com\"},\"status\":\"ACTIVE\"}}"
+}

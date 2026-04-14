@@ -4,6 +4,37 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-215: PayPal webhook E2E test scaffold — fixtures + helpers (2026-04-14)
+
+**Context:** Three live PayPal webhook handlers (`api.php` 2Step, CRAI Worker at `/webhooks/paypal`, 333Method R2 collector Worker + local poller) were cut over to production (DR-201/212/213) without regression coverage. Before taking real money we need a Vitest-unified E2E suite that exercises every supported event × every handler against mocked PayPal APIs.
+
+**Decision:**
+
+1. **Location:** `mmo-platform/tests/e2e/paypal/` as a self-contained npm package (own `package.json`, `vitest.config.js`, `node_modules`). Not merged into the root `mmo-platform` workspace to keep heavy deps (`miniflare`, `msw`, `better-sqlite3`) out of the main install.
+
+2. **Framework:** Vitest 4, `pool: 'forks'` (PHP subprocess + Miniflare + native SQLite handles don't share processes cleanly), `testTimeout: 30_000`.
+
+3. **Fixtures:** hand-crafted JSON under `fixtures/<handler>/` with shape `{ headers, body_raw, body_parsed, notes }`. 23 fixtures cover the full event matrix. Signatures don't validate on replay — tests mock `/v1/notifications/verify-webhook-signature` to return `SUCCESS`. `scripts/capture-sandbox-fixtures.js` is a documented stub that explains regeneration from real sandbox payloads when shapes change.
+
+4. **PayPal API mock:** `helpers/mock-paypal-api.js` uses msw + a tiny `node:http` bridge so the same mock server answers (a) PHP cURL calls via `PAYPAL_API_BASE` env override and (b) Miniflare outbound fetches. Bridge forwards PHP → msw handlers registered against `api-m.sandbox.paypal.com`.
+
+5. **Worker redirection:** Neither the CRAI Worker (`workers/index.js:1165,1191,1744,1785`) nor the 333Method R2 Worker (`workers/paypal-webhook/src/index.js:60-61`) honours a `PAYPAL_API_BASE` env. Rather than patch them, Miniflare's `outboundService` hook rewrites `api-m.paypal.com` / `api-m.sandbox.paypal.com` to the mock bridge's URL. Workers remain unmodified.
+
+6. **Databases:** Local Postgres (unix socket `/run/postgresql`, DB `mmo`) with throwaway `crai_test` + `m333_test` schemas provisioned in `vitest.setup.js`. CRAI schema DDL mirrors production migrations 001 + 002 + 008 (tenants, site_stats, webhook_events, billing_events, prospect_hints). m333 schema covers the subset the payment path touches (sites, messages, processed_webhooks, purchases). For api.php we use per-test temp SQLite dirs via `helpers/sqlite-fixture.js`.
+
+7. **Schema routing for the CRAI Worker:** Worker uses qualified `crai.*` table names. Test option: either (a) run the DDL into a literal `crai` schema on a throwaway DB, or (b) use `search_path` so `crai` resolves to `crai_test`. Default helper points `DATABASE_URL` at `?options=-csearch_path%3Dcrai_test%2Cpublic`; tests can override for option (a).
+
+8. **Phase split:**
+   - Phase 1 (api.php sandbox endpoint + DB segregation): shipped separately (DR-213 gap C fix).
+   - Phase 2–3 (fixtures + helpers): shipped as this commit.
+   - Phase 4 (per-handler tests), Phase 5 (cross-service), Phase 6 (live sandbox harness): pending.
+
+**Status:** Phase 2 + 3 accepted. Phase 4+ pending.
+
+**Impl:** `mmo-platform/tests/e2e/paypal/{package.json,vitest.config.js,vitest.setup.js,.gitignore,README.md}`, `fixtures/{api-php,crai-worker,m333-worker}/*.json` (23 files), `helpers/{mock-paypal-api,php-server,sqlite-fixture,neon-test,crai-worker,m333-worker,m333-payment,fixture-loader,assertions}.js`, `scripts/capture-sandbox-fixtures.js`, `harness/README.md`.
+
+---
+
 ### DR-214: SES engagement tracking split — two config sets + trackEngagement flag (2026-04-14)
 
 **Context:** Amazon Q recommended enabling SES Virtual Deliverability Manager (VDM) for shared-IP reputation optimisation and ISP-specific insights. VDM's "optimized shared delivery" picks the best shared IP per recipient ISP based on bounces, complaints, feedback loops, and engagement. Engagement tracking works by injecting a 1×1 open-tracking pixel into HTML emails and rewriting links for click tracking.

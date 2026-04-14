@@ -1,0 +1,33 @@
+{
+  "notes": "CRAI — PAYMENT.SALE.DENIED. Maps to billing_status='paused' via statusMap at workers/index.js:1356. Uses billing_agreement_id (not resource.id) to resolve the tenant.",
+  "headers": {
+    "paypal-transmission-id": "18c9d0e1-3cf3-11ef-9015-c8e9f0a1b2ed",
+    "paypal-transmission-time": "2026-04-21T10:02:00Z",
+    "paypal-transmission-sig": "MockCraiSaleDeniedSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-CRAI08DENIED-1234567890ABCDEF",
+    "event_version": "1.0",
+    "create_time": "2026-04-21T10:01:58.444Z",
+    "resource_type": "sale",
+    "resource_version": "2.0",
+    "event_type": "PAYMENT.SALE.DENIED",
+    "summary": "A $197 USD sale payment was denied.",
+    "resource": {
+      "id": "0BC09876DE5432109",
+      "state": "denied",
+      "amount": {
+        "total": "197.00",
+        "currency": "USD"
+      },
+      "billing_agreement_id": "I-CRAISTANDARD0002",
+      "create_time": "2026-04-21T10:01:50Z",
+      "update_time": "2026-04-21T10:01:57Z",
+      "reason_code": "INSTRUMENT_DECLINED"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-CRAI08DENIED-1234567890ABCDEF\",\"event_type\":\"PAYMENT.SALE.DENIED\",\"resource\":{\"id\":\"0BC09876DE5432109\",\"state\":\"denied\",\"amount\":{\"total\":\"197.00\",\"currency\":\"USD\"},\"billing_agreement_id\":\"I-CRAISTANDARD0002\",\"reason_code\":\"INSTRUMENT_DECLINED\"}}"
+}

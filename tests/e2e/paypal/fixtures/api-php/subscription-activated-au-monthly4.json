@@ -1,0 +1,62 @@
+{
+  "notes": "2Step — AU monthly_4 (AUD, A$139/mo) BILLING.SUBSCRIPTION.ACTIVATED. plan_id comes from get2StepPlanId('AU','monthly_4') in auditandfix-website/site/includes/pricing.php. api.php handlePayPalWebhook() re-fetches this subscription from PayPal to verify status=ACTIVE before writing to subscriptions.sqlite.",
+  "headers": {
+    "paypal-transmission-id": "bc5cc0f0-3cf3-11ef-9015-3f5caf43b5e4",
+    "paypal-transmission-time": "2026-04-14T01:15:32Z",
+    "paypal-transmission-sig": "MockTransmissionSignatureAUMonthly4==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-6XY12345AB6789012-9AB87654CD3210987",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T01:15:30.123Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+    "summary": "Subscription activated",
+    "resource": {
+      "id": "I-AU4MONTHLY0001TEST",
+      "plan_id": "P-4CS71501D47643346NHBAEGI",
+      "start_time": "2026-04-14T01:15:29Z",
+      "quantity": "1",
+      "shipping_amount": { "currency_code": "AUD", "value": "0.0" },
+      "subscriber": {
+        "name": { "given_name": "Jane", "surname": "Smith" },
+        "email_address": "jane.smith-au@example.com",
+        "payer_id": "AUPAYER0001TEST",
+        "shipping_address": {
+          "address": { "country_code": "AU" }
+        }
+      },
+      "billing_info": {
+        "outstanding_balance": { "currency_code": "AUD", "value": "0.0" },
+        "cycle_executions": [{
+          "tenure_type": "REGULAR",
+          "sequence": 1,
+          "cycles_completed": 0,
+          "cycles_remaining": 0,
+          "total_cycles": 0
+        }],
+        "last_payment": {
+          "amount": { "currency_code": "AUD", "value": "139.00" },
+          "time": "2026-04-14T01:15:29Z"
+        },
+        "next_billing_time": "2026-05-14T10:00:00Z",
+        "failed_payments_count": 0
+      },
+      "create_time": "2026-04-14T01:15:00Z",
+      "update_time": "2026-04-14T01:15:30Z",
+      "status": "ACTIVE",
+      "status_update_time": "2026-04-14T01:15:30Z",
+      "links": [
+        { "rel": "self", "href": "https://api.sandbox.paypal.com/v1/billing/subscriptions/I-AU4MONTHLY0001TEST", "method": "GET" }
+      ]
+    },
+    "links": [
+      { "rel": "self", "href": "https://api.sandbox.paypal.com/v1/notifications/webhooks-events/WH-6XY12345AB6789012-9AB87654CD3210987", "method": "GET" }
+    ]
+  },
+  "body_raw": "{\"id\":\"WH-6XY12345AB6789012-9AB87654CD3210987\",\"event_version\":\"1.0\",\"create_time\":\"2026-04-14T01:15:30.123Z\",\"resource_type\":\"subscription\",\"resource_version\":\"2.0\",\"event_type\":\"BILLING.SUBSCRIPTION.ACTIVATED\",\"summary\":\"Subscription activated\",\"resource\":{\"id\":\"I-AU4MONTHLY0001TEST\",\"plan_id\":\"P-4CS71501D47643346NHBAEGI\",\"start_time\":\"2026-04-14T01:15:29Z\",\"quantity\":\"1\",\"subscriber\":{\"name\":{\"given_name\":\"Jane\",\"surname\":\"Smith\"},\"email_address\":\"jane.smith-au@example.com\",\"payer_id\":\"AUPAYER0001TEST\",\"shipping_address\":{\"address\":{\"country_code\":\"AU\"}}},\"billing_info\":{\"outstanding_balance\":{\"currency_code\":\"AUD\",\"value\":\"0.0\"},\"last_payment\":{\"amount\":{\"currency_code\":\"AUD\",\"value\":\"139.00\"},\"time\":\"2026-04-14T01:15:29Z\"},\"next_billing_time\":\"2026-05-14T10:00:00Z\",\"failed_payments_count\":0},\"create_time\":\"2026-04-14T01:15:00Z\",\"update_time\":\"2026-04-14T01:15:30Z\",\"status\":\"ACTIVE\",\"status_update_time\":\"2026-04-14T01:15:30Z\"}}"
+}

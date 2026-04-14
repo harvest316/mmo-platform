@@ -1,0 +1,37 @@
+{
+  "notes": "CRAI — BILLING.SUBSCRIPTION.CANCELLED for the founding subscription. Maps to billing_status='cancelled'. Since id does not start with SANDBOX- and plan is 'founding', founding_taken counter decrements.",
+  "headers": {
+    "paypal-transmission-id": "e5f6a7b8-3cf3-11ef-9015-c5e6f7a8b9ca",
+    "paypal-transmission-time": "2026-04-14T04:00:44Z",
+    "paypal-transmission-sig": "MockCraiCancelledSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-CRAI05CANCEL-EF1234567890ABCD",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T04:00:42.222Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.CANCELLED",
+    "summary": "Subscription cancelled",
+    "resource": {
+      "id": "I-CRAIFOUNDING0001",
+      "plan_id": "P-56E25614FA1705931NHIKAWQ",
+      "quantity": "1",
+      "subscriber": {
+        "email_address": "newtenant@example.com",
+        "payer_id": "CRAIFOUNDING01"
+      },
+      "billing_info": {
+        "outstanding_balance": { "currency_code": "AUD", "value": "0.0" },
+        "failed_payments_count": 0
+      },
+      "status": "CANCELLED",
+      "status_update_time": "2026-04-14T04:00:42Z",
+      "status_change_note": "Cancelled by subscriber."
+    }
+  },
+  "body_raw": "{\"id\":\"WH-CRAI05CANCEL-EF1234567890ABCD\",\"event_type\":\"BILLING.SUBSCRIPTION.CANCELLED\",\"resource\":{\"id\":\"I-CRAIFOUNDING0001\",\"plan_id\":\"P-56E25614FA1705931NHIKAWQ\",\"subscriber\":{\"email_address\":\"newtenant@example.com\"},\"status\":\"CANCELLED\"}}"
+}

@@ -1,0 +1,30 @@
+{
+  "notes": "333Method — BILLING.SUBSCRIPTION.SUSPENDED (2Step). Worker appends to R2 with subscription:true. Not processed by m333 poller.",
+  "headers": {
+    "paypal-transmission-id": "90470869-3cf3-11ef-9015-d007a8b9ca4f",
+    "paypal-transmission-time": "2026-04-20T10:30:02Z",
+    "paypal-transmission-sig": "MockM333SubSuspendedSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33308SUBSUSP-123456789ABCDEF0",
+    "event_version": "1.0",
+    "create_time": "2026-04-20T10:30:00.123Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.SUSPENDED",
+    "summary": "Subscription suspended",
+    "resource": {
+      "id": "I-M3332STEPCREATED001",
+      "plan_id": "P-4CS71501D47643346NHBAEGI",
+      "quantity": "1",
+      "subscriber": { "email_address": "audit.sub@example.com" },
+      "billing_info": { "outstanding_balance": { "currency_code": "AUD", "value": "139.00" }, "failed_payments_count": 1 },
+      "status": "SUSPENDED",
+      "status_update_time": "2026-04-20T10:30:00Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33308SUBSUSP-123456789ABCDEF0\",\"event_type\":\"BILLING.SUBSCRIPTION.SUSPENDED\",\"resource\":{\"id\":\"I-M3332STEPCREATED001\",\"subscriber\":{\"email_address\":\"audit.sub@example.com\"},\"status\":\"SUSPENDED\",\"billing_info\":{\"failed_payments_count\":1}}}"
+}

@@ -1,0 +1,43 @@
+{
+  "notes": "CRAI — BILLING.SUBSCRIPTION.ACTIVATED founding plan ($99). New tenant path: plan_id=PAYPAL_PLAN_FOUNDING → billing_plan='founding', billing_status='trial' (DR-196). Non-sandbox subscription id → founding_taken counter increments. Email newtenant@example.com matches prospect_hints upsert key for DR-208 tests.",
+  "headers": {
+    "paypal-transmission-id": "a1b2c3d4-3cf3-11ef-9015-c1e2f3a4b5c6",
+    "paypal-transmission-time": "2026-04-14T03:10:15Z",
+    "paypal-transmission-sig": "MockCraiFoundingSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-CRAI01FOUND-ABCDEF1234567890",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T03:10:12.345Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+    "summary": "Subscription activated",
+    "resource": {
+      "id": "I-CRAIFOUNDING0001",
+      "plan_id": "P-56E25614FA1705931NHIKAWQ",
+      "start_time": "2026-04-14T03:10:10Z",
+      "quantity": "1",
+      "subscriber": {
+        "name": { "given_name": "New", "surname": "Tenant" },
+        "email_address": "newtenant@example.com",
+        "payer_id": "CRAIFOUNDING01",
+        "shipping_address": { "address": { "country_code": "AU" } }
+      },
+      "billing_info": {
+        "outstanding_balance": { "currency_code": "AUD", "value": "0.0" },
+        "last_payment": { "amount": { "currency_code": "AUD", "value": "99.00" }, "time": "2026-04-14T03:10:11Z" },
+        "next_billing_time": "2026-05-14T10:00:00Z",
+        "failed_payments_count": 0
+      },
+      "create_time": "2026-04-14T03:09:40Z",
+      "update_time": "2026-04-14T03:10:12Z",
+      "status": "ACTIVE",
+      "status_update_time": "2026-04-14T03:10:12Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-CRAI01FOUND-ABCDEF1234567890\",\"event_version\":\"1.0\",\"create_time\":\"2026-04-14T03:10:12.345Z\",\"resource_type\":\"subscription\",\"event_type\":\"BILLING.SUBSCRIPTION.ACTIVATED\",\"summary\":\"Subscription activated\",\"resource\":{\"id\":\"I-CRAIFOUNDING0001\",\"plan_id\":\"P-56E25614FA1705931NHIKAWQ\",\"subscriber\":{\"name\":{\"given_name\":\"New\",\"surname\":\"Tenant\"},\"email_address\":\"newtenant@example.com\",\"payer_id\":\"CRAIFOUNDING01\"},\"status\":\"ACTIVE\",\"status_update_time\":\"2026-04-14T03:10:12Z\"}}"
+}

@@ -1,0 +1,42 @@
+{
+  "notes": "333Method — PAYMENT.CAPTURE.COMPLETED. Poller fallback path: resource.id is the capture id; resource.supplementary_data.related_ids.order_id is the PayPal order id used by verifyPayment(). reference_id on the capture's purchase_unit remains 'site_42_conv_17'.",
+  "headers": {
+    "paypal-transmission-id": "3ae1f203-3cf3-11ef-9015-ca01b2c3d40f",
+    "paypal-transmission-time": "2026-04-14T05:11:42Z",
+    "paypal-transmission-sig": "MockM333CaptureCompletedSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33302CAP-BCDEF0123456789A",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T05:11:40.666Z",
+    "resource_type": "capture",
+    "resource_version": "2.0",
+    "event_type": "PAYMENT.CAPTURE.COMPLETED",
+    "summary": "Payment completed for AUD $337.00",
+    "resource": {
+      "id": "1C488812KK739240E",
+      "status": "COMPLETED",
+      "amount": { "currency_code": "AUD", "value": "337.00" },
+      "final_capture": true,
+      "seller_protection": { "status": "ELIGIBLE" },
+      "invoice_id": "",
+      "custom_id": "site_42_conv_17",
+      "seller_receivable_breakdown": {
+        "gross_amount": { "currency_code": "AUD", "value": "337.00" },
+        "paypal_fee": { "currency_code": "AUD", "value": "10.05" },
+        "net_amount": { "currency_code": "AUD", "value": "326.95" }
+      },
+      "supplementary_data": {
+        "related_ids": {
+          "order_id": "5O190127TN3649126"
+        }
+      },
+      "create_time": "2026-04-14T05:11:30Z",
+      "update_time": "2026-04-14T05:11:35Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33302CAP-BCDEF0123456789A\",\"event_type\":\"PAYMENT.CAPTURE.COMPLETED\",\"resource\":{\"id\":\"1C488812KK739240E\",\"status\":\"COMPLETED\",\"amount\":{\"currency_code\":\"AUD\",\"value\":\"337.00\"},\"custom_id\":\"site_42_conv_17\",\"supplementary_data\":{\"related_ids\":{\"order_id\":\"5O190127TN3649126\"}}}}"
+}

@@ -1,0 +1,43 @@
+{
+  "notes": "2Step — GB monthly_12 (GBP, £199/mo) BILLING.SUBSCRIPTION.ACTIVATED. plan_id from get2StepPlanId('GB','monthly_12').",
+  "headers": {
+    "paypal-transmission-id": "de7ee2f2-3cf3-11ef-9015-3f5caf43b5e6",
+    "paypal-transmission-time": "2026-04-14T01:17:12Z",
+    "paypal-transmission-sig": "MockTransmissionSignatureGBMonthly12==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-8BC34567DE8901234-1CD09876EF5432109",
+    "event_version": "1.0",
+    "create_time": "2026-04-14T01:17:10.789Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+    "summary": "Subscription activated",
+    "resource": {
+      "id": "I-GB12MONTHLY0003TEST",
+      "plan_id": "P-9LB644757G1322144NHIFE7Q",
+      "start_time": "2026-04-14T01:17:08Z",
+      "quantity": "1",
+      "subscriber": {
+        "name": { "given_name": "Alice", "surname": "Williams" },
+        "email_address": "alice.williams-gb@example.com",
+        "payer_id": "GBPAYER0003TEST",
+        "shipping_address": { "address": { "country_code": "GB" } }
+      },
+      "billing_info": {
+        "outstanding_balance": { "currency_code": "GBP", "value": "0.0" },
+        "last_payment": { "amount": { "currency_code": "GBP", "value": "199.00" }, "time": "2026-04-14T01:17:09Z" },
+        "next_billing_time": "2026-05-14T10:00:00Z",
+        "failed_payments_count": 0
+      },
+      "create_time": "2026-04-14T01:16:45Z",
+      "update_time": "2026-04-14T01:17:10Z",
+      "status": "ACTIVE",
+      "status_update_time": "2026-04-14T01:17:10Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-8BC34567DE8901234-1CD09876EF5432109\",\"event_version\":\"1.0\",\"create_time\":\"2026-04-14T01:17:10.789Z\",\"resource_type\":\"subscription\",\"resource_version\":\"2.0\",\"event_type\":\"BILLING.SUBSCRIPTION.ACTIVATED\",\"summary\":\"Subscription activated\",\"resource\":{\"id\":\"I-GB12MONTHLY0003TEST\",\"plan_id\":\"P-9LB644757G1322144NHIFE7Q\",\"subscriber\":{\"name\":{\"given_name\":\"Alice\",\"surname\":\"Williams\"},\"email_address\":\"alice.williams-gb@example.com\"},\"status\":\"ACTIVE\"}}"
+}

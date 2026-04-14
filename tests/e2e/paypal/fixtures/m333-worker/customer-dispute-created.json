@@ -1,0 +1,44 @@
+{
+  "notes": "333Method — CUSTOMER.DISPUTE.CREATED (chargeback/dispute). Worker appends to R2 with disputed:true flag. Surfaces as a warning in worker logs.",
+  "headers": {
+    "paypal-transmission-id": "6d140536-3cf3-11ef-9015-cd04e5f6a71c",
+    "paypal-transmission-time": "2026-04-16T12:01:50Z",
+    "paypal-transmission-sig": "MockM333DisputeSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33305DISPUTE-EF0123456789ABCD",
+    "event_version": "1.0",
+    "create_time": "2026-04-16T12:01:47.888Z",
+    "resource_type": "dispute",
+    "resource_version": "2.0",
+    "event_type": "CUSTOMER.DISPUTE.CREATED",
+    "summary": "A new dispute opened with Case # PP-D-1234567",
+    "resource": {
+      "dispute_id": "PP-D-1234567",
+      "create_time": "2026-04-16T12:01:30Z",
+      "update_time": "2026-04-16T12:01:45Z",
+      "disputed_transactions": [{
+        "buyer_transaction_id": "5FY12345AB6789012",
+        "seller_transaction_id": "1C488812KK739240E",
+        "create_time": "2026-04-14T05:11:30Z",
+        "transaction_status": "COMPLETED",
+        "gross_amount": { "currency_code": "AUD", "value": "337.00" },
+        "buyer": { "name": "Pat Payer" },
+        "seller": { "merchant_id": "MERCHANT01234567", "name": "Audit&Fix" }
+      }],
+      "reason": "UNAUTHORISED",
+      "status": "OPEN",
+      "dispute_amount": { "currency_code": "AUD", "value": "337.00" },
+      "dispute_outcome": { "outcome_code": "RESOLVED_BUYER_FAVOUR" },
+      "dispute_life_cycle_stage": "INQUIRY",
+      "dispute_channel": "INTERNAL",
+      "messages": [],
+      "extensions": {},
+      "offer": {}
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33305DISPUTE-EF0123456789ABCD\",\"event_type\":\"CUSTOMER.DISPUTE.CREATED\",\"resource\":{\"dispute_id\":\"PP-D-1234567\",\"reason\":\"UNAUTHORISED\",\"status\":\"OPEN\",\"dispute_amount\":{\"currency_code\":\"AUD\",\"value\":\"337.00\"},\"disputed_transactions\":[{\"seller_transaction_id\":\"1C488812KK739240E\",\"buyer_transaction_id\":\"5FY12345AB6789012\"}]}}"
+}

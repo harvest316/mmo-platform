@@ -1,0 +1,33 @@
+{
+  "notes": "333Method — BILLING.SUBSCRIPTION.CANCELLED (2Step subscription). Worker appends to R2 with subscription:true. Not processed by m333 poller.",
+  "headers": {
+    "paypal-transmission-id": "8f360758-3cf3-11ef-9015-cf06f7a8b93e",
+    "paypal-transmission-time": "2026-04-20T09:45:25Z",
+    "paypal-transmission-sig": "MockM333SubCancelledSignature==",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-7e12d215",
+    "paypal-auth-algo": "SHA256withRSA",
+    "content-type": "application/json"
+  },
+  "body_parsed": {
+    "id": "WH-M33307SUBCANCEL-0123456789ABCDEF",
+    "event_version": "1.0",
+    "create_time": "2026-04-20T09:45:22.999Z",
+    "resource_type": "subscription",
+    "resource_version": "2.0",
+    "event_type": "BILLING.SUBSCRIPTION.CANCELLED",
+    "summary": "Subscription cancelled",
+    "resource": {
+      "id": "I-M3332STEPCREATED001",
+      "plan_id": "P-4CS71501D47643346NHBAEGI",
+      "quantity": "1",
+      "subscriber": {
+        "email_address": "audit.sub@example.com",
+        "payer_id": "M333SUBSCRIBER01"
+      },
+      "billing_info": { "outstanding_balance": { "currency_code": "AUD", "value": "0.0" }, "failed_payments_count": 0 },
+      "status": "CANCELLED",
+      "status_update_time": "2026-04-20T09:45:22Z"
+    }
+  },
+  "body_raw": "{\"id\":\"WH-M33307SUBCANCEL-0123456789ABCDEF\",\"event_type\":\"BILLING.SUBSCRIPTION.CANCELLED\",\"resource\":{\"id\":\"I-M3332STEPCREATED001\",\"plan_id\":\"P-4CS71501D47643346NHBAEGI\",\"subscriber\":{\"email_address\":\"audit.sub@example.com\"},\"status\":\"CANCELLED\"}}"
+}
