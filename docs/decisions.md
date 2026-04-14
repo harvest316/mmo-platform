@@ -4,6 +4,43 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-217: 333Method PayPal chain + cross-cutting negative-paths E2E coverage (2026-04-14)
+
+**Context:** DR-215 landed the scaffold; DR-216 shipped the api.php coverage. This closes the 333Method side: the R2 collector Worker (`~/code/333Method/workers/paypal-webhook/src/index.js`) and the host-side poller/handler (`src/payment/poll-paypal-events.js` + `src/payment/webhook-handler.js`).
+
+**Decision:** Added three Vitest files under `mmo-platform/tests/e2e/paypal/tests/`:
+
+1. **`m333-worker.test.js` — 13 tests** exercising the R2 collector:
+   - All 10 supported event types appended to R2 with full enrichment (`worker_received_at`, `webhook_headers.*`, `signature_verified:true`, `disputed` flag for dispute events, `subscription` flag for BILLING.*, original payload preserved via `...event` spread at `src/index.js:224`).
+   - Signature-verify FAILURE → 401, R2 unchanged.
+   - Missing `PAYPAL_WEBHOOK_ID` binding → 401, R2 unchanged.
+   - Three sequential events → array grows in order, JSON round-trips cleanly, no duplicate appends.
+
+2. **`m333-poller.test.js` — 6 tests** exercising the poller + `processPaymentComplete()`:
+   - CHECKOUT.ORDER.APPROVED happy path: `processed_webhooks` + `messages` + `sites` + `purchases` all updated; `triggerFreshAssessment` invoked once with the new purchase id.
+   - PAYMENT.CAPTURE.COMPLETED fallback path — poller extracts order id from `resource.supplementary_data.related_ids.order_id` when `resource.id` is absent (`poll-paypal-events.js:65-66`).
+   - Subscriptions + disputes silently skipped (event-type filter at `poll-paypal-events.js:56-61`).
+   - Idempotency: same CHECKOUT.ORDER.APPROVED twice in one R2 array → one `processed_webhooks` row, one purchase, one assessment invocation.
+   - Amount mismatch (> 0.02 tolerance): no purchase row, `processed_webhooks` row is inserted then DELETED at `webhook-handler.js:169` so a later correct delivery can re-claim.
+   - R2 persistence across runs — poller line 97 delete is commented out, so events persist; second run short-circuits via `processed_webhooks`.
+
+3. **`negative-paths.test.js` — 8 tests + 2 documentation skips** covering cross-handler edge cases: empty body, malformed JSON, missing Content-Type, replayed transmission-id, signature-verify hang.
+
+**Discovered bug (DR-217-bug-1 — not yet fixed):**
+
+`333Method/src/payment/webhook-handler.js:77` calls `const pricing = getPrice(countryCode)` WITHOUT `await`. `getPrice()` was converted to async in commit e201066d (Phase 4 PostgreSQL migration), but the call site wasn't updated. As a result `pricing` is always a Promise object, `pricing.currency` is always undefined, and `verifyPaymentAmount()` always returns `{valid:false, reason:'Currency mismatch: paid X, expected undefined'}` for any amount ≥ $5. Impact in production: every CHECKOUT.ORDER.APPROVED / PAYMENT.CAPTURE.COMPLETED payment over $5 is rejected at the amount guard — `processed_webhooks` insert then DELETE (line 169), no purchase row, no fresh assessment. This explains why no real revenue has landed since the async conversion. **Fix is a one-line `await` addition;** tests in this commit work around the bug by setting `SKIP_AMOUNT_VERIFICATION=true` + `NODE_ENV=test` (the escape hatch at `webhook-handler.js:60`).
+
+**Scaffold tweaks applied during implementation:**
+
+- **`helpers/m333-worker.js`** — switched from `{ script, scriptPath }` to the `modules: [{ type: 'ESModule', path: 'worker.mjs', contents }]` form. `scriptPath` pointing at a sibling-repo absolute path (which necessarily contains `..`) triggers workerd's filesystem sandbox error `kj/filesystem.c++:319: can't use ".." to break out of starting directory`. The explicit modules array bypasses scriptPath resolution entirely.
+- **`helpers/m333-worker.js`** — `dispatch()` now forwards `(urlOrRequest, init)` straight to `mf.dispatchFetch(urlOrRequest, init)`. Miniflare's dispatchFetch with a Request instance barfs with `ERR_INVALID_URL` inside its bundled undici Request constructor. Tests pass `(url, {method, headers, body})`.
+
+**Status:** Accepted. All 27 tests pass + 2 documentation skips (`cd mmo-platform/tests/e2e/paypal && npx vitest run tests/m333-worker.test.js tests/m333-poller.test.js tests/negative-paths.test.js`). Completes DR-215's Phase 4 for the 333Method side. Phase 5 (cross-service seed-prospect → CRAI ACTIVATED chain) remains pending. DR-217-bug-1 is open and should be fixed in a separate commit before any real CHECKOUT.ORDER.APPROVED delivery.
+
+**Impl:** `mmo-platform/tests/e2e/paypal/tests/m333-worker.test.js`, `mmo-platform/tests/e2e/paypal/tests/m333-poller.test.js`, `mmo-platform/tests/e2e/paypal/tests/negative-paths.test.js`; scaffold tweaks to `mmo-platform/tests/e2e/paypal/helpers/m333-worker.js`.
+
+---
+
 ### DR-216: api.php PayPal webhook E2E coverage — Phase 4 (2026-04-14)
 
 **Context:** DR-215 landed the scaffold (fixtures + helpers + config) but no tests. Before taking real money through the live PayPal endpoint (DR-213 resolved by DR-214) we need regression coverage for every event × endpoint combination on `handlePayPalWebhook()` in `auditandfix-website/site/api.php:1800`.

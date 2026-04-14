@@ -58,10 +58,14 @@ export async function loadM333Worker(opts) {
     ['api-m.sandbox.paypal.com', paypalMockUrl],
   ]);
 
+  // Note: omitting `scriptPath` here. workerd refuses to resolve module paths
+  // containing `..`, which our path always has (it points at a sibling repo).
+  // Without scriptPath, Miniflare treats the `script` string as a
+  // self-contained module — fine because the Worker has no local imports.
   const mf = new Miniflare({
-    modules: true,
-    script,
-    scriptPath: M333_WORKER_PATH,
+    modules: [
+      { type: 'ESModule', path: 'worker.mjs', contents: script },
+    ],
     compatibilityDate: '2024-09-01',
     compatibilityFlags: ['nodejs_compat'],
     bindings: {
@@ -91,7 +95,7 @@ export async function loadM333Worker(opts) {
 
   return {
     mf,
-    dispatch: async (request) => mf.dispatchFetch(request),
+    dispatch: async (urlOrRequest, init) => mf.dispatchFetch(urlOrRequest, init),
 
     /** Read the current paypal-events.json from the in-memory R2 bucket. */
     readR2Events: async () => {
