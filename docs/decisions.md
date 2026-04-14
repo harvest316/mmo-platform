@@ -10,7 +10,7 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 **Gaps:**
 
-1. **`paypal-webhook-worker` (live `89Y2…` + sandbox `1GP2…`)** — Worker handler supports 10 events ([workers/paypal-webhook/src/index.js:14-23](333Method/workers/paypal-webhook/src/index.js#L14)) but only 3 are subscribed on both environments. Missing: `PAYMENT.CAPTURE.DENIED`, `PAYMENT.CAPTURE.REFUNDED`, `BILLING.SUBSCRIPTION.CREATED`, `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`, `BILLING.SUBSCRIPTION.PAYMENT.FAILED`, `BILLING.SUBSCRIPTION.PAYMENT.COMPLETED`.
+1. **`paypal-webhook-worker` (live `89Y2…` + sandbox `1GP2…`)** — Worker handler supports 10 events ([workers/paypal-webhook/src/index.js:14-23](333Method/workers/paypal-webhook/src/index.js#L14)) but only 3 are subscribed on both environments. Missing: `PAYMENT.CAPTURE.DENIED`, `PAYMENT.CAPTURE.REFUNDED`, `BILLING.SUBSCRIPTION.CREATED`, `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`, `BILLING.SUBSCRIPTION.PAYMENT.FAILED`, `BILLING.SUBSCRIPTION.RENEWED`. _Also fixed: the worker code listed a non-existent event `BILLING.SUBSCRIPTION.PAYMENT.COMPLETED` — replaced with `BILLING.SUBSCRIPTION.RENEWED` in `src/index.js` + `wrangler.toml` (2026-04-14). Requires redeploy: `cd 333Method/workers/paypal-webhook && npx wrangler deploy` + `npx wrangler deploy --env test`._
 
 2. **CRAI live webhook `8TJ6…`** — Missing `BILLING.SUBSCRIPTION.RENEWED`, `BILLING.SUBSCRIPTION.SUSPENDED`, `PAYMENT.SALE.DENIED` (handler at [workers/index.js:1343-1363](ContactReplyAI/workers/index.js#L1343)). Also needs URL update from `crai-api.auditandfix.workers.dev/webhooks/paypal` → `api.contactreply.app/webhooks/paypal` (DR-201 cutover).
 
