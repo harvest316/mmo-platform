@@ -1,11 +1,13 @@
 /**
  * Shared email transport module — unit tests
  *
- * Tests the SES send path, format helpers, and the reputation pause flag.
+ * Tests the SES send path, format helpers, reputation pause flag, and
+ * the DR-223 archive capture wiring.
  *
  * Mocking strategy:
  *   - @aws-sdk/client-sesv2 → vi.mock() with constructable stubs; mockSend exposed via
  *     module-level ref so tests can configure return values and inspect calls.
+ *   - ./archive.js → vi.mock() with a mockCaptureOutboundEmail stub; same pattern.
  *   - Module-level singleton state (_sesClient, _pauseCache): reset via
  *     vi.resetModules() + dynamic import() in freshImport(). The vi.mock() at top level
  *     is hoisted by vitest so it persists across module resets automatically.
@@ -31,6 +33,18 @@ vi.mock('@aws-sdk/client-sesv2', () => {
   }
   return { SESv2Client, SendEmailCommand };
 });
+
+// ── Archive mock ─────────────────────────────────────────────────────────────
+//
+// captureOutboundEmail is mocked so tests don't need ARCHIVE_* env vars and
+// don't touch the spool or S3. The mock persists across vi.resetModules() calls
+// for the same reason as the SES mock above.
+
+const mockCaptureOutboundEmail = vi.fn();
+
+vi.mock('../../src/archive.js', () => ({
+  captureOutboundEmail: mockCaptureOutboundEmail,
+}));
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -60,6 +74,7 @@ beforeEach(() => {
 
   vi.clearAllMocks();
   mockSend.mockResolvedValue({ MessageId: 'ses-msg-id-1' });
+  mockCaptureOutboundEmail.mockResolvedValue('email/test/outbound/2026/04/14/ts_abc123.eml');
 });
 
 afterEach(() => {
@@ -78,11 +93,12 @@ const BASE_PARAMS = {
 // ── 1. SES send path ────────────────────────────────────────────────────────
 
 describe('SES send path', () => {
-  it('returns { id: MessageId } on successful SES send', async () => {
+  it('returns { id, s3ArchiveKey } on successful send', async () => {
     mockSend.mockResolvedValue({ MessageId: 'abc-123' });
+    mockCaptureOutboundEmail.mockResolvedValue('email/test/outbound/key.eml');
     const sendEmail = await freshImport();
     const result = await sendEmail(BASE_PARAMS);
-    expect(result).toEqual({ id: 'abc-123' });
+    expect(result).toEqual({ id: 'abc-123', s3ArchiveKey: 'email/test/outbound/key.eml' });
   });
 
   it('sends all params to SES (from, to, subject, html, text, headers, tags, replyTo)', async () => {
@@ -287,13 +303,13 @@ describe('reputation pause flag', () => {
 
   it('no file → sends proceed (fail-open)', async () => {
     const sendEmail = await freshImport();
-    await expect(sendEmail(BASE_PARAMS)).resolves.toEqual({ id: 'ses-msg-id-1' });
+    await expect(sendEmail(BASE_PARAMS)).resolves.toMatchObject({ id: 'ses-msg-id-1' });
   });
 
   it("state='none' → sends proceed", async () => {
     writePauseFile({ state: 'none' });
     const sendEmail = await freshImport();
-    await expect(sendEmail(BASE_PARAMS)).resolves.toEqual({ id: 'ses-msg-id-1' });
+    await expect(sendEmail(BASE_PARAMS)).resolves.toMatchObject({ id: 'ses-msg-id-1' });
   });
 
   it("state='cold' → blocks default (cold) sends", async () => {
@@ -307,7 +323,7 @@ describe('reputation pause flag', () => {
     writePauseFile({ state: 'cold', reason: 'test cold' });
     const sendEmail = await freshImport();
     await expect(sendEmail({ ...BASE_PARAMS, kind: 'transactional' }))
-      .resolves.toEqual({ id: 'ses-msg-id-1' });
+      .resolves.toMatchObject({ id: 'ses-msg-id-1' });
   });
 
   it("state='all' → blocks everything including transactional", async () => {
@@ -322,19 +338,97 @@ describe('reputation pause flag', () => {
     writePauseFile({ state: 'all', reason: 'critical reputation' });
     const sendEmail = await freshImport();
     await expect(sendEmail({ ...BASE_PARAMS, kind: 'auth' }))
-      .resolves.toEqual({ id: 'ses-msg-id-1' });
+      .resolves.toMatchObject({ id: 'ses-msg-id-1' });
   });
 
   it("state='cold' → kind='auth' bypasses pause", async () => {
     writePauseFile({ state: 'cold', reason: 'cold outreach paused' });
     const sendEmail = await freshImport();
     await expect(sendEmail({ ...BASE_PARAMS, kind: 'auth' }))
-      .resolves.toEqual({ id: 'ses-msg-id-1' });
+      .resolves.toMatchObject({ id: 'ses-msg-id-1' });
   });
 
   it('error message includes the pause file path for operator clarity', async () => {
     writePauseFile({ state: 'all', reason: 'r' });
     const sendEmail = await freshImport();
     await expect(sendEmail(BASE_PARAMS)).rejects.toThrow('.email-pause-state.json');
+  });
+});
+
+// ── 4. Archive capture (DR-223) ─────────────────────────────────────────────
+
+describe('archive capture (DR-223)', () => {
+  it('returns { id, s3ArchiveKey } with key from captureOutboundEmail', async () => {
+    mockSend.mockResolvedValue({ MessageId: 'ses-id-1' });
+    mockCaptureOutboundEmail.mockResolvedValue('email/test/outbound/key.eml');
+    const sendEmail = await freshImport();
+    const result = await sendEmail(BASE_PARAMS);
+    expect(result).toEqual({ id: 'ses-id-1', s3ArchiveKey: 'email/test/outbound/key.eml' });
+  });
+
+  it('calls captureOutboundEmail with the project param', async () => {
+    const sendEmail = await freshImport();
+    await sendEmail({ ...BASE_PARAMS, project: '333method' });
+    expect(mockCaptureOutboundEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ project: '333method' })
+    );
+  });
+
+  it('defaults project to "unknown" when not provided', async () => {
+    const sendEmail = await freshImport();
+    await sendEmail(BASE_PARAMS);
+    expect(mockCaptureOutboundEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ project: 'unknown' })
+    );
+  });
+
+  it('passes configSet metadata matching the SES configuration set', async () => {
+    process.env.SES_CONFIGURATION_SET = 'my-config-set';
+    const sendEmail = await freshImport();
+    await sendEmail(BASE_PARAMS);
+    expect(mockCaptureOutboundEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ configSet: 'my-config-set' }),
+      })
+    );
+  });
+
+  it('passes notrack configSet when trackEngagement=false', async () => {
+    const sendEmail = await freshImport();
+    await sendEmail({ ...BASE_PARAMS, trackEngagement: false });
+    expect(mockCaptureOutboundEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ configSet: 'mmo-outbound-notrack' }),
+      })
+    );
+    // SES also gets the notrack set
+    const command = mockSend.mock.calls[0][0];
+    expect(command.ConfigurationSetName).toBe('mmo-outbound-notrack');
+  });
+
+  it('fail-closed: archive failure blocks send (SES not called)', async () => {
+    mockCaptureOutboundEmail.mockRejectedValue(new Error('spool full'));
+    const sendEmail = await freshImport();
+    await expect(sendEmail(BASE_PARAMS)).rejects.toThrow('spool full');
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('archive is called before SES (ordering: captureOutboundEmail before mockSend)', async () => {
+    const callOrder = [];
+    mockCaptureOutboundEmail.mockImplementation(async () => { callOrder.push('archive'); return 'key.eml'; });
+    mockSend.mockImplementation(async () => { callOrder.push('ses'); return { MessageId: 'id-1' }; });
+    const sendEmail = await freshImport();
+    await sendEmail(BASE_PARAMS);
+    expect(callOrder).toEqual(['archive', 'ses']);
+  });
+
+  it('captureOutboundEmail receives rawMime as a non-empty string', async () => {
+    const sendEmail = await freshImport();
+    await sendEmail({ ...BASE_PARAMS, html: '<p>Hello</p>' });
+    const { rawMime } = mockCaptureOutboundEmail.mock.calls[0][0];
+    expect(typeof rawMime).toBe('string');
+    expect(rawMime.length).toBeGreaterThan(0);
+    expect(rawMime).toContain('MIME-Version: 1.0');
+    expect(rawMime).toContain('Subject: Test subject');
   });
 });

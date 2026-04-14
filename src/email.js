@@ -2,6 +2,9 @@
  * Shared email transport module
  *
  * Sends all email via AWS SES (SESv2).
+ * Every send is captured to the legal-grade WORM archive (DR-223) before
+ * the SES call — fail-closed: if the archive spool write fails, the send is
+ * aborted. S3 upload is best-effort; the archive-uploader cron drains the spool.
  *
  * Integration:
  *   - 333Method: src/outreach/email.js
@@ -12,6 +15,7 @@
  */
 
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { captureOutboundEmail } from './archive.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,6 +87,64 @@ function getSesClient() {
   return _sesClient;
 }
 
+// ── Config set helper ──────────────────────────────────────────────────────
+
+/**
+ * Resolve the SES configuration set name from the trackEngagement flag.
+ * Centralised here so archive metadata and SES send always use the same set.
+ */
+function getConfigSet(trackEngagement) {
+  return trackEngagement === false
+    ? (process.env.SES_CONFIGURATION_SET_NOTRACK || 'mmo-outbound-notrack')
+    : (process.env.SES_CONFIGURATION_SET || 'mmo-outbound');
+}
+
+// ── MIME document builder (archive copy) ──────────────────────────────────
+//
+// SES is called with Content.Simple (unchanged — preserves existing test
+// coverage).  We separately build a standards-compliant RFC 5322 MIME
+// document for the archive so the legal record contains the full rendered
+// content, headers, and config-set name.  The two paths carry the same
+// content; they are not byte-identical.
+
+function buildMimeDocument({ from, to, subject, html, text, headers, replyTo, configSet }) {
+  const boundary = `mmo_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  const now = new Date();
+  const msgId = `<${now.getTime()}.${Math.random().toString(36).slice(2)}@mmo-archive.local>`;
+
+  const headerLines = [
+    'MIME-Version: 1.0',
+    `Date: ${now.toUTCString()}`,
+    `Message-ID: ${msgId}`,
+    `From: ${from}`,
+    `To: ${to}`,
+  ];
+  if (replyTo) headerLines.push(`Reply-To: ${replyTo}`);
+  headerLines.push(`Subject: ${subject}`);
+  if (headers && typeof headers === 'object') {
+    for (const [k, v] of Object.entries(headers)) headerLines.push(`${k}: ${v}`);
+  }
+  if (configSet) headerLines.push(`X-Mmo-Config-Set: ${configSet}`);
+
+  if (html && text) {
+    headerLines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+    return (
+      headerLines.join('\r\n') + '\r\n' +
+      `\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
+      Buffer.from(text, 'utf8').toString('base64') +
+      `\r\n--${boundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
+      Buffer.from(html, 'utf8').toString('base64') +
+      `\r\n--${boundary}--`
+    );
+  }
+  const body = text || html || '';
+  headerLines.push(
+    `Content-Type: ${html ? 'text/html' : 'text/plain'}; charset=UTF-8`,
+    'Content-Transfer-Encoding: base64',
+  );
+  return headerLines.join('\r\n') + '\r\n\r\n' + Buffer.from(body, 'utf8').toString('base64');
+}
+
 // ── Format helpers ─────────────────────────────────────────────────────────
 
 function buildSesHeaders(headers) {
@@ -101,16 +163,7 @@ function buildSesTags(tags) {
 
 // ── SES send ───────────────────────────────────────────────────────────────
 
-async function sendViaSes({ from, to, subject, html, text, headers, tags, replyTo, bcc, trackEngagement }) {
-  // Route to the engagement-tracked config set (mmo-outbound) by default, or the
-  // no-tracking config set (mmo-outbound-notrack) when the caller explicitly opts
-  // out. Opt-out is for image-less cold outreach where injecting a 1×1 open-tracking
-  // pixel would be the only image in the email and wreck the text:image ratio that
-  // spam filters use. See DR-214.
-  const configurationSet = trackEngagement === false
-    ? (process.env.SES_CONFIGURATION_SET_NOTRACK || 'mmo-outbound-notrack')
-    : (process.env.SES_CONFIGURATION_SET || 'mmo-outbound');
-
+async function sendViaSes({ from, to, subject, html, text, headers, tags, replyTo, bcc, configurationSet }) {
   const command = new SendEmailCommand({
     FromEmailAddress: from,
     Destination: {
@@ -143,7 +196,8 @@ async function sendViaSes({ from, to, subject, html, text, headers, tags, replyT
 // ── Public API ─────────────────────────────────────────────────────────────
 
 /**
- * Send an email via AWS SES.
+ * Send an email via AWS SES, capturing it to the legal-grade WORM archive
+ * before dispatch (DR-223).
  *
  * @param {object} params
  * @param {string} params.from        - Sender address
@@ -165,9 +219,12 @@ async function sendViaSes({ from, to, subject, html, text, headers, tags, replyT
  *                                        set (open pixel + click rewriting). Pass `false` for image-less
  *                                        cold outreach to avoid injecting a 1×1 pixel that would be the only
  *                                        image and trigger text:image ratio spam heuristics. See DR-214.
- * @returns {Promise<{ id: string }>}
+ * @param {string} [params.project='unknown']
+ *                                      - Lowercase project slug for archive key: '333method', '2step',
+ *                                        'crai', 'auditandfix'. Default 'unknown' for backwards compat.
+ * @returns {Promise<{ id: string, s3ArchiveKey: string }>}
  */
-export async function sendEmail({ from, to, subject, html, text, headers, tags, replyTo, bcc, kind, trackEngagement }) {
+export async function sendEmail({ from, to, subject, html, text, headers, tags, replyTo, bcc, kind, trackEngagement, project = 'unknown' }) {
   // Reputation pause check — set by check-ses-reputation cron.
   // 'kind' lets transactional sends bypass a 'cold' pause; defaults to 'cold'
   // (the safe default — anything that doesn't pass kind:'transactional' is
@@ -189,7 +246,24 @@ export async function sendEmail({ from, to, subject, html, text, headers, tags, 
     }
   }
 
-  return sendViaSes({ from, to, subject, html, text, headers, tags, replyTo, bcc, trackEngagement });
+  // Compute config set once — used for both archive metadata and SES send.
+  const configurationSet = getConfigSet(trackEngagement);
+
+  // Build RFC 5322 MIME document for the legal archive (DR-223).
+  // This is separate from the Content.Simple path used for the SES send so
+  // existing SES behaviour is unchanged.
+  const rawMime = buildMimeDocument({ from, to, subject, html, text, headers, replyTo, configSet: configurationSet });
+
+  // Archive capture — fail-CLOSED: if the spool write fails, the send is aborted.
+  // S3 PUT is fire-and-forget; uploader drains the spool within ~60s.
+  const s3ArchiveKey = await captureOutboundEmail({
+    project,
+    rawMime,
+    metadata: { configSet: configurationSet },
+  });
+
+  const { id } = await sendViaSes({ from, to, subject, html, text, headers, tags, replyTo, bcc, configurationSet });
+  return { id, s3ArchiveKey };
 }
 
 export default { sendEmail };
