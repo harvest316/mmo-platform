@@ -56,6 +56,7 @@ const BASE_ENV = {
 beforeEach(() => {
   for (const [k, v] of Object.entries(BASE_ENV)) process.env[k] = v;
   delete process.env.SES_CONFIGURATION_SET;
+  delete process.env.SES_CONFIGURATION_SET_NOTRACK;
 
   vi.clearAllMocks();
   mockSend.mockResolvedValue({ MessageId: 'ses-msg-id-1' });
@@ -63,6 +64,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.SES_CONFIGURATION_SET;
+  delete process.env.SES_CONFIGURATION_SET_NOTRACK;
   vi.useRealTimers();
 });
 
@@ -129,6 +131,35 @@ describe('SES send path', () => {
 
   it('falls back to mmo-outbound when SES_CONFIGURATION_SET is unset', async () => {
     delete process.env.SES_CONFIGURATION_SET;
+    const sendEmail = await freshImport();
+    await sendEmail(BASE_PARAMS);
+    const command = mockSend.mock.calls[0][0];
+    expect(command.ConfigurationSetName).toBe('mmo-outbound');
+  });
+
+  it('routes to mmo-outbound-notrack when trackEngagement=false (DR-214)', async () => {
+    const sendEmail = await freshImport();
+    await sendEmail({ ...BASE_PARAMS, trackEngagement: false });
+    const command = mockSend.mock.calls[0][0];
+    expect(command.ConfigurationSetName).toBe('mmo-outbound-notrack');
+  });
+
+  it('respects SES_CONFIGURATION_SET_NOTRACK env var when trackEngagement=false', async () => {
+    process.env.SES_CONFIGURATION_SET_NOTRACK = 'custom-notrack-set';
+    const sendEmail = await freshImport();
+    await sendEmail({ ...BASE_PARAMS, trackEngagement: false });
+    const command = mockSend.mock.calls[0][0];
+    expect(command.ConfigurationSetName).toBe('custom-notrack-set');
+  });
+
+  it('uses tracked config set when trackEngagement=true (explicit opt-in)', async () => {
+    const sendEmail = await freshImport();
+    await sendEmail({ ...BASE_PARAMS, trackEngagement: true });
+    const command = mockSend.mock.calls[0][0];
+    expect(command.ConfigurationSetName).toBe('mmo-outbound');
+  });
+
+  it('uses tracked config set when trackEngagement is undefined (default behaviour)', async () => {
     const sendEmail = await freshImport();
     await sendEmail(BASE_PARAMS);
     const command = mockSend.mock.calls[0][0];

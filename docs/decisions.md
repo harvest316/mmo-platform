@@ -4,6 +4,30 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-214: SES engagement tracking split — two config sets + trackEngagement flag (2026-04-14)
+
+**Context:** Amazon Q recommended enabling SES Virtual Deliverability Manager (VDM) for shared-IP reputation optimisation and ISP-specific insights. VDM's "optimized shared delivery" picks the best shared IP per recipient ISP based on bounces, complaints, feedback loops, and engagement. Engagement tracking works by injecting a 1×1 open-tracking pixel into HTML emails and rewriting links for click tracking.
+
+The pixel is fine on HTML emails that already contain images (2Step video poster thumbnails, Audit&Fix report deliveries, receipts). It is **harmful** on 333Method cold outreach, which intentionally sends minimal-HTML image-less emails — the tracking pixel would be the only image in the email, wrecking the text:image ratio that spam filters use and undoing the deliberate anti-spam design.
+
+SES configuration sets have **immutable names** (no rename API). The existing `mmo-outbound` config set is wired as the identity-level default on all MAIL FROM subdomains and has SNS event destination `sns-all-events` publishing SEND/DELIVERY/BOUNCE/COMPLAINT (DR — earlier entry in this file on the `mmo-outbound` SNS topic). Renaming would require recreating identities + redoing the SNS wiring — not worth it.
+
+**Decision:**
+
+1. **Keep `mmo-outbound` as the tracked config set** (identity-level default on all MAIL FROM subdomains). Engagement tracking (open + click) enabled on it 2026-04-14.
+2. **Create `mmo-outbound-notrack`** — new config set with no open/click tracking, for image-less cold outreach. User is creating this manually in the AWS console (setup script update deferred).
+3. **Enable VDM Optimized Shared Delivery at the account level.** Advisor is free; the dashboard + optimized shared delivery are paid VDM features (small per-send fee on top of base $0.10/1000). Acceptable cost — no dedicated IPs, so shared-pool reputation optimisation is the primary lever available.
+4. **Add `trackEngagement: boolean` parameter to `mmo-platform/src/email.js` `sendEmail()`.** Default `true` (tracked). When `false`, transport routes to `SES_CONFIGURATION_SET_NOTRACK` env var (fallback literal `'mmo-outbound-notrack'`). Abstraction keeps callers from hard-coding SES config set names.
+5. **333Method cold outreach (`src/outreach/email.js`) passes `trackEngagement: false`** — currently the only caller that opts out. 2Step video outreach and all transactional sends (CRAI, auditandfix reports/receipts/magic links) keep the default, because their HTML already contains images or is expected to be engagement-measurable.
+
+**Not a rule on text-only MIME.** The distinguishing factor is "has images" vs "no images", not "text/plain vs text/html". 333Method sends multipart/alternative HTML+text — the HTML is minimal and image-less, so it gets the notrack treatment.
+
+**Status:** Accepted. mmo-outbound tracking enabled by user 2026-04-14. Code changes committed. `mmo-outbound-notrack` config set + VDM Optimized Shared Delivery enablement = user DIY in AWS console.
+
+**Impl:** `mmo-platform/src/email.js` (`sendViaSes` routing logic, `sendEmail` parameter threading), `mmo-platform/tests/unit/email.test.js` (+5 tests, all green), `333Method/src/outreach/email.js` (caller opt-out).
+
+---
+
 ### DR-213: PayPal webhook coverage gaps identified (2026-04-14)
 
 **Context:** During DR-201 cutover review, found that live + sandbox PayPal webhooks are subscribed to fewer events than their handlers support, and no sandbox webhook exists for CRAI's own Worker.

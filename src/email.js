@@ -101,7 +101,16 @@ function buildSesTags(tags) {
 
 // ── SES send ───────────────────────────────────────────────────────────────
 
-async function sendViaSes({ from, to, subject, html, text, headers, tags, replyTo, bcc }) {
+async function sendViaSes({ from, to, subject, html, text, headers, tags, replyTo, bcc, trackEngagement }) {
+  // Route to the engagement-tracked config set (mmo-outbound) by default, or the
+  // no-tracking config set (mmo-outbound-notrack) when the caller explicitly opts
+  // out. Opt-out is for image-less cold outreach where injecting a 1×1 open-tracking
+  // pixel would be the only image in the email and wreck the text:image ratio that
+  // spam filters use. See DR-214.
+  const configurationSet = trackEngagement === false
+    ? (process.env.SES_CONFIGURATION_SET_NOTRACK || 'mmo-outbound-notrack')
+    : (process.env.SES_CONFIGURATION_SET || 'mmo-outbound');
+
   const command = new SendEmailCommand({
     FromEmailAddress: from,
     Destination: {
@@ -119,7 +128,7 @@ async function sendViaSes({ from, to, subject, html, text, headers, tags, replyT
         Headers: buildSesHeaders(headers),
       },
     },
-    ConfigurationSetName: process.env.SES_CONFIGURATION_SET || 'mmo-outbound',
+    ConfigurationSetName: configurationSet,
     EmailTags: buildSesTags(tags),
   });
 
@@ -151,9 +160,14 @@ async function sendViaSes({ from, to, subject, html, text, headers, tags, replyT
  *                                      - 'transactional': receipts, reports (only paused on state=all)
  *                                      - 'auth': magic-link login emails — NEVER paused; customers must be
  *                                        able to log in even when all other sends are paused (DR-190)
+ * @param {boolean} [params.trackEngagement=true]
+ *                                      - Whether to route through the engagement-tracked SES configuration
+ *                                        set (open pixel + click rewriting). Pass `false` for image-less
+ *                                        cold outreach to avoid injecting a 1×1 pixel that would be the only
+ *                                        image and trigger text:image ratio spam heuristics. See DR-214.
  * @returns {Promise<{ id: string }>}
  */
-export async function sendEmail({ from, to, subject, html, text, headers, tags, replyTo, bcc, kind }) {
+export async function sendEmail({ from, to, subject, html, text, headers, tags, replyTo, bcc, kind, trackEngagement }) {
   // Reputation pause check — set by check-ses-reputation cron.
   // 'kind' lets transactional sends bypass a 'cold' pause; defaults to 'cold'
   // (the safe default — anything that doesn't pass kind:'transactional' is
@@ -175,7 +189,7 @@ export async function sendEmail({ from, to, subject, html, text, headers, tags, 
     }
   }
 
-  return sendViaSes({ from, to, subject, html, text, headers, tags, replyTo, bcc });
+  return sendViaSes({ from, to, subject, html, text, headers, tags, replyTo, bcc, trackEngagement });
 }
 
 export default { sendEmail };
