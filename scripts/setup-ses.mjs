@@ -151,7 +151,17 @@ function zoneIdForDomain(domain) {
   return CF_ZONE_ID_AUDITANDFIX;
 }
 
-const CONFIG_SET_NAME     = 'mmo-outbound';
+// Two configuration sets per DR-214:
+//   - tracked  (mmo-outbound)         engagement tracking ON  — HTML emails with
+//                                     images, transactional, video outreach
+//   - notrack  (mmo-outbound-notrack) engagement tracking OFF — image-less cold
+//                                     outreach (333Method); avoids SES injecting
+//                                     a 1×1 open pixel into otherwise image-less
+//                                     email and wrecking the text:image ratio
+//                                     spam filters use.
+const CONFIG_SET_NAME         = 'mmo-outbound';            // primary / default
+const CONFIG_SET_NAME_NOTRACK = 'mmo-outbound-notrack';    // image-less cold outreach
+const CONFIG_SET_NAMES        = [CONFIG_SET_NAME, CONFIG_SET_NAME_NOTRACK];
 const SNS_TOPIC_NAME      = process.env.SNS_TOPIC_NAME ?? 'auditandfix';
 const SNS_TOPIC_ARN_OVERRIDE = process.env.SNS_TOPIC_ARN ?? null; // Use existing topic if provided
 const S3_BUCKET_NAME      = 'auditandfix-ses-inbound';
@@ -559,22 +569,31 @@ async function step3_createConfigSet() {
   console.log('\n── Step 3: Create SES configuration set ──────────────────────────────');
 
   if (DRY_RUN) {
-    console.log(`  [dry-run] Would create configuration set: ${CONFIG_SET_NAME}`);
+    for (const name of CONFIG_SET_NAMES) {
+      console.log(`  [dry-run] Would create configuration set: ${name}`);
+    }
     return;
   }
 
-  try {
-    await sesv2.send(new CreateConfigurationSetCommand({
-      ConfigurationSetName: CONFIG_SET_NAME,
-    }));
-    console.log(`  ✓ Created configuration set: ${CONFIG_SET_NAME}`);
-  } catch (err) {
-    if (err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists')) {
-      console.log(`  ⚠ Configuration set already exists: ${CONFIG_SET_NAME}`);
-    } else {
-      throw err;
+  for (const name of CONFIG_SET_NAMES) {
+    try {
+      await sesv2.send(new CreateConfigurationSetCommand({
+        ConfigurationSetName: name,
+      }));
+      console.log(`  ✓ Created configuration set: ${name}`);
+    } catch (err) {
+      if (err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists')) {
+        console.log(`  ⚠ Configuration set already exists: ${name}`);
+      } else {
+        throw err;
+      }
     }
   }
+  // Note: engagement-tracking enablement (open pixel + click rewriting) on
+  // CONFIG_SET_NAME is configured manually in the SES console — not via this
+  // script — because the toggle lives under VDM "Additional features" which
+  // is account-level and metered. CONFIG_SET_NAME_NOTRACK must NOT have
+  // engagement tracking enabled. Verify with: npm run check:ses-config.
 }
 
 // ---------------------------------------------------------------------------
@@ -651,27 +670,45 @@ async function step4b_createCraiSnsTopic(accountId) {
 async function step5_addEventDestination(topicArn) {
   console.log('\n── Step 5: Add SNS event destination ─────────────────────────────────');
 
-  if (DRY_RUN) {
-    console.log(`  [dry-run] Would add SNS event destination to ${CONFIG_SET_NAME}`);
-    return;
-  }
+  // Tracked config set publishes ALL event types including OPEN and CLICK
+  // (engagement signals from the injected pixel + rewritten links). Notrack set
+  // publishes everything EXCEPT OPEN and CLICK, since those events would never
+  // fire on a no-tracking config set anyway. Both still need bounce/complaint/
+  // delivery so the email-webhook Worker keeps reputation telemetry intact.
+  const TRACKED_EVENTS = [
+    'SEND', 'DELIVERY', 'BOUNCE', 'COMPLAINT', 'DELIVERY_DELAY',
+    'OPEN', 'CLICK', 'REJECT', 'RENDERING_FAILURE', 'SUBSCRIPTION',
+  ];
+  const NOTRACK_EVENTS = TRACKED_EVENTS.filter(e => e !== 'OPEN' && e !== 'CLICK');
 
-  try {
-    await sesv2.send(new CreateConfigurationSetEventDestinationCommand({
-      ConfigurationSetName: CONFIG_SET_NAME,
-      EventDestinationName: 'sns-all-events',
-      EventDestination: {
-        Enabled: true,
-        MatchingEventTypes: ['SEND', 'DELIVERY', 'BOUNCE', 'COMPLAINT'],
-        SnsDestination: { TopicArn: topicArn },
-      },
-    }));
-    console.log(`  ✓ Added SNS event destination`);
-  } catch (err) {
-    if (err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists')) {
-      console.log(`  ⚠ Event destination already exists`);
-    } else {
-      throw err;
+  const eventTypesByConfigSet = {
+    [CONFIG_SET_NAME]:         TRACKED_EVENTS,
+    [CONFIG_SET_NAME_NOTRACK]: NOTRACK_EVENTS,
+  };
+
+  for (const [name, events] of Object.entries(eventTypesByConfigSet)) {
+    if (DRY_RUN) {
+      console.log(`  [dry-run] Would add SNS event destination to ${name} (${events.length} event types)`);
+      continue;
+    }
+
+    try {
+      await sesv2.send(new CreateConfigurationSetEventDestinationCommand({
+        ConfigurationSetName: name,
+        EventDestinationName: 'sns-all-events',
+        EventDestination: {
+          Enabled: true,
+          MatchingEventTypes: events,
+          SnsDestination: { TopicArn: topicArn },
+        },
+      }));
+      console.log(`  ✓ Added SNS event destination to ${name} (${events.length} event types)`);
+    } catch (err) {
+      if (err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists')) {
+        console.log(`  ⚠ Event destination already exists on ${name} (will not be updated — adjust manually if event type list changed)`);
+      } else {
+        throw err;
+      }
     }
   }
 }
@@ -1040,13 +1077,29 @@ async function step9_createIamUser(accountId) {
           `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.contactreplyai.com`,
           `arn:aws:ses:${AWS_REGION}:${accountId}:identity/contactreply.app`,
           `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.contactreply.app`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:configuration-set/${CONFIG_SET_NAME}`,
+          // Both DR-214 config sets — sender must be authorised on each.
+          ...CONFIG_SET_NAMES.map(
+            n => `arn:aws:ses:${AWS_REGION}:${accountId}:configuration-set/${n}`
+          ),
         ],
         Condition: {
           StringLike: {
             'ses:FromAddress': ALLOWED_FROM_DOMAINS,
           },
         },
+      },
+      {
+        // DR-214: the check-ses-config cron (and any operator running
+        // `npm run check:ses-config`) calls GetConfigurationSet on both sets to
+        // verify they exist with the expected engagement state. ses-sender is
+        // the runtime credential, so it needs read access to its own config sets.
+        // No FromAddress condition — that key isn't valid for this action.
+        Sid: 'AllowSESConfigSetRead',
+        Effect: 'Allow',
+        Action: ['ses:GetConfigurationSet', 'ses:GetConfigurationSetEventDestinations'],
+        Resource: CONFIG_SET_NAMES.map(
+          n => `arn:aws:ses:${AWS_REGION}:${accountId}:configuration-set/${n}`
+        ),
       },
       {
         Sid: 'AllowS3InboundRead',
