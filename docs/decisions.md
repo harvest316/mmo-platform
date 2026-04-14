@@ -259,7 +259,21 @@ SES configuration sets have **immutable names** (no rename API). The existing `m
 
 5. **Parallel SES sends in the same tick occasionally lost one inbound receipt.** In the E2E loop-back path, firing both variants (tracked + notrack) via `Promise.all` produced a single-receipt miss on ~1-in-3 runs. Sequential sends with a 1.5s spacer eliminate the flake. Root cause wasn't pinned down — most likely a transient in the SES outbound→inbound loop-back transit rather than a bug in the splitting, since isolated notrack probes arrive reliably.
 
-6. **Pre-existing intermittent failure: `contactreply.app` loop-back.** Surfaced during DR-214 verification but not caused by it — the domain's e2e-test receipt is not arriving in R2 despite successful SES sends on multiple runs. Likely an MX/receipt-rule/DNS issue for the CRAI domain. Tracked separately.
+6. **Pre-existing intermittent failure: `contactreply.app` loop-back.** Surfaced during DR-214 verification but not caused by it. Diagnosed as an architectural mismatch, not a transient: `contactreply.app` and `contactreplyai.com` are split off the shared SES receipt rule by DR-186 — their inbound goes through the `crai-inbound` SNS topic to `crai-api.auditandfix.workers.dev/webhooks/ses/email`, not the `email-webhook` Worker the E2E test polls. **Resolution:** disabled the `contactreply.app` entry in `e2e-ses-roundtrip.js DOMAINS` with an inline pointer to re-enable when the CRAI Worker grows an analogous `/e2e/email-receipt` endpoint and the test learns to route CRAI domains there. After this change the full E2E run is 3/3 PASS.
+
+---
+
+### DR-214 follow-ups completed (2026-04-14)
+
+All three follow-ups from the initial DR-214 implementation are now closed:
+
+1. **`mmo-platform/scripts/setup-ses.mjs` updated** — `CONFIG_SET_NAME` was kept as the primary tracked-set constant but a new `CONFIG_SET_NAMES` list was introduced. Step 3 now creates both config sets idempotently. Step 5 wires per-set SNS event destinations with the right event-type lists (tracked = all 10 including OPEN/CLICK; notrack = 8, no OPEN/CLICK). Step 9 IAM policy now (a) includes both config-set ARNs in `AllowSESSend` Resource and (b) gains a new `AllowSESConfigSetRead` statement granting `ses:GetConfigurationSet` + `ses:GetConfigurationSetEventDestinations` on both ARNs (no FromAddress condition). A future re-run of setup-ses.mjs is now convergent with the live state — the tmp/patch script is no longer needed for the IAM policy to stay correct.
+
+2. **`contactreply.app` E2E receipt failure** — diagnosed as the DR-186 CRAI inbound split (above, point 6) and disabled in the test harness with a clear path forward.
+
+3. **Daily cron registered for `check:ses-config`** — inserted into `ops.cron_jobs` (id 99, task_key `checkSesConfig`, daily, `command` handler running `node /home/jason/code/mmo-platform/scripts/check-ses-config.mjs`, 60s timeout, critical). Uses the existing 333Method orchestrator's environment, which loads the runtime ses-sender credentials. Verified live: the cron-style invocation succeeds and reports `(OK) tracked=enabled, notrack=disabled`.
+
+**Live IAM patch:** `mmo-platform/tmp/patch-ses-sender-policy.mjs` was extended to apply both patches (resource ARN + new read statement) and re-run successfully (`Policy updated successfully`). The script is gitignored but kept around — once setup-ses.mjs is re-run on a fresh environment, the script becomes redundant and can be deleted.
 
 ---
 
