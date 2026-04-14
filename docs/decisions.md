@@ -4,6 +4,35 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-223: Legal-grade communications archive — S3 Object Lock capture module (2026-04-14)
+
+**Context:** Recipient-facing content (cold outreach emails, SMS, transactional messages) is the primary legal liability for all mmo-platform projects. Three gaps existed: (1) `msgs.messages.message_body` stores the template, not the rendered body — we have no record of what the recipient actually received post-spintax; (2) no Twilio MessageSid persisted for 333Method/2Step outbound SMS, so they cannot be reconciled against Twilio's 400-day retention; (3) no immutable tamper-evident store — Postgres is the operational DB and the 2026-03-20 wipe proved it is not a safe legal record.
+
+**Decision:** Build a legal-grade archive using AWS S3 Object Lock (compliance mode, 7-year default retention). Architecture:
+- **Single S3 bucket** `mmo-comms-archive` (ap-southeast-2), Object Lock compliance mode, 7-year default retention (2557 days), SSE-KMS with dedicated CMK `alias/mmo-comms-archive-cmk`, versioning enabled.
+- **Capture module** `mmo-platform/src/archive.js` — four async functions (`captureOutboundEmail`, `captureInboundEmailEvent`, `captureOutboundSms`, `captureInboundSms`). Each call does two things: (1) fsync to local spool at `~/.local/state/mmo-comms-archive/` — fail-CLOSED (spool failure → caller must not proceed with send); (2) fire-and-forget PUT to S3 with `ObjectLockMode=COMPLIANCE` + SSE-KMS — fail-OPEN (S3 outage does not halt sends; uploader drains spool).
+- **Separate IAM user** `mmo-comms-archive-writer` with `s3:PutObject` only, no delete/read, no bypass-governance — distinct from SES credentials (`AWS_ACCESS_KEY_ID`). Env vars: `ARCHIVE_AWS_ACCESS_KEY_ID` / `ARCHIVE_AWS_SECRET_ACCESS_KEY`.
+- **S3 key schema**: `<channel>/<project>/<direction>/<yyyy>/<mm>/<dd>/<iso8601>_<hash12>[_<sid>].<ext>`
+- **Outbound email**: raw MIME bytes (`.eml`) + `.meta.json` sidecar (project, capturedAt, template metadata).
+- **Belt-and-suspenders retention**: both bucket default retention AND explicit `ObjectLockMode`/`ObjectLockRetainUntilDate` on every PUT.
+
+**Why not SES Mail Manager:** Adds per-email cost + AWS-to-AWS routing complexity without giving us the SMS side or inbound events. DIY S3 gives uniform coverage across all channels with a single credential.
+
+**Phased delivery:** Phase 1 (foundation — this DR): bucket + archive.js + unit tests. Phases 2–9 add schema migrations, email/SMS wiring (Node + PHP), inbound wiring, archive-uploader cron, backfill, and enforcement hooks (pre-commit + CI + CLAUDE.md rules).
+
+**Status:** Phase 1 complete — bucket configured (Object Lock compliance 7yr verified), `src/archive.js` written, 28 unit tests passing (404/404 suite).
+**Impl:** `mmo-platform/src/archive.js`, `mmo-platform/tests/unit/archive.test.js`
+
+### DR-222: Brand colour extraction for CRAI widget personalisation (2026-04-14)
+
+**Context:** CRAI's chat widget is deployed per-tenant with a configurable colour scheme. The default is generic. During purchase/onboarding, we have the customer's site URL and can auto-detect their brand colours, surfacing a "we noticed your site uses [swatch] — use it for your widget?" moment in the onboarding wizard.
+
+**Decision:** Standalone script `ContactReplyAI/scripts/extract-brand-colour.js`. No headless browser — CSS custom properties and `<meta name="theme-color">` are in static HTML/CSS and cover ~70% of sites. Extraction cascade: (1) `<meta name="theme-color">`, (2) CSS custom properties (`:root { --primary, --brand-color, --accent, … }`), (3) most-frequent non-neutral hex/rgb across `button`/`a`/`h1` rules. If only one colour found, derive accent via HSL rotation. Reject any colour with <2% HSL saturation (neutrals/grays). Cross-project cache: check `m333.sites` (same Postgres DB) first — if domain scraped within 90 days, parse their stored HTML rather than re-fetching. Freshness window: 90 days (brand colours rarely change). Results stored as `widget_primary_hex`, `widget_accent_hex`, `brand_colours_extracted_at`, `brand_colours_source` on `crai.tenants` (migration 009). Trigger: background fire-and-forget on `BILLING.SUBSCRIPTION.ACTIVATED` if site domain is available from `prospect_hints` or checkout metadata. Portal UI (swatches + override picker) deferred to portal Phase 2.
+
+**Rationale (standalone vs 333Method module):** Most CRAI signups won't be in 333Method's DB. CRAI needs its own fetch path regardless; 333Method is purely a cache-hit optimisation. Keeping it standalone avoids a cross-project runtime dependency.
+
+**Status:** Planned. Implementation in `ContactReplyAI/scripts/`, `migrations/009-brand-colours.sql`, `workers/index.js` (activation handler).
+
 ### DR-221: PayPal handler bugfixes surfaced by the E2E suite (2026-04-14)
 
 **Context:** DR-217 and DR-218 each documented a latent bug uncovered while writing Phase 4 E2E coverage. Both fixes are one-line changes and both handlers are in production, so they're consolidated here as a single post-coverage sweep.
