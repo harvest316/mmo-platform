@@ -215,6 +215,7 @@ async function scanM333Messages() {
             sent_at, created_at
      FROM m333.messages
      WHERE s3_archive_key IS NULL AND created_at < now() - interval '10 seconds'
+       AND contact_method IN ('email', 'sms')
      ORDER BY created_at
      LIMIT $1`,
     [DB_SCAN_LIMIT]
@@ -270,6 +271,7 @@ async function scanMsgsMessages() {
             sent_at, created_at
      FROM msgs.messages
      WHERE s3_archive_key IS NULL AND created_at < now() - interval '10 seconds'
+       AND contact_method IN ('email', 'sms')
      ORDER BY created_at
      LIMIT $1`,
     [DB_SCAN_LIMIT]
