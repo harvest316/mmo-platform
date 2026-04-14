@@ -51,8 +51,18 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 **Phased delivery:** Phase 1 (foundation — this DR): bucket + archive.js + unit tests. Phases 2–9 add schema migrations, email/SMS wiring (Node + PHP), inbound wiring, archive-uploader cron, backfill, and enforcement hooks (pre-commit + CI + CLAUDE.md rules).
 
-**Status:** Phase 1 complete — bucket configured (Object Lock compliance 7yr verified), `src/archive.js` written, 28 unit tests passing (404/404 suite).
-**Impl:** `mmo-platform/src/archive.js`, `mmo-platform/tests/unit/archive.test.js`
+**Status:** All phases complete (2026-04-14).
+- Phase 1: `src/archive.js` + unit tests (28 tests passing). Bucket `mmo-comms-archive`, Object Lock compliance 7yr, SSE-KMS.
+- Phase 2: PG migrations — `msgs.messages` new columns (twilio_sid, rendered_body, rendered_subject, s3_archive_key, archived_at), `crai.messages` archive columns, `msgs.ses_events` table, `tel.worm_test_log` table.
+- Phase 3: `mmo-platform/src/email.js` switched to raw MIME send; `archive.captureOutboundEmail()` wired. 333Method/2Step/CRAI callers persist rendered_body + ses_message_id to DB.
+- Phase 4: `mmo-platform/src/sms.js` archive call; 333Method/2Step/CRAI persist twilio_sid + call `archive.captureOutboundSms()`.
+- Phase 5: Inbound — 333Method SMS poller wrapped; CRAI webhook + email-webhook Worker write to `msgs.ses_events` / `crai.messages`; uploader-fallback covers both (DB-scan path).
+- Phase 6: PHP — `auditandfix-website/site/includes/comms-archive.php` (SigV4 S3 PutObject); `ses-smtp.php` calls archive before SMTP DATA; retry spool at `data/comms-archive-retry/`; nightly `cron/archive-retry.php`.
+- Phase 7: `src/archive-uploader.js` exports `runArchiveUploader()`; `ops.cron_jobs` row seeded (task_key=archiveUploader, 1min interval); handler registered in `333Method/src/cron.js` HANDLERS.
+- Phase 8: `scripts/backfill-archive.js` — one-time reconstruction for 54,136 historical `msgs.messages` rows (email + SMS), all marked `reconstructed=true`. Out-of-scope channels (form/linkedin/x) marked with synthetic key.
+- Phase 9: Enforcement — `.githooks/pre-commit-archive-check.sh` (Layer 1), `.github/workflows/archive-enforcement.yml` (Layer 2 CI gate), `CLAUDE.md` Code Review Rules (Layer 3), `scripts/worm-e2e-test.sh` (20-point WORM tamper-resistance drill).
+
+**Impl:** `mmo-platform/src/archive.js`, `mmo-platform/src/archive-uploader.js`, `mmo-platform/tests/unit/archive.test.js`, `mmo-platform/scripts/backfill-archive.js`, `mmo-platform/scripts/worm-e2e-test.sh`, `mmo-platform/.githooks/pre-commit-archive-check.sh`, `mmo-platform/.github/workflows/archive-enforcement.yml`, `333Method/src/cron.js` (archiveUploader handler + import), migrations in `mmo-platform/migrations/pg/`.
 
 ### DR-222: Brand colour extraction for CRAI widget personalisation (2026-04-14)
 

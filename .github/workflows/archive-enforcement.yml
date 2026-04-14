@@ -1,0 +1,117 @@
+name: DR-223 Archive Enforcement
+
+# Layer 2 of the archive enforcement stack (DR-223).
+# Same forbidden-pattern grep as .githooks/pre-commit-archive-check.sh,
+# but running in CI — cannot be bypassed with --no-verify.
+#
+# Blocks any PR that introduces direct SES/Twilio/SMTP usage outside the
+# approved archive wrappers. Also blocks child package.json additions of
+# twilio or @aws-sdk/client-ses*.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  archive-enforcement:
+    name: Content Archive Bypass Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need parent commit for diff
+
+      - name: Get changed files
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed_files.txt
+          else
+            git diff --name-only HEAD~1..HEAD > /tmp/changed_files.txt
+          fi
+          echo "Changed files:"
+          cat /tmp/changed_files.txt
+
+      - name: Check for archive bypass patterns
+        run: |
+          set +e  # Don't exit on grep failure (no matches = good)
+
+          ERRORS=0
+
+          # Allowlisted files that may legitimately contain these patterns
+          ALLOWLIST="mmo-platform/src/email.js|mmo-platform/src/sms.js|mmo-platform/src/archive.js|mmo-platform/src/archive-uploader.js|auditandfix-website/site/includes/ses-smtp.php|auditandfix-website/site/includes/comms-archive.php"
+
+          while IFS= read -r file; do
+            [ -f "$file" ] || continue
+
+            # Skip allowlisted files
+            if echo "$file" | grep -qE "$ALLOWLIST"; then
+              continue
+            fi
+
+            # Skip test files
+            if echo "$file" | grep -qE '/(test|tests|__tests__|spec)/|\.test\.(js|ts)$|\.spec\.(js|ts)$'; then
+              continue
+            fi
+
+            # ── JS/TS forbidden patterns ─────────────────────────────────────
+            case "$file" in
+              *.js|*.ts|*.mjs|*.cjs)
+                if grep -nP "from ['\"]@aws-sdk/client-ses(v2)?['\"]|require\(['\"]@aws-sdk/client-ses(v2)?['\"\))" "$file"; then
+                  echo "::error file=$file::Direct @aws-sdk/client-ses import — must use mmo-platform/src/email.js wrapper (DR-223)"
+                  ERRORS=$((ERRORS + 1))
+                fi
+                if grep -nP "from ['\"]twilio['\"]|require\(['\"]twilio['\"]" "$file"; then
+                  echo "::error file=$file::Direct twilio import — must use mmo-platform/src/sms.js wrapper (DR-223)"
+                  ERRORS=$((ERRORS + 1))
+                fi
+                if grep -nP "new\s+(SESClient|SESv2Client|SendEmailCommand|SendRawEmailCommand)" "$file"; then
+                  echo "::error file=$file::Direct SES SDK instantiation — must use mmo-platform/src/email.js wrapper (DR-223)"
+                  ERRORS=$((ERRORS + 1))
+                fi
+                if grep -nP "\.messages\.create\(" "$file"; then
+                  echo "::error file=$file::Direct Twilio .messages.create() — must use mmo-platform/src/sms.js wrapper (DR-223)"
+                  ERRORS=$((ERRORS + 1))
+                fi
+                if grep -nP "email-smtp\.[a-z0-9-]+\.amazonaws\.com" "$file"; then
+                  echo "::error file=$file::Raw SMTP endpoint in JS — must use mmo-platform/src/email.js wrapper (DR-223)"
+                  ERRORS=$((ERRORS + 1))
+                fi
+                ;;
+              *.php)
+                if grep -niP "fsockopen.*smtp|stream_socket_client.*smtp|new PHPMailer" "$file"; then
+                  echo "::error file=$file::Raw SMTP/PHPMailer in PHP — must use auditandfix-website/site/includes/ses-smtp.php (DR-223)"
+                  ERRORS=$((ERRORS + 1))
+                fi
+                ;;
+            esac
+
+            # ── child package.json: new twilio / ses* deps ───────────────────
+            if [[ "$file" == */package.json ]] && [[ "$file" != mmo-platform/package.json ]]; then
+              if grep -nP '"twilio"|"@aws-sdk/client-ses' "$file"; then
+                echo "::error file=$file::Child project adding twilio or @aws-sdk/client-ses* — these deps must stay in mmo-platform only (DR-223)"
+                ERRORS=$((ERRORS + 1))
+              fi
+            fi
+
+          done < /tmp/changed_files.txt
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "DR-223: Content Archive Enforcement — $ERRORS violation(s) found"
+            echo ""
+            echo "All email and SMS sends MUST route through:"
+            echo "  Node: mmo-platform/src/email.js or mmo-platform/src/sms.js"
+            echo "  PHP:  auditandfix-website/site/includes/ses-smtp.php"
+            echo ""
+            echo "See: mmo-platform/CLAUDE.md — Code Review Rules > Content Archive"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            exit 1
+          fi
+
+          echo "✓ No archive bypass patterns detected"

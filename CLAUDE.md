@@ -151,6 +151,23 @@ When running a Code Reviewer agent (or reviewing code yourself before committing
 - A `new Anthropic()` / `new OpenAI()` SDK call without a corresponding usage log
 - A `claude -p` CLI invocation outside the dispatcher/orchestrator without usage logging
 
+### Content Archive (DR-223)
+
+**Every email and SMS send/receive MUST route through `mmo-platform/src/archive.js`.** No exceptions.
+
+- **333Method / 2Step / CRAI**: must call the wrappers in `mmo-platform/src/email.js` or `mmo-platform/src/sms.js` (which call `archive.*` internally). Never import `@aws-sdk/client-ses*` or `twilio` directly.
+- **auditandfix-website**: must use `sendViaSesSmtp()` in `site/includes/ses-smtp.php`, which writes to the archive spool before the SMTP DATA command. Never open raw SMTP sockets elsewhere.
+- **Cloudflare Workers**: may not call SES/Twilio at all. Must persist to Postgres; the archive uploader (`archiveUploader` cron job) syncs to S3 within ~60 seconds.
+
+**Flag as a blocking issue** if a PR introduces:
+- A direct `new SESClient` / `new SESv2Client` / `new SendEmailCommand` / `new SendRawEmailCommand` outside the wrapper
+- A `twilio(...)` / `require('twilio')` import or `.messages.create(` call outside `mmo-platform/src/sms.js`
+- Any raw HTTP/SMTP to `api.twilio.com` or `email-smtp.*.amazonaws.com`
+- A `package.json` in any child project (333Method, 2Step, ContactReplyAI, etc.) adding `twilio` or `@aws-sdk/client-ses*` — these deps must stay in `mmo-platform` only
+- A `new PHPMailer` / `fsockopen.*smtp` / `stream_socket_client.*smtp` outside `auditandfix-website/site/includes/ses-smtp.php`
+
+Both a pre-commit hook (`.githooks/pre-commit-archive-check.sh`) and a CI gate (`.github/workflows/archive-enforcement.yml`) enforce these rules automatically. The CI gate is the authoritative layer — it cannot be bypassed with `--no-verify`.
+
 ## Website Deployment
 
 The brand website and CF Worker have been moved to a **private repo**: `~/code/auditandfix-website/` (harvest316/auditandfix-website). See that repo's CLAUDE.md for deploy instructions.
