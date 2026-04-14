@@ -4,6 +4,55 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-212: CRAI subscription checkout in api.php (2026-04-14)
+
+**Context:** CRAI (ContactReplyAI) needs a PayPal subscription checkout flow. The existing auditandfix-website `api.php` already handles 2Step subscriptions using PayPal's server-side billing API. CRAI plans live under the same PayPal account (Jason's), so the same credentials apply. The client-side PayPal JS SDK in `checkout.php` was the original flow but server-side creation gives us a pending row in SQLite before the user approves, which is cleaner for recovery/debugging.
+
+**Decision:**
+
+1. **Two new actions in `api.php`:** `create-crai-subscription` (POST) creates the PayPal subscription and returns `{ id, approve_url }`; `capture-crai-subscription` (GET) is the PayPal return-URL handler that verifies and activates.
+
+2. **Plan IDs from env vars, not hardcoded:** `CRAI_PLAN_FOUNDING` and `CRAI_PLAN_STANDARD` — set in Hostinger `.htaccess`. Allows plan ID rotation without a code deploy.
+
+3. **Separate SQLite DB:** `data/crai-subscriptions.sqlite` (not shared with `data/subscriptions.sqlite` which is 2Step's). Avoids schema coupling.
+
+4. **No email in capture handler:** `contactreplyai.com/thank-you.php` already sends the confirmation email when it loads. `captureCraiSubscription()` redirects there (`?sub=...&plan=...`) and lets it handle email — no duplication.
+
+5. **GET-allow list:** `capture-crai-subscription` added to `$e2eGetActions` list (the existing GET bypass mechanism) — PayPal sends a GET redirect, not a POST.
+
+6. **`craiSeedProspect()` reused:** Called from `captureCraiSubscription()` after activation using email/name from PayPal response. Source will appear as `2step` (existing function default) — acceptable for now; can be parameterised later.
+
+**Status:** Implemented 2026-04-14. Requires env vars `CRAI_PLAN_FOUNDING` and `CRAI_PLAN_STANDARD` set in Hostinger `.htaccess` before checkout goes live.
+
+**Files:** `auditandfix-website/site/api.php` — functions `getCraiSubscriptionDb()`, `createCraiSubscription()`, `captureCraiSubscription()`
+
+---
+
+### DR-211: CRAI — PI insurance strategy post-Pty Ltd formation (2026-04-14)
+
+**Context:** Memory previously budgeted $5K–$15K AUD/yr for PI insurance once the Pty Ltd is formed, deferring all quotes until incorporation. Research into the 2026 PI market for AI SaaS (BizCover, Upcover, DUAL; ISO CG 40 47 and Berkley PC 51380 absolute-AI-exclusion endorsements; Continuum / Kennedys guidance on silent AI) revealed the budget figure was ~5× too high, and that the real risk levers are retroactive date and AI wording — not premium size.
+
+**Decision:**
+
+1. **Keep deferral until Pty Ltd formation** — entity-specific policies and retroactive dates make pre-incorporation purchase wasteful. Gary's Decisions 2+3 stand.
+
+2. **Revise PI budget to $1.5K–$2.5K AUD/yr** for $1M cover, pre-revenue Pty Ltd via BizCover or Upcover. Prior $5K–$15K figure applies only to post-revenue bespoke broker-placed cover with explicit AI endorsements.
+
+3. **Day-one cover under Pty Ltd** — do not operate uninsured once incorporated. The biggest risk of delay is retroactive date, not cost.
+
+4. **Negotiate three things explicitly at first policy:**
+   - **Retroactive date = Pty Ltd incorporation date** (free if no prior claims; requires clean "no prior knowledge of circumstances" declaration)
+   - **No absolute AI exclusion** — refuse ISO CG 40 47 / Berkley PC 51380 style endorsements; disclose the AI autoresponder use case upfront (hiding it voids cover)
+   - **Named coverage for customer-facing generative AI** — Continuum flagged this as the specific high-risk pattern underwriters are excluding
+
+5. **Governance documentation BEFORE applying** — AI tool register, model risk policy, opt-out logs, audit trail per message. These get better wording at no extra premium and are the currency of insurability in the post-ISO-CG-40-47 market.
+
+6. **Governance posture: "human-configured, AI-executed, human-auditable"** — NOT per-message human-in-the-loop. Per-message HITL would satisfy underwriters but kill CRAI's automation value prop. Acceptable alternative: template-bounded generation + recipient disclosure ("this reply was AI-assisted") + opt-out logging + per-message audit trail. This demonstrates "bounded autonomy" — weaker than HITL but stronger than nothing, and underwriter-negotiable.
+
+**Status:** Deferred action — triggers on Pty Ltd incorporation. Pre-incorporation work: build AI governance documentation (tool register, model risk policy) so it exists when the first PI application is lodged.
+
+**References:** `tmp/pi-insurance-research.pdf`, Continuum "Hidden AI Exclusions" (2026), Kennedys "Silent AI cover" (2025), BizCover IT Professional PI tiers, memory `project_crai_casa_pty_ltd.md`
+
 ### DR-208: CRAI onboarding pre-population from 333Method cross-sell data (2026-04-12)
 
 **Context:** CRAI onboarding wizard asks 6 steps of questions (business profile, hours, services, FAQs, channels, review). For prospects who came in via 333Method cold outreach, we already know: business name, phone, city/state, trade (inferred from keyword), and may have inbound reply messages that reveal what topics the prospect cares about (emergency call-outs, weekends, pricing, etc.). Asking them to type this in again creates unnecessary friction.
