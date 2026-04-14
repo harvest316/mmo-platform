@@ -1,7 +1,7 @@
 /**
  * api.php — sandbox PayPal webhook endpoint (`?action=paypal-webhook-sandbox`).
  *
- * Verifies DR-214: a dedicated sandbox endpoint forces PAYPAL_MODE=sandbox
+ * Verifies DR-220: a dedicated sandbox endpoint forces PAYPAL_MODE=sandbox
  * regardless of query params, segregates writes to data/subscriptions-sandbox.sqlite,
  * and fails loudly if PAYPAL_SANDBOX_CLIENT_ID / PAYPAL_SANDBOX_CLIENT_SECRET
  * are missing (no silent fallback to live creds).

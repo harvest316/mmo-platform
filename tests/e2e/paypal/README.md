@@ -211,8 +211,8 @@ The setup hook re-creates them from `helpers/neon-test.js`.
 
 - **DR-213** — Original PayPal webhook production cutover. Flagged Gap C:
   sandbox webhooks landing in live mode. Status moved from "accepted
-  limitation" to "resolved by DR-214".
-- **DR-214** — api.php sandbox endpoint + SQLite segregation. Dedicated
+  limitation" to "resolved by DR-220".
+- **DR-220** — api.php sandbox endpoint + SQLite segregation. Dedicated
   `paypal-webhook-sandbox` action forces sandbox mode; per-mode DB files;
   strict sandbox creds; `PAYPAL_API_BASE` env override for test plumbing.
 - **DR-215** — E2E test architecture. Vitest at

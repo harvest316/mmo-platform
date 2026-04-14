@@ -3,7 +3,7 @@
  *
  * api.php keeps two SQLite files under <siteDir>/data/:
  *   - subscriptions.sqlite          (live mode, 2Step)
- *   - subscriptions-sandbox.sqlite  (sandbox mode, 2Step, DR-214)
+ *   - subscriptions-sandbox.sqlite  (sandbox mode, 2Step, DR-220)
  *   - crai-subscriptions.sqlite / crai-subscriptions-sandbox.sqlite
  *     (not currently populated by handlePayPalWebhook() because CRAI uses
  *      the return-URL GET + the CRAI Worker webhook, but a helper is provided

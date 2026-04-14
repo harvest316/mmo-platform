@@ -139,7 +139,7 @@ gaps") — fall back to the SSH command printed by the harness.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Hop 1 stays `not-found` | PayPal didn't retry the webhook, or api.php returned non-2xx | Check `logs/api-error.log` on the host; look for the retrieve-verify call |
-| Hop 1 `wrong-status` | Retrieve-verify hit live API instead of sandbox — DR-214 regression | Re-check `config.php` sandbox detection block, confirm `?action=paypal-webhook-sandbox` routes to `$_isSandboxWebhook` |
+| Hop 1 `wrong-status` | Retrieve-verify hit live API instead of sandbox — DR-220 regression | Re-check `config.php` sandbox detection block, confirm `?action=paypal-webhook-sandbox` routes to `$_isSandboxWebhook` |
 | Hop 3 stays `not-found` | `paypal-webhook-worker-test` dashboard subscription missing the event type | PayPal developer dashboard → app → webhooks → edit → tick the event |
 | `cancel returned HTTP 401` | Sandbox OAuth creds wrong, likely a copy-paste error in `PAYPAL_SANDBOX_CLIENT_ID/SECRET` | Pull from `~/code/ContactReplyAI/.env` or regenerate in PayPal dashboard |
 | `create-subscription returned HTTP 500` | Strict-sandbox-creds check in config.php fired — `.htaccess` missing `PAYPAL_SANDBOX_*` | Verify .htaccess, look for "sandbox creds missing" in `logs/api-error.log` |
@@ -167,7 +167,7 @@ curl -X DELETE \
 
 ## Scope gaps
 
-The following follow-ups are intentionally deferred from the DR-214/DR-215 PR:
+The following follow-ups are intentionally deferred from the DR-220/DR-215 PR:
 
 1. **`?action=e2e-sandbox-subscription-status&sub_id=…` in api.php.**
    Without this, Hop 1 verification is manual (SSH + `sqlite3`). Should gate
@@ -195,7 +195,7 @@ The following follow-ups are intentionally deferred from the DR-214/DR-215 PR:
   handler returned non-2xx, tail `logs/api-error.log` on the auditandfix.com
   host. If PayPal shows no attempt, the webhook URL isn't subscribed to the
   event — fix in the dashboard.
-- **"Sandbox creds missing 500"** — DR-214 strict-creds behaviour. The config
+- **"Sandbox creds missing 500"** — DR-220 strict-creds behaviour. The config
   refuses to fall back to live creds when sandbox mode is forced by the
   endpoint. Add the missing `PAYPAL_SANDBOX_CLIENT_ID` /
   `PAYPAL_SANDBOX_CLIENT_SECRET` to `.htaccess`.

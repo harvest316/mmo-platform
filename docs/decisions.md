@@ -4,6 +4,56 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-221: PayPal handler bugfixes surfaced by the E2E suite (2026-04-14)
+
+**Context:** DR-217 and DR-218 each documented a latent bug uncovered while writing Phase 4 E2E coverage. Both fixes are one-line changes and both handlers are in production, so they're consolidated here as a single post-coverage sweep.
+
+**Fix 1 — 333Method `verifyPaymentAmount` was not awaiting async `getPrice()`.**
+
+`333Method/src/utils/country-pricing.js:63` defines `export async function getPrice(countryCode)` (PG-migrated in commit `e201066d`). `333Method/src/payment/webhook-handler.js:77` called `const pricing = getPrice(countryCode)` synchronously, so `pricing` was always a Promise and `pricing.currency` was always `undefined`. Every `CHECKOUT.ORDER.APPROVED` / `PAYMENT.CAPTURE.COMPLETED` over $5 then tripped the Currency-mismatch guard at `webhook-handler.js:85`, the `processed_webhooks` row inserted at `webhook-handler.js:141` was DELETEd on rollback at line 169, and no purchase + no fresh assessment ever landed.
+
+Fix: `verifyPaymentAmount` is now `async`, awaits `getPrice()`, and `processPaymentComplete()` awaits `verifyPaymentAmount()`. No other call sites (confirmed via `grep -r`). Commit `4ea2239b` on 333Method main.
+
+**Fix 2 — CRAI Worker precedence flipped so PAYMENT.SALE.* resolves the real subscription id.**
+
+`ContactReplyAI/workers/index.js:1359` computed `const subscriptionId = resource.id || resource.billing_agreement_id;`. For `PAYMENT.SALE.COMPLETED` / `DENIED` PayPal sets `resource.id` to the sale-txn id and `resource.billing_agreement_id` to the subscription id. The `||` fallback never fired, so the UPDATE at line 1443 never matched a tenant row. Result: the DR-196 trial→active safety net (PAYMENT.SALE.COMPLETED flipping billing_status when the trial ends naturally) never activated.
+
+Fix: `resource.billing_agreement_id || resource.id`. `BILLING.SUBSCRIPTION.*` events don't carry `billing_agreement_id`, so `resource.id` still wins for those — existing behaviour preserved. Commit `e7ec730` on ContactReplyAI main. Corresponding test update at `mmo-platform/tests/e2e/paypal/tests/crai-worker.test.js` commit `55aab4d` (seeds by real subscription id instead of sale-txn id).
+
+**Status:** Accepted, both fixes committed. DR-217-bug-1 and DR-218-bug-1 resolved. Deployment:
+
+- 333Method webhook-handler runs host-side via systemd; next orchestrator cycle or service restart picks up the fix (AFK orchestrator auto-pulls + restarts).
+- CRAI Worker needs `cd ~/code/ContactReplyAI/workers && npx wrangler deploy` — not auto-deployed on commit.
+
+### DR-220: api.php sandbox webhook endpoint + DB segregation (2026-04-14)
+
+**Context:** DR-213 gap 4 documented an accepted limitation: `api.php`'s `PAYPAL_MODE` was request-scoped via `?sandbox=<E2E_SANDBOX_KEY>`, but PayPal webhook POSTs carry no query token, so sandbox webhooks defaulted to live mode and the retrieve-verify call at `api.php:1818` always tried to look up sandbox-only subscription ids against live PayPal (and got 404). The limitation was tolerable only because no real sandbox end-to-end testing was being done. The PayPal webhook E2E coverage work (DR-215 → DR-219) needs the sandbox path to actually function.
+
+**Decision:** Introduce a dedicated sandbox endpoint + full ledger segregation.
+
+1. **New action `paypal-webhook-sandbox`** dispatched next to the live `paypal-webhook` case (`api.php:93-100`). Both share `handlePayPalWebhook()` — the distinguishing behaviour lives in `config.php`.
+
+2. **`config.php` detects the sandbox action before defining `PAYPAL_MODE`.** `$_isSandboxWebhook = REQUEST_METHOD === POST && action === 'paypal-webhook-sandbox'`. `$_paypalMode` becomes `'sandbox'` whenever either `$_paypalForceSandbox` (the existing `?sandbox=<key>` trigger) OR `$_isSandboxWebhook` is true. This means the PayPal sandbox dashboard can register `https://auditandfix.com/api.php?action=paypal-webhook-sandbox` and the request forces sandbox mode without needing a query token.
+
+3. **Strict sandbox creds (no silent fallback to live).** When `PAYPAL_MODE === 'sandbox'` but `PAYPAL_SANDBOX_CLIENT_ID` / `PAYPAL_SANDBOX_CLIENT_SECRET` are unset, `config.php` responds 500 with `{"error":"sandbox_credentials_missing"}` and halts. The old behaviour (silent fallback to live creds) was a footgun — if sandbox creds were ever unset in production, sandbox webhooks would verify against live PayPal and every verification would fail mysteriously. Matches the `feedback_no_fallbacks` rule.
+
+4. **`PAYPAL_API_BASE` env override.** `config.php` reads `PAYPAL_API_BASE` (when set) in preference to the hardcoded `api-m.paypal.com` / `api-m.sandbox.paypal.com`. Unset in production. E2E tests set it to point `handlePayPalWebhook()`'s retrieve-verify cURL calls at a local msw mock server.
+
+5. **Separate SQLite files per mode.** `getSubscriptionDb()` writes to `data/subscriptions.sqlite` (live) or `data/subscriptions-sandbox.sqlite` (sandbox). `getCraiSubscriptionDb()` mirrors the pattern for `data/crai-subscriptions.sqlite` → `data/crai-subscriptions-sandbox.sqlite`. Same schema migrations applied to both on open. Sandbox rows never touch production ledgers, even if a subscription id prefix collides.
+
+**Why not signature-verify via `PAYPAL_WEBHOOK_ID`:** api.php still uses the retrieve-verify pattern (GET `/v1/billing/subscriptions/{id}`) — simpler than `/v1/notifications/verify-webhook-signature`, and works for low volume. `PAYPAL_SANDBOX_WEBHOOK_ID` is reserved in `.env.example` for a future signature-verify upgrade.
+
+**Files:**
+- `auditandfix-website/site/includes/config.php` — sandbox detection, strict creds, PAYPAL_API_BASE override (commit `5a6a9f7`).
+- `auditandfix-website/site/api.php` — dispatch case + DB helper suffixes + retrieve-verify uses `PAYPAL_API_BASE` (commit `5a6a9f7`).
+- `auditandfix-website/.env.example` — sandbox/API_BASE doc (commit `5a6a9f7`).
+
+**Deployment:** FTP-deployed `api.php` + `includes/config.php` to auditandfix.com production 2026-04-14. Post-deploy smoke verified: live endpoint unchanged, sandbox endpoint routes through `handlePayPalWebhook()`, sandbox creds already present in production `.htaccess` (no 500).
+
+**Registration:** PayPal sandbox webhook already registered at `https://auditandfix.com/api.php?action=paypal-webhook-sandbox` with `BILLING.SUBSCRIPTION.ACTIVATED/CANCELLED/SUSPENDED` (user-confirmed pre-implementation).
+
+**Status:** Accepted. Resolves DR-213 gap 4.
+
 ### DR-219: cross-service PayPal + cross-sell E2E (2026-04-14)
 
 **Context:** DR-218 covered the CRAI Worker and seed-prospect endpoint in isolation (HTTP fixtures hitting the Worker directly). DR-208 stood up the 333Method→CRAI cross-sell signal (`333Method/src/utils/crai-prospect-seeder.js` → `/api/internal/seed-prospect` → `prospect_hints` → `knowledge_base` prefill on ACTIVATED). Nothing was exercising the full chain with real 333Method source code driving the HTTP call — a regression in the seeder module (renamed env var, changed URL shape, dropped header) would not be caught by the existing tests.
@@ -118,7 +168,7 @@ This completes DR-215's Phase 4 for the CRAI Worker. Phase 5 (cross-service `cro
 
 ### DR-216: api.php PayPal webhook E2E coverage — Phase 4 (2026-04-14)
 
-**Context:** DR-215 landed the scaffold (fixtures + helpers + config) but no tests. Before taking real money through the live PayPal endpoint (DR-213 resolved by DR-214) we need regression coverage for every event × endpoint combination on `handlePayPalWebhook()` in `auditandfix-website/site/api.php:1800`.
+**Context:** DR-215 landed the scaffold (fixtures + helpers + config) but no tests. Before taking real money through the live PayPal endpoint (DR-213 gap 4 resolved by DR-220) we need regression coverage for every event × endpoint combination on `handlePayPalWebhook()` in `auditandfix-website/site/api.php:1800`.
 
 **Decision:** Added two Vitest files exercising the 2Step webhook paths end-to-end against `php -S` + msw-mocked PayPal API:
 
@@ -217,7 +267,7 @@ SES configuration sets have **immutable names** (no rename API). The existing `m
 
 1. Fix gaps 1–3 via PayPal Developer Dashboard (URL edits + event subscriptions). User handles since it requires dashboard access.
 2. For new sandbox CRAI webhook, also run `npx wrangler secret put PAYPAL_WEBHOOK_ID --env staging` with the newly-created webhook ID.
-3. Leave gap 4 alone — not worth the api.php retrieve-verify rework until real sandbox subscription testing is needed.
+3. ~~Leave gap 4 alone — not worth the api.php retrieve-verify rework until real sandbox subscription testing is needed.~~ **Resolved 2026-04-14 by DR-220** — dedicated `paypal-webhook-sandbox` action + separate sandbox SQLite files + strict sandbox creds + PAYPAL_API_BASE env override. Sandbox webhook registered in dashboard, production deploy verified.
 
 **Status:** Identified 2026-04-14, pending user execution in PayPal dashboard + staging Worker secret.
 

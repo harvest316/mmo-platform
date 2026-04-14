@@ -7,7 +7,7 @@
  *
  * Key env var: PAYPAL_API_BASE — points at the mock PayPal server URL so
  * retrieve-verify / getPayPalAccessToken hit the local mock instead of
- * api-m.sandbox.paypal.com. This override is honoured by api.php (DR-214).
+ * api-m.sandbox.paypal.com. This override is honoured by api.php (DR-220).
  */
 
 import { spawn } from 'node:child_process';
