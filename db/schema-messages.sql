@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS opt_outs (
 );
 
 -- =============================================================================
--- unsubscribed_emails: email unsubscribes (CAN-SPAM / Resend webhook)
+-- unsubscribed_emails: email unsubscribes (CAN-SPAM / SES SNS complaint webhook)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS unsubscribed_emails (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

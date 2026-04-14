@@ -1,9 +1,9 @@
 # Manual Status Checks
 
 ## Daily
-https://resend.com/emails/receiving
+https://us-east-1.console.aws.amazon.com/ses/home#/sending-statistics
 https://claude.ai/settings/usage
-https://resend.com/metrics
+https://us-east-1.console.aws.amazon.com/ses/home#/reputation-dashboard
 https://openrouter.ai/activity
 https://console.twilio.com/us1/monitor/insights/sms?frameUrl=%2Fconsole%2Fsms%2Finsights%2Fdelivery%3Fx-target-region%3Dus1&q=tabKey%3Doverview%26timeRangeFilterPreset%3DPAST_D_7
 

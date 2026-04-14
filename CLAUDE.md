@@ -42,7 +42,7 @@ Until Phase 2 extraction, child projects load secrets from 333Method:
 ```
 2Step/src/utils/load-env.js loads:
   1. ~/code/2Step/.env              (project-specific)
-  2. ~/code/333Method/.env.secrets  (Twilio, Resend, etc.)
+  2. ~/code/333Method/.env.secrets  (Twilio, SES, etc.)
   3. ~/code/333Method/.env          (GOOGLE_SHEETS_*, ZENROWS_*, etc.)
 ```
 
