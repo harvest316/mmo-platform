@@ -4,6 +4,28 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-213: PayPal webhook coverage gaps identified (2026-04-14)
+
+**Context:** During DR-201 cutover review, found that live + sandbox PayPal webhooks are subscribed to fewer events than their handlers support, and no sandbox webhook exists for CRAI's own Worker.
+
+**Gaps:**
+
+1. **`paypal-webhook-worker` (live `89Y2…` + sandbox `1GP2…`)** — Worker handler supports 10 events ([workers/paypal-webhook/src/index.js:14-23](333Method/workers/paypal-webhook/src/index.js#L14)) but only 3 are subscribed on both environments. Missing: `PAYMENT.CAPTURE.DENIED`, `PAYMENT.CAPTURE.REFUNDED`, `BILLING.SUBSCRIPTION.CREATED`, `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`, `BILLING.SUBSCRIPTION.PAYMENT.FAILED`, `BILLING.SUBSCRIPTION.PAYMENT.COMPLETED`.
+
+2. **CRAI live webhook `8TJ6…`** — Missing `BILLING.SUBSCRIPTION.RENEWED`, `BILLING.SUBSCRIPTION.SUSPENDED`, `PAYMENT.SALE.DENIED` (handler at [workers/index.js:1343-1363](ContactReplyAI/workers/index.js#L1343)). Also needs URL update from `crai-api.auditandfix.workers.dev/webhooks/paypal` → `api.contactreply.app/webhooks/paypal` (DR-201 cutover).
+
+3. **No sandbox webhook for CRAI** — Staging Worker at `api-staging.contactreply.app` has `PAYPAL_MODE="sandbox"` configured and handler is ready, but no PayPal sandbox webhook points at it. Sandbox CRAI subscriptions (via `?sandbox=<key>`) don't currently fire a webhook that lands anywhere the Worker can process.
+
+4. **No sandbox webhook for `api.php`** — Not fixable without a code change: [api.php:1818](auditandfix-website/site/api.php#L1818) picks PayPal API base from request-scoped `PAYPAL_MODE`, which has no sandbox switch on an unauthenticated webhook request. Accepted as known limitation — sandbox testing bypasses api.php webhook (capture happens directly via `thank-you.php`).
+
+**Decision:**
+
+1. Fix gaps 1–3 via PayPal Developer Dashboard (URL edits + event subscriptions). User handles since it requires dashboard access.
+2. For new sandbox CRAI webhook, also run `npx wrangler secret put PAYPAL_WEBHOOK_ID --env staging` with the newly-created webhook ID.
+3. Leave gap 4 alone — not worth the api.php retrieve-verify rework until real sandbox subscription testing is needed.
+
+**Status:** Identified 2026-04-14, pending user execution in PayPal dashboard + staging Worker secret.
+
 ### DR-212: CRAI subscription checkout in api.php (2026-04-14)
 
 **Context:** CRAI (ContactReplyAI) needs a PayPal subscription checkout flow. The existing auditandfix-website `api.php` already handles 2Step subscriptions using PayPal's server-side billing API. CRAI plans live under the same PayPal account (Jason's), so the same credentials apply. The client-side PayPal JS SDK in `checkout.php` was the original flow but server-side creation gives us a pending row in SQLite before the user approves, which is cleaner for recovery/debugging.
@@ -112,7 +134,7 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 **Rollback:** `wrangler rollback --env production` (C1); re-point webhook URLs + `systemctl start crai-api.service` (C3); zero data loss — both systems can run briefly in parallel (C4).
 
-**Status:** Runbook written; awaiting user execution from host terminal.
+**Status:** Executed 2026-04-14. C1 (wrangler deploy --env production) done. Production secrets set from `.env`. Worker healthy at `https://api.contactreply.app/health` (HTTP 200, `db:true`). Portal was already current at `contactreply.app`. Twilio SMS webhook + SES SNS (`/webhooks/ses/email`) webhook were already pointing at the Worker; only PayPal live webhook `8TJ65610B74479252` still to be edited (URL from `crai-api.auditandfix.workers.dev/webhooks/paypal` → `api.contactreply.app/webhooks/paypal`, plus add RENEWED/SUSPENDED/SALE.DENIED events). C4 skipped — old Node.js `crai-api.service` was never actually installed as a systemd unit (discovered during cutover). C6 pending. No paying customers during cutover, zero downtime.
 
 ### DR-200: Vitest for CRAI Node.js unit tests (2026-04-10)
 
