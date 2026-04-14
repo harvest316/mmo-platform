@@ -242,40 +242,33 @@ describe('status-map event routing', () => {
     expect(row.billing_status).toBe('paused');
   });
 
-  // Note on PAYMENT.SALE.* routing:
-  //   handlePayPalWebhook() computes
-  //     const subscriptionId = resource.id || resource.billing_agreement_id;
-  //   (workers/index.js:1359). For PAYMENT.SALE.* events PayPal sets
-  //   resource.id to the *sale* id (not the subscription id), so the UPDATE
-  //   falls through to the sale id unless `resource.id` is falsy. These tests
-  //   therefore seed a tenant row keyed on the sale id to lock in the Worker's
-  //   current observable behaviour. See DR-213 follow-up — arguably the
-  //   precedence should be flipped (prefer billing_agreement_id for SALE
-  //   events), but that's a code change outside this test's scope.
+  // PAYMENT.SALE.* events: resource.id is the sale-txn id and the subscription
+  // id lives in resource.billing_agreement_id. After DR-218 the Worker prefers
+  // billing_agreement_id, so the safety-net UPDATE matches the real tenant row.
   it('PAYMENT.SALE.COMPLETED → billing_status=active (safety net)', async () => {
     const fx = await loadFixture('crai-worker', 'payment-sale-completed');
-    const saleId = fx.body_parsed.resource.id;
-    await seedTenant({ sub: saleId, email: 'newtenant@example.com', status: 'trial', plan: 'founding' });
+    const subId = fx.body_parsed.resource.billing_agreement_id;
+    await seedTenant({ sub: subId, email: 'newtenant@example.com', status: 'trial', plan: 'founding' });
 
     const { res } = await dispatchFixture('payment-sale-completed');
     expect(res.status).toBe(200);
     const [row] = await query(
       `SELECT billing_status FROM crai_test.tenants WHERE paypal_subscription_id = $1`,
-      [saleId],
+      [subId],
     );
     expect(row.billing_status).toBe('active');
   });
 
   it('PAYMENT.SALE.DENIED → billing_status=paused', async () => {
     const fx = await loadFixture('crai-worker', 'payment-sale-denied');
-    const saleId = fx.body_parsed.resource.id;
-    await seedTenant({ sub: saleId, email: 'standard@example.com', status: 'active', plan: 'standard' });
+    const subId = fx.body_parsed.resource.billing_agreement_id;
+    await seedTenant({ sub: subId, email: 'standard@example.com', status: 'active', plan: 'standard' });
 
     const { res } = await dispatchFixture('payment-sale-denied');
     expect(res.status).toBe(200);
     const [row] = await query(
       `SELECT billing_status FROM crai_test.tenants WHERE paypal_subscription_id = $1`,
-      [saleId],
+      [subId],
     );
     expect(row.billing_status).toBe('paused');
   });
