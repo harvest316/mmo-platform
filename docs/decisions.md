@@ -243,9 +243,23 @@ SES configuration sets have **immutable names** (no rename API). The existing `m
 
 **Not a rule on text-only MIME.** The distinguishing factor is "has images" vs "no images", not "text/plain vs text/html". 333Method sends multipart/alternative HTML+text — the HTML is minimal and image-less, so it gets the notrack treatment.
 
-**Status:** Accepted. mmo-outbound tracking enabled by user 2026-04-14. Code changes committed. `mmo-outbound-notrack` config set + VDM Optimized Shared Delivery enablement = user DIY in AWS console.
+**Status:** Accepted. mmo-outbound tracking enabled by user 2026-04-14. Both config sets live in AWS with correct engagement states (verified via `npm run check:ses-config`). Optimized Shared Delivery enabled on both.
 
-**Impl:** `mmo-platform/src/email.js` (`sendViaSes` routing logic, `sendEmail` parameter threading), `mmo-platform/tests/unit/email.test.js` (+5 tests, all green), `333Method/src/outreach/email.js` (caller opt-out).
+**Impl:** `mmo-platform/src/email.js` (`sendViaSes` routing logic, `sendEmail` parameter threading), `mmo-platform/tests/unit/email.test.js` (+5 tests), `333Method/src/outreach/email.js` (caller opt-out), `mmo-platform/src/ses-config-check.js` + `mmo-platform/scripts/check-ses-config.mjs` + `mmo-platform/tests/unit/ses-config-check.test.js` (pre-flight existence check, 20 tests), `333Method/scripts/e2e-ses-roundtrip.js` (live tracking-pixel assertion — sends two HTML emails and verifies `awstrack.me` is present in the tracked body and absent from the notrack body by fetching raw MIME from `s3://auditandfix-ses-inbound/inbound/<messageId>`).
+
+**Implementation findings (2026-04-14):**
+
+1. **ses-sender IAM policy needed an additional resource ARN.** The `AllowSESSend` statement in `ses-sender-policy` enumerated `configuration-set/mmo-outbound` but not `mmo-outbound-notrack`, so every cold-outreach send routed through the new config set failed with `AccessDeniedException`. Patched live via `mmo-platform/tmp/patch-ses-sender-policy.mjs` (gitignored, kept for re-application). **Action item for user:** update `mmo-platform/scripts/setup-ses.mjs` so the `CONFIG_SET_NAME` constant becomes a list or the policy resource block enumerates both — otherwise a re-run of setup-ses.mjs will silently revert the policy.
+
+2. **IAM eventual consistency was observable.** After patching the policy, the first subsequent `SendEmail` calls succeeded, but a fresh send ~1 min later hit `AccessDeniedException` again before resolving on retry. Any tooling that creates/updates IAM policies and immediately exercises the permission should expect transient failures for up to ~60 seconds after a `PutUserPolicy` call.
+
+3. **SNS event destinations on `mmo-outbound-notrack` are correctly configured.** User created the config set with BOUNCE, COMPLAINT, DELIVERY, DELIVERY_DELAY, REJECT, RENDERING_FAILURE, SEND, SUBSCRIPTION event destinations wired to the `auditandfix` SNS topic — deliberately excluding OPEN and CLICK (the engagement events that would be null anyway). Bounce/complaint from cold outreach will continue to reach the email-webhook Worker and the reputation monitoring pipeline.
+
+4. **S3 key for raw inbound MIME is `inbound/<mail.messageId>`.** The SES SNS payload carries `receipt.action` describing only the SNSAction that fired the notification — it does not surface the sibling S3Action's object key. But the S3Action uses `ObjectKeyPrefix: 'inbound/'` with the default behaviour of keying by `mail.messageId`, so consumers that need to fetch the raw MIME can reconstruct the key from the normaliser's `event.data.email_id`. This is how the E2E tracking-pixel check reads the bodies.
+
+5. **Parallel SES sends in the same tick occasionally lost one inbound receipt.** In the E2E loop-back path, firing both variants (tracked + notrack) via `Promise.all` produced a single-receipt miss on ~1-in-3 runs. Sequential sends with a 1.5s spacer eliminate the flake. Root cause wasn't pinned down — most likely a transient in the SES outbound→inbound loop-back transit rather than a bug in the splitting, since isolated notrack probes arrive reliably.
+
+6. **Pre-existing intermittent failure: `contactreply.app` loop-back.** Surfaced during DR-214 verification but not caused by it — the domain's e2e-test receipt is not arriving in R2 despite successful SES sends on multiple runs. Likely an MX/receipt-rule/DNS issue for the CRAI domain. Tracked separately.
 
 ---
 
