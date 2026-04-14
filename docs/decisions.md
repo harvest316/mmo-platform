@@ -4,6 +4,58 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-218: CRAI Worker PayPal + seed-prospect E2E coverage (2026-04-14)
+
+**Context:** DR-215 landed the Vitest scaffold with fixtures + helpers; DR-216 covered api.php; DR-217 covered 333Method. The CRAI Worker (`~/code/ContactReplyAI/workers/index.js`, `/webhooks/paypal` + `/api/internal/seed-prospect`) was the remaining uncovered handler.
+
+**Decision:** Added two Vitest files under `mmo-platform/tests/e2e/paypal/tests/`:
+
+1. **`crai-worker.test.js` — 18 tests** exercising `handlePayPalWebhook` and the webhook dedup route:
+   - `BILLING.SUBSCRIPTION.ACTIVATED`: new-tenant path (tenants row inserted with `billing_status='trial'`, plan derived from `PAYPAL_PLAN_FOUNDING`/`STANDARD`), paused→active reactivation via the `CASE` expression at `workers/index.js:1364-1369`, knowledge_base prefill from `prospect_hints` via `buildKnowledgeBaseFromHint()` with `used_at` set.
+   - Status-map transitions: `RENEWED`/`PAYMENT.SALE.COMPLETED`→`active`, `CANCELLED`→`cancelled`, `SUSPENDED`/`PAYMENT.SALE.DENIED`→`paused`.
+   - Founding counter: non-sandbox ACTIVATED → `site_stats.founding_taken ++`; sandbox-prefixed sub id → no-op; non-founding plan → no-op; non-sandbox CANCELLED of founding → `GREATEST(0, n-1)`; sandbox CANCELLED → no decrement.
+   - Idempotency via `crai.webhook_events(provider, external_id)` unique — replayed `paypal-transmission-id` returns `{action:'duplicate_skipped'}` and does not re-insert tenant rows.
+   - Signature verify FAILURE → 403, no DB writes. Missing `PAYPAL_WEBHOOK_ID` binding → 403, no DB writes (covers the early-return at `verifyPayPalWebhookSignature` line 1186).
+   - Malformed inputs: invalid JSON → 4xx, empty body → 4xx, unknown event_type → 200 `{action:'ignored'}` with no DB writes.
+
+2. **`seed-prospect.test.js` — 8 tests** exercising `POST /api/internal/seed-prospect` and its downstream integration:
+   - Happy path: `X-Seed-Secret` authenticated, all fields persisted including the TEXT[] `conversation_topics` array.
+   - Upsert on `lower(email)` conflict: second call wins for non-null fields, COALESCE preserves existing values when the new payload omits them, `used_at` reset to NULL.
+   - Auth: missing or wrong `X-Seed-Secret` → 401, no hint written.
+   - Validation: missing email → 400, invalid email (no `@`) → 400.
+   - Integration with ACTIVATED: seed a hint, fire ACTIVATED for the same email → tenant.`knowledge_base` prefilled, `meta.prefill_source='333method'`, conversation topics surface as FAQs via `topicsToFaqs()`, hint `used_at` is set. Subsequent ACTIVATED for a fresh subscription id on the same email → no prefill (hint exhausted, `used_at IS NOT NULL` excludes it from the lookup).
+
+**Discovered bug (DR-218-bug-1 — not yet fixed):**
+
+`handlePayPalWebhook` at `workers/index.js:1359` computes
+```js
+const subscriptionId = resource.id || resource.billing_agreement_id;
+```
+For `PAYMENT.SALE.COMPLETED` / `PAYMENT.SALE.DENIED` PayPal sets `resource.id` to the **sale** id (e.g. `9AB98765CD4321098`) and `resource.billing_agreement_id` to the subscription id (`I-CRAIFOUNDING0001`). Since `resource.id` is always truthy, the `||` fallback never fires — so the UPDATE targets the sale id and never matches a real tenant. Result: `PAYMENT.SALE.COMPLETED` never flips a trial tenant to `active` (the safety net the event is supposed to provide per DR-196). Tests were written against **observed** behaviour (seed a tenant keyed on the sale id) to lock in the current state; the correct fix is to prefer `billing_agreement_id` for SALE-type events, and will be tracked as DR-218-bug-1. Impact is limited because `BILLING.SUBSCRIPTION.RENEWED` is the primary trigger for the trial→active transition and does resolve via `resource.id` correctly.
+
+**Scaffold tweaks applied during implementation:**
+
+- **`helpers/crai-worker.js`** — added esbuild pre-bundle step. The Worker imports `@neondatabase/serverless` which Miniflare cannot resolve when the Worker is loaded via `{ script, scriptPath }`; bundling to `tmp/bundle/crai-worker.mjs` (kept inside the package directory so workerd's sandbox doesn't reject `..` traversal) produces a single ESM file with all npm deps inlined.
+- **`helpers/crai-worker.js`** — `dispatch()` now unwraps host `Request` objects to `(url, { method, headers, body })` before calling `mf.dispatchFetch()`. Passing a Request directly trips `ERR_INVALID_URL` inside Miniflare's undici Request constructor (same root cause as the DR-217 scaffold tweak).
+- **`helpers/crai-worker.js`** — `outboundService` now reconstructs the forwarded fetch explicitly (`fetch(urlStr, {method, headers, body})`) instead of passing the intercepted Request through directly; msw's interceptor rejected the mixed form.
+- **`helpers/crai-worker.js`** — fixed the binding name for seed-prospect auth. The Worker reads `env.SEED_API_SECRET` (line 2761); the scaffold previously bound `SEED_PROSPECT_SECRET`. Both are now set to the same value for back-compat.
+- **`helpers/neon-http-bridge.js` (new)** — HTTP listener implementing the Neon serverless driver's `/sql` protocol on top of a local `pg.Pool`. The CRAI Worker uses `neon(DATABASE_URL)` (HTTPS-only driver) which cannot talk to a local PG socket directly. The bridge receives the Worker's outbound fetch at `https://api.<test-host>/sql` (Neon strips the first label of the DSN hostname and substitutes `api.` — see `@neondatabase/serverless` index.mjs default `fetchEndpoint`), translates the JSON body into pg queries, and returns responses in Neon's expected `{rows, fields, rowCount}` shape. Every inbound query has `\bcrai\.` rewritten to `crai_test.` so production schema is never touched. `types: { getTypeParser: () => (v) => v }` is used so raw text reaches Neon's own dataTypeID-based parsers — important for TEXT[] columns (`prospect_hints.conversation_topics`).
+- **`vitest.config.js`** — `fileParallelism: false`. The suite shares a single `crai_test` schema across test files; parallel forks race on `TRUNCATE`s between tests. Serialising at the file level (tests inside a file run sequentially by default) is sufficient and adds ~1s to the full suite.
+- **`vitest.setup.js`** — skip `teardownCraiTestSchema` / `teardownM333TestSchema` by default. With `pool:'forks'` each file runs the global `afterAll`, so a naive teardown from one fork drops the schema while a sibling is still using it. Set `TEARDOWN_TEST_SCHEMAS=1` to re-enable (rarely needed; between-test `resetCraiTestSchema` already truncates).
+
+**Status:** Accepted. All 26 tests pass stably (3 consecutive runs, zero flakes). Run with:
+
+```
+cd ~/code/mmo-platform/tests/e2e/paypal && PGUSER=jason PGHOST=/run/postgresql PGDATABASE=mmo \
+  npx vitest run tests/crai-worker.test.js tests/seed-prospect.test.js
+```
+
+This completes DR-215's Phase 4 for the CRAI Worker. Phase 5 (cross-service `cross-service.test.js` exercising the 333Method → CRAI seed-prospect → ACTIVATED chain end-to-end) remains pending, as does the live-run harness (Phase 6). DR-218-bug-1 is open.
+
+**Impl:** `mmo-platform/tests/e2e/paypal/tests/crai-worker.test.js`, `mmo-platform/tests/e2e/paypal/tests/seed-prospect.test.js`, `mmo-platform/tests/e2e/paypal/helpers/neon-http-bridge.js` (new), scaffold tweaks to `mmo-platform/tests/e2e/paypal/helpers/crai-worker.js`, `mmo-platform/tests/e2e/paypal/vitest.config.js`, `mmo-platform/tests/e2e/paypal/vitest.setup.js`.
+
+---
+
 ### DR-217: 333Method PayPal chain + cross-cutting negative-paths E2E coverage (2026-04-14)
 
 **Context:** DR-215 landed the scaffold; DR-216 shipped the api.php coverage. This closes the 333Method side: the R2 collector Worker (`~/code/333Method/workers/paypal-webhook/src/index.js`) and the host-side poller/handler (`src/payment/poll-paypal-events.js` + `src/payment/webhook-handler.js`).

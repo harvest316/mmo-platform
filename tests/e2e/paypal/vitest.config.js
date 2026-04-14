@@ -21,6 +21,12 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     pool: 'forks',
+    // The full suite touches a shared Postgres schema (crai_test / m333_test)
+    // and shared Miniflare workers. Running multiple test files in parallel
+    // races on TRUNCATE between tests and silently corrupts assertions.
+    // Serialise file execution; per-test concurrency inside a file remains
+    // sequential (vitest default).
+    fileParallelism: false,
     // Vitest 4 removed test.poolOptions — pool-specific knobs are now top-level.
     // We intentionally allow multiple forks so separate test files don't
     // contend for the same PHP/Miniflare ports. Individual test files that

@@ -12,6 +12,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.2",
     "better-sqlite3": "^11.5.0",
+    "esbuild": "^0.28.0",
     "miniflare": "^3.20240909.0",
     "msw": "^2.10.2",
     "pg": "^8.12.0",

@@ -43,10 +43,18 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  try {
-    await teardownCraiTestSchema();
-    await teardownM333TestSchema();
-  } finally {
-    await closeTestPool();
+  // Teardown is intentionally skipped unless TEARDOWN_TEST_SCHEMAS=1. Vitest
+  // runs each test file in its own fork (pool:'forks'), and each fork runs the
+  // global afterAll hook — so a naive teardown races with sibling forks that
+  // are still using the schema. Leave the schemas in place; they are reset
+  // between individual tests via resetCraiTestSchema / resetM333TestSchema.
+  if (process.env.TEARDOWN_TEST_SCHEMAS === '1') {
+    try {
+      await teardownCraiTestSchema();
+      await teardownM333TestSchema();
+    } catch {
+      // best-effort — a concurrent fork may have already dropped it
+    }
   }
+  await closeTestPool();
 }, 60_000);
