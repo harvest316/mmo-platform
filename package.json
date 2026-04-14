@@ -26,6 +26,7 @@
     "pipeline": "node src/pipeline-runner.js",
     "pipeline:once": "node src/pipeline-runner.js --once",
     "monitor": "sh scripts/monitoring-checks.sh",
+    "check:ses-config": "node scripts/check-ses-config.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
