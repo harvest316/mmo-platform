@@ -254,7 +254,7 @@ SES configuration sets have **immutable names** (no rename API). The existing `m
 
 **Rollback:** `wrangler rollback --env production` (C1); re-point webhook URLs + `systemctl start crai-api.service` (C3); zero data loss — both systems can run briefly in parallel (C4).
 
-**Status:** Executed 2026-04-14. C1 (wrangler deploy --env production) done. Production secrets set from `.env`. Worker healthy at `https://api.contactreply.app/health` (HTTP 200, `db:true`). Portal was already current at `contactreply.app`. Twilio SMS webhook + SES SNS (`/webhooks/ses/email`) webhook were already pointing at the Worker; only PayPal live webhook `8TJ65610B74479252` still to be edited (URL from `crai-api.auditandfix.workers.dev/webhooks/paypal` → `api.contactreply.app/webhooks/paypal`, plus add RENEWED/SUSPENDED/SALE.DENIED events). C4 skipped — old Node.js `crai-api.service` was never actually installed as a systemd unit (discovered during cutover). C6 pending. No paying customers during cutover, zero downtime.
+**Status:** Complete 2026-04-14. C1 (wrangler deploy --env production) done. Production secrets set from `.env`. Worker healthy at `https://api.contactreply.app/health` (HTTP 200, `db:true`). Portal was already current at `contactreply.app`. Twilio SMS + SES SNS webhooks were already pointing at the Worker. PayPal live webhook `8TJ65610B74479252` URL updated to `api.contactreply.app/webhooks/paypal` + BILLING.SUBSCRIPTION.RENEWED, BILLING.SUBSCRIPTION.SUSPENDED, PAYMENT.SALE.DENIED events added (2026-04-14). C4 skipped — old Node.js `crai-api.service` was never installed as a systemd unit. C6 pending. No paying customers during cutover, zero downtime.
 
 ### DR-200: Vitest for CRAI Node.js unit tests (2026-04-10)
 
