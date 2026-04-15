@@ -476,9 +476,22 @@ if [ "$SKIP_KMS" = "true" ]; then
   record_result 20 "Cancel CMK deletion restores Enabled status" "Key returns to Enabled" "SKIPPED (--skip-kms)" "true"
   SKIP=$((SKIP + 3))
 else
+  # schedule-key-deletion / cancel-key-deletion require the actual key ID (UUID),
+  # not an alias. Resolve alias → key ID first.
+  KMS_KEY_UUID=$(aws_admin kms describe-key \
+    --key-id "$KMS_KEY_ID" \
+    --query 'KeyMetadata.KeyId' --output text 2>&1)
+  if echo "$KMS_KEY_UUID" | grep -qiE '(error|exception|AccessDenied)'; then
+    echo "   ERROR: Could not resolve KMS key ID from alias: $KMS_KEY_UUID"
+    record_result 18 "Schedule CMK deletion (7-day window)" "PendingDeletion status" "prereq failed: could not resolve key UUID" "false"
+    record_result 19 "GetObject during PendingDeletion window" "200 OK" "SKIP (test 18 prereq failed)" "true"
+    record_result 20 "Cancel CMK deletion restores Enabled status" "Enabled" "SKIP (test 18 prereq failed)" "true"
+    SKIP=$((SKIP + 2))
+  else
+
   # Test 18: Schedule CMK deletion with minimum 7-day window
   out=$(aws_admin kms schedule-key-deletion \
-    --key-id "$KMS_KEY_ID" \
+    --key-id "$KMS_KEY_UUID" \
     --pending-window-in-days 7 2>&1)
   if echo "$out" | grep -qiE '"KeyState":\s*"PendingDeletion"'; then
     record_result 18 "Schedule CMK deletion (7-day window)" "PendingDeletion status" "PendingDeletion set" "true"
@@ -495,12 +508,12 @@ else
 
     # Test 20: Cancel deletion — key returns to Enabled
     cancel_out=$(aws_admin kms cancel-key-deletion \
-      --key-id "$KMS_KEY_ID" 2>&1)
+      --key-id "$KMS_KEY_UUID" 2>&1)
     if echo "$cancel_out" | grep -qiE '"KeyState":\s*"Disabled"'; then
       # After cancel, key is Disabled — re-enable it
-      aws_admin kms enable-key --key-id "$KMS_KEY_ID" > /dev/null 2>&1 || true
+      aws_admin kms enable-key --key-id "$KMS_KEY_UUID" > /dev/null 2>&1 || true
       # Verify it's now Enabled
-      status_out=$(aws_admin kms describe-key --key-id "$KMS_KEY_ID" \
+      status_out=$(aws_admin kms describe-key --key-id "$KMS_KEY_UUID" \
         --query 'KeyMetadata.KeyState' --output text 2>&1)
       if [ "$status_out" = "Enabled" ]; then
         record_result 20 "Cancel CMK deletion restores Enabled status" "Enabled" "Enabled" "true"
@@ -518,6 +531,7 @@ else
     record_result 20 "Cancel CMK deletion restores Enabled status" "Enabled" "SKIP (test 18 failed)" "true"
     SKIP=$((SKIP + 2))
   fi
+  fi  # close KMS_KEY_UUID prereq check
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
