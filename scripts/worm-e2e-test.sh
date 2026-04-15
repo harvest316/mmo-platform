@@ -143,6 +143,10 @@ fi
 
 echo "Prerequisites: OK"
 
+# AWS CLI failures are *expected* by the test logic (AccessDenied = pass).
+# set -e must not exit silently when an out=$(aws ...) assignment fails.
+set +e
+
 # ── Test object setup ─────────────────────────────────────────────────────────
 
 TEST_TS=$(date -u '+%Y-%m-%dT%H-%M-%SZ')
