@@ -151,7 +151,11 @@ set +e
 
 TEST_TS=$(date -u '+%Y-%m-%dT%H-%M-%SZ')
 TEST_KEY="worm-test/$(date -u '+%Y/%m/%d')/${TEST_TS}_drill.eml"
-TEST_BODY="From: worm-test@mmo-platform\r\nTo: drill@mmo-platform\r\nSubject: WORM E2E Drill ${TEST_TS}\r\nX-Mmo-Worm-Test: true\r\n\r\nThis is a WORM tamper-resistance test object. Safe to expire after retention period."
+# Write body to a temp file — aws s3api put-object --body requires a real file path
+TEST_BODY_FILE=$(mktemp /tmp/worm-test-body.XXXXXX)
+printf "From: worm-test@mmo-platform\r\nTo: drill@mmo-platform\r\nSubject: WORM E2E Drill %s\r\nX-Mmo-Worm-Test: true\r\n\r\nThis is a WORM tamper-resistance test object. Safe to expire after retention period.\r\n" \
+  "$TEST_TS" > "$TEST_BODY_FILE"
+trap 'rm -f "$TEST_BODY_FILE" /tmp/worm-test-read.tmp /tmp/worm-test-kms.tmp' EXIT
 # Retention: 90 seconds from now (short for sandbox test; prod objects use 7-year)
 RETAIN_UNTIL=$(date -u -d '+90 seconds' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
   || date -u -v+90S '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
@@ -171,7 +175,7 @@ echo "════════════════════════�
 out=$(aws_writer s3api put-object \
   --bucket "$SANDBOX_BUCKET" \
   --key "$TEST_KEY" \
-  --body <(echo -e "$TEST_BODY") \
+  --body "$TEST_BODY_FILE" \
   --content-type 'message/rfc822' \
   --object-lock-mode COMPLIANCE \
   --object-lock-retain-until-date "$RETAIN_UNTIL" \
