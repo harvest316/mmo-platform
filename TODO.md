@@ -1,5 +1,33 @@
 # TODO
 
+## E2E contact-form test page: replace Fastmail SMTP with SES
+
+The standalone PHP page (`e2e-test-page-XXXXXXX.php`, deployed to a throwaway
+webhost for 333Method E2E testing) uses a raw `fsockopen` SMTP connection to
+Fastmail with hardcoded credentials.
+
+**What to do:**
+
+- [ ] **Rotate the old Fastmail app password** (`948e5s4r962g4y9n` for
+  `paulh@corpseo.com.au`) — it was sitting in a plaintext file, consider it
+  compromised even though the file was gitignored.
+- [ ] Rewrite `sendSMTP()` in the template to use SES SMTP instead:
+  - Host: `email-smtp.ap-southeast-2.amazonaws.com` port `587`
+  - Credentials: read from env vars `SES_SMTP_USERNAME` / `SES_SMTP_PASSWORD`
+    (same as in `auditandfix-website/site/.htaccess`) — set these in the
+    webhost's `.htaccess` or `php.ini` alongside the deployed file.
+  - From address: `e2e-test-page@auditandfix.com` (verified SES identity)
+- [ ] Or simplify further: replace the raw SMTP with PHP's `mail()` and let
+  Plesk/sendmail route via SES — but only if the throwaway host is also on SES.
+  Otherwise stay with explicit SMTP.
+- [ ] Rename and re-upload the updated file; update `TEST_E2E_URL` in
+  `333Method/.env` if the filename changes.
+
+**Why:** SES credentials are already provisioned and environment-sourced;
+Fastmail is a personal account with no business continuity guarantee.
+
+---
+
 ## DMARC: Graduate marketing domains to p=reject (due 2026-05-11)
 
 **Strategy:**
