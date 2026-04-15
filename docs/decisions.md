@@ -4,6 +4,26 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-225: PayPal sandbox live-run harness + test inspection endpoints (2026-04-15)
+
+**Context:** DR-215 Phase 6 (live-run harness) was the last unfinished phase of the PayPal E2E plan. The harness (`mmo-platform/tests/e2e/paypal/harness/sandbox-live-run.js`) needs to drive a real sandbox subscription through the chain and produce a chain-of-custody report. First real run surfaced three gaps and a path bug.
+
+**Decision:**
+
+1. **Two new api.php E2E inspection endpoints** (both bearer-gated via `E2E_SHARED_SECRET`, both require `E2E_HARNESS_ENABLED=1`):
+   - `?action=e2e-sandbox-subscription-status&sub_id=...` — read-only; returns `{row, db_exists}` from `subscriptions-sandbox.sqlite`. Lets hop1 be verified without SSH access.
+   - `?action=e2e-cleanup-sandbox-subs` — POST; deletes rows from the sandbox DB (optionally filtered by `sub_id`). Lets the harness reset state between runs.
+2. **Path bug fix in both endpoints:** initial implementation used `__DIR__ . '/../data/'` which resolves one level *above* httpdocs on the Plesk host (where `SITE_PATH=/var/www/vhosts/auditandfix.com/httpdocs`). Corrected to match `getSubscriptionDb()` — `getenv('SITE_PATH') ? rtrim(getenv('SITE_PATH'), '/') . '/data/...'`.
+3. **Harness `REPLAY_EVENTS=1` mode:** PayPal sandbox webhook delivery is unreliable (observed in DR-213/DR-220 debugging). New flag POSTs minimal event bodies directly to `?action=paypal-webhook-sandbox` — api.php ignores fixture fields and re-fetches the subscription from PayPal sandbox API via the normal retrieve-verify path, so no code paths are bypassed. Used when PayPal's own webhook delivery fails.
+4. **Harness hop3 `not-found` accepted as done:** the 333Method R2 test worker is only subscribed to `CHECKOUT.*` and `PAYMENT.CAPTURE.*` events, not `BILLING.SUBSCRIPTION.*` — `not-found` is the expected outcome for subscription flows, not a failure. Prior logic waited for the full 60s timeout on every run.
+5. **Case-comparison fix:** `checkApiPhpSandboxRow` expected `'ACTIVE'`/`'CANCELLED'` but the DB stores `'active'`/`'cancelled'`. Lowercased both sides.
+6. **Segregation check simplified:** report used to look for a non-existent `row.db_path` field. The `e2e-sandbox-subscription-status` endpoint reads *exclusively* from `subscriptions-sandbox.sqlite`, so `status === 'ok'` alone proves segregation.
+7. **Harness `video_hash` format:** changed from `harness-{ts}` to `harness{ts}` — `.htaccess` rewrite rule only matches `[a-zA-Z0-9]+`, a dash 404s at Apache. Real hashes are base62 (no dashes), so this only affected test runs.
+
+**Status:** Accepted. Two real live-runs completed 2026-04-15 — first with `REPLAY_EVENTS=1`, second (subscription `I-FPUS9L598HA2`) without, where PayPal sandbox did deliver both ACTIVATED (8s) and CANCELLED (17s) webhooks on its own. Final report: Hop 1 ACTIVATED ✓, Hop 1 CANCELLED ✓, segregation verified, exit code 0. Pre-existing E2E test failures in `cross-service.test.js`, `seed-prospect.test.js`, and `api-php-sandbox.test.js` (6 tests) are unrelated to this work and pre-date the session — tracked separately.
+
+---
+
 ### DR-224: ContactReplyAI legal hardening + LLM-for-inbound-only architectural commitment (2026-04-14)
 
 **Context:** CRAI is pre-revenue with a live sales page (contactreplyai.com) and PayPal subscription plans configured. Decision was made (DR-211) to defer PI insurance and lawyer review until first profit, with sole-trader → Pty Ltd migration triggering at customer 5–10. Several legal/architectural commitments are materially cheaper to bake in pre-launch than retrofit later — most importantly contract clauses (template licence grant, Pty Ltd novation pre-consent, liability cap) which would otherwise require per-customer re-consent. Plan documented at `~/.claude/plans/vast-bubbling-ocean.md`.
