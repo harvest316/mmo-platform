@@ -18,7 +18,7 @@
 #   ./worm-e2e-test.sh --skip-kms       — skip tests 18–20 (KMS deletion tests, destructive)
 #
 # Prerequisites:
-#   AWS_PROFILE or three AWS profiles: mmo-archive-writer, mmo-archive-reader, mmo-archive-admin
+#   AWS_PROFILE or three AWS profiles: mmo-archive-writer, mmo-archive-reader, mmo-admin
 #   All three configured in ~/.aws/credentials (admin = personal IAM, never on servers)
 #   ARCHIVE_S3_BUCKET_SANDBOX env var (or defaults to mmo-comms-archive-sandbox)
 #   ARCHIVE_KMS_KEY_ID env var (alias or ARN)
@@ -53,7 +53,7 @@ done
 # AWS profile names (must exist in ~/.aws/credentials on the operator's machine)
 WRITER_PROFILE="mmo-archive-writer"
 READER_PROFILE="mmo-archive-reader"
-ADMIN_PROFILE="mmo-archive-admin"
+ADMIN_PROFILE="mmo-admin"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
