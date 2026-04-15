@@ -496,34 +496,42 @@ else
   if echo "$out" | grep -qiE '"KeyState":\s*"PendingDeletion"'; then
     record_result 18 "Schedule CMK deletion (7-day window)" "PendingDeletion status" "PendingDeletion set" "true"
 
-    # Test 19: GetObject should still work during PendingDeletion window
+    # Test 19: GetObject during PendingDeletion should FAIL with KMSInvalidStateException.
+    # AWS behaviour: scheduling deletion immediately moves the CMK to PendingDeletion
+    # (a disabled state) — cryptographic operations fail until the key is re-enabled.
+    # This is the correct safety property: you get an immediate, visible signal that
+    # deletion was scheduled, giving you the 7-30 day window to cancel it.
     sleep 2  # Brief pause for status propagation
     out=$(aws_reader s3api get-object \
       --bucket "$SANDBOX_BUCKET" \
       --key "$TEST_KEY" \
       /tmp/worm-test-kms.tmp 2>&1)
-    r=$(expect_success "$out")
-    record_result 19 "GetObject during PendingDeletion window" "200 OK (CMK still usable)" "${r}:${out:0:80}" "$([ "$r" = pass ] && echo true || echo false)"
+    if echo "$out" | grep -qiE "KMSInvalidStateException|pending deletion"; then
+      record_result 19 "GetObject during PendingDeletion fails with KMSInvalidStateException" "KMSInvalidStateException" "KMSInvalidStateException" "true"
+    else
+      record_result 19 "GetObject during PendingDeletion fails with KMSInvalidStateException" "KMSInvalidStateException" "${out:0:120}" "false"
+    fi
     rm -f /tmp/worm-test-kms.tmp
 
-    # Test 20: Cancel deletion — key returns to Enabled
+    # Test 20: Cancel deletion + re-enable.
+    # cancel-key-deletion returns only {KeyId} — NO KeyState field. After cancel the key
+    # is Disabled; must be explicitly enabled to restore crypto operations. The authoritative
+    # source of truth is a follow-up describe-key.
     cancel_out=$(aws_admin kms cancel-key-deletion \
       --key-id "$KMS_KEY_UUID" 2>&1)
-    if echo "$cancel_out" | grep -qiE '"KeyState":\s*"Disabled"'; then
-      # After cancel, key is Disabled — re-enable it
+    if echo "$cancel_out" | grep -qiE '"KeyId"'; then
+      # Cancel succeeded — key is now Disabled. Enable it.
       aws_admin kms enable-key --key-id "$KMS_KEY_UUID" > /dev/null 2>&1 || true
-      # Verify it's now Enabled
+      # Verify via describe-key (the only authoritative check)
       status_out=$(aws_admin kms describe-key --key-id "$KMS_KEY_UUID" \
         --query 'KeyMetadata.KeyState' --output text 2>&1)
       if [ "$status_out" = "Enabled" ]; then
-        record_result 20 "Cancel CMK deletion restores Enabled status" "Enabled" "Enabled" "true"
+        record_result 20 "Cancel CMK deletion + enable-key restores Enabled status" "Enabled" "Enabled" "true"
       else
-        record_result 20 "Cancel CMK deletion restores Enabled status" "Enabled" "$status_out" "false"
+        record_result 20 "Cancel CMK deletion + enable-key restores Enabled status" "Enabled" "$status_out" "false"
       fi
-    elif echo "$cancel_out" | grep -qiE '"KeyState":\s*"Enabled"'; then
-      record_result 20 "Cancel CMK deletion restores Enabled status" "Enabled" "Enabled" "true"
     else
-      record_result 20 "Cancel CMK deletion" "Disabled or Enabled after cancel" "$cancel_out" "false"
+      record_result 20 "Cancel CMK deletion + enable-key restores Enabled status" "Enabled" "cancel failed: ${cancel_out:0:120}" "false"
     fi
   else
     record_result 18 "Schedule CMK deletion (7-day window)" "PendingDeletion status" "$out" "false"
