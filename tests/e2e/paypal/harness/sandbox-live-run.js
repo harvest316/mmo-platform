@@ -119,7 +119,10 @@ async function createSandboxSubscription() {
     tier: 'monthly_4',
     country: 'AU',
     business_name: 'Sandbox Live Run',
-    video_hash: `harness-${Date.now().toString(36)}`,
+    // Pure alphanumeric — v.php's rewrite rule in .htaccess only matches
+    // [a-zA-Z0-9]+ (see /v/([a-zA-Z0-9]+) in .htaccess). A dash here would
+    // 404 at Apache before v.php runs. Real hashes are base62 (toBase62).
+    video_hash: `harness${Date.now().toString(36)}`,
   };
 
   console.log('→ POST', url);
