@@ -193,8 +193,9 @@ else
 fi
 
 # ── Test 2: HeadObject shows lock metadata ────────────────────────────────────
+# Use admin (writer has no s3:GetObject by design — that's tested in Test 15)
 
-out=$(aws_writer s3api head-object \
+out=$(aws_admin s3api head-object \
   --bucket "$SANDBOX_BUCKET" \
   --key "$TEST_KEY" 2>&1)
 if echo "$out" | grep -q 'COMPLIANCE'; then
@@ -263,18 +264,44 @@ out=$(aws_writer s3api put-object-retention \
 r=$(expect_success "$out")
 record_result 7 "Extend retention allowed" "200 OK" "${r}:${out:0:80}" "$([ "$r" = pass ] && echo true || echo false)"
 
-# ── Test 8: Admin (root-equivalent) cannot delete ────────────────────────────
+# ── Test 8: Admin (root-equivalent) cannot delete the locked version ─────────
+#
+# S3 note: DeleteObject WITHOUT --version-id on a versioned bucket creates a
+# delete marker — this is expected behavior and is NOT blocked by COMPLIANCE mode
+# (the lock protects specific object *versions*, not key-level delete markers).
+# The real compliance test is: attempt to delete the actual locked version by ID.
 
 echo ""
 echo "══════════════════════════════════════════════════════════════════════════"
 echo "Tests 8–11: Admin/root cannot override compliance lock"
 echo "══════════════════════════════════════════════════════════════════════════"
 
-out=$(aws_admin s3api delete-object \
+if [ -n "${VERSION_ID:-}" ]; then
+  out=$(aws_admin s3api delete-object \
+    --bucket "$SANDBOX_BUCKET" \
+    --key "$TEST_KEY" \
+    --version-id "$VERSION_ID" 2>&1)
+  r=$(expect_denied "$out")
+  record_result 8 "Admin DeleteObject by version-id blocked (compliance mode)" "AccessDenied" "${r}:${out:0:80}" "$([ "$r" = pass ] && echo true || echo false)"
+else
+  record_result 8 "Admin DeleteObject by version-id blocked (compliance mode)" "AccessDenied" "SKIP (no version id from Test 1)" "true"
+  SKIP=$((SKIP + 1))
+fi
+
+# Clean up any delete markers left by previous test runs on this key (delete markers
+# are not object versions and are not protected by COMPLIANCE lock).
+dm_list=$(aws_admin s3api list-object-versions \
   --bucket "$SANDBOX_BUCKET" \
-  --key "$TEST_KEY" 2>&1)
-r=$(expect_denied "$out")
-record_result 8 "Admin DeleteObject blocked (compliance mode)" "AccessDenied" "${r}:${out:0:80}" "$([ "$r" = pass ] && echo true || echo false)"
+  --prefix "$TEST_KEY" \
+  --query "DeleteMarkers[?Key=='${TEST_KEY}'].VersionId" \
+  --output text 2>&1)
+for dm_vid in $dm_list; do
+  [ "$dm_vid" = "None" ] && continue
+  aws_admin s3api delete-object \
+    --bucket "$SANDBOX_BUCKET" \
+    --key "$TEST_KEY" \
+    --version-id "$dm_vid" > /dev/null 2>&1 || true
+done
 
 # ── Test 9: PutBucketVersioning Suspend denied ───────────────────────────────
 
@@ -305,7 +332,7 @@ if echo "$out" | grep -qiE '(AccessDenied|is not authorized)'; then
 else
   # S3 allows changing the default retention config; what matters is individual object locks
   # Re-verify our test object is still COMPLIANCE
-  head_out=$(aws_writer s3api head-object --bucket "$SANDBOX_BUCKET" --key "$TEST_KEY" 2>&1)
+  head_out=$(aws_admin s3api head-object --bucket "$SANDBOX_BUCKET" --key "$TEST_KEY" 2>&1)
   if echo "$head_out" | grep -q 'COMPLIANCE'; then
     record_result 10 "Switch bucket default to GOVERNANCE (existing COMPLIANCE objects unaffected)" "COMPLIANCE locks preserved" "COMPLIANCE on test object preserved" "true"
     # Restore the bucket default back to COMPLIANCE
