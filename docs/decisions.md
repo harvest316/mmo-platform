@@ -4,6 +4,22 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-226: CRAI onboarding canonicalised to browser wizard; SMS-first copy removed (2026-04-16)
+
+**Context:** Inspecting the sandbox thank-you page surfaced a design contradiction. [public/thank-you.php](../../ContactReplyAI/public/thank-you.php) body copy and the PayPal confirmation email told the customer: *"Check your phone — we'll text you within 30 minutes. Answer a few questions by text..."* (SMS-driven onboarding). But the CTA button on the same page routed to [public/onboarding.php](../../ContactReplyAI/public/onboarding.php) — a 6-step browser wizard that does its own capture. No phone number is collected in [public/checkout.php](../../ContactReplyAI/public/checkout.php) (email + name only) and no SMS-bot backend exists to drive an SMS-first flow. The copy promised a system that wasn't built.
+
+**Decision:**
+
+1. **Canonical onboarding = browser wizard.** Path B (onboarding.php, 6-step form) is the real post-checkout flow. Path A (SMS-driven) is deleted from the copy until/unless an SMS onboarding bot is actually built. Rationale: the customer is already in the browser (they just paid) — no reason to ask them to context-switch to SMS.
+2. **thank-you.php rewritten** — on-page "What happens next" steps and the PayPal confirmation email (HTML + text) now direct the customer to click "Set up my business profile" (onboarding.php?sub=...&plan=...&sandbox=... when applicable). Phone capture at checkout was considered and rejected as unnecessary under Path B — the wizard handles all profile data.
+3. **Email CTA changed** from "Log in to your account" (contactreply.app/login) to "Set up my business profile" (onboarding URL preserving sub/plan/sandbox). Portal login kept as a secondary link for future returns.
+4. **Navbar logo swap** — [public/includes/site-nav.php](../../ContactReplyAI/public/includes/site-nav.php) replaced the plain wordmark (`ContactReply<span class="text-accent">AI</span>`) with `assets/logo-dark.svg` (white text + accent lightning bolt, designed for the navy navbar background). Applies sitewide to every page using site-nav — homepage, thank-you, onboarding, legal pages.
+
+**Status:** Committed.
+**Impl:** [ContactReplyAI/public/thank-you.php](../../ContactReplyAI/public/thank-you.php), [ContactReplyAI/public/includes/site-nav.php](../../ContactReplyAI/public/includes/site-nav.php). Requires FTP deploy to contactreplyai.com (host-side: `cd ~/code/ContactReplyAI && node scripts/deploy.js --env prod`).
+
+---
+
 ### DR-225: PayPal sandbox live-run harness + test inspection endpoints (2026-04-15)
 
 **Context:** DR-215 Phase 6 (live-run harness) was the last unfinished phase of the PayPal E2E plan. The harness (`mmo-platform/tests/e2e/paypal/harness/sandbox-live-run.js`) needs to drive a real sandbox subscription through the chain and produce a chain-of-custody report. First real run surfaced three gaps and a path bug.
