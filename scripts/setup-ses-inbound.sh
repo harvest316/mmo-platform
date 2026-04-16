@@ -291,9 +291,9 @@ echo "   cd ~/code/ContactReplyAI/workers"
 echo "   npx wrangler secret put E2E_SHARED_SECRET"
 echo "   npx wrangler deploy"
 echo
-echo "4. Add to auditandfix.com private/secrets.php:"
-echo "   putenv('E2E_HARNESS_ENABLED=1');"
-echo "   putenv('E2E_SHARED_SECRET=<same-value-as-wrangler-secret>');"
+echo "4. Add to auditandfix.com site/.htaccess (already set — verify value matches):"
+echo "   SetEnv E2E_HARNESS_ENABLED 1"
+echo "   SetEnv E2E_SHARED_SECRET \"<same-value-as-wrangler-secret>\""
 echo
 echo "Wait ~5 min after adding the MX record before running email receipt tests."
 echo
