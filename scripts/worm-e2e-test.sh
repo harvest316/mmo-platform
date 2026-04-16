@@ -363,16 +363,24 @@ printf "From: worm-test@mmo-platform\r\nTo: drill@mmo-platform\r\nSubject: WORM 
   "$TEST_TS" > "$LIFECYCLE_BODY_FILE"
 trap 'rm -f "$TEST_BODY_FILE" "$LIFECYCLE_BODY_FILE" /tmp/worm-test-read.tmp /tmp/worm-test-kms.tmp' EXIT
 
-# Write the 2-day locked object first
-aws_writer s3api put-object \
+# Write the 2-day locked object using admin credentials — the writer IAM policy
+# is scoped to the prod bucket ARN only (mmo-comms-archive/*) and cannot write
+# to the sandbox bucket. Admin has full access to both buckets.
+# SSE-KMS params included to match the prod write path.
+lifecycle_put_out=$(aws_admin s3api put-object \
   --bucket "$SANDBOX_BUCKET" \
   --key "$LIFECYCLE_TEST_KEY" \
   --body "$LIFECYCLE_BODY_FILE" \
   --content-type "message/rfc822" \
   --object-lock-mode COMPLIANCE \
   --object-lock-retain-until-date "$LIFECYCLE_RETAIN_UNTIL" \
-  --metadata "x-mmo-worm-test=lifecycle-check" \
-  > /dev/null 2>&1 || true
+  --server-side-encryption 'aws:kms' \
+  --ssekms-key-id "$KMS_KEY_ID" \
+  --metadata "x-mmo-worm-test=lifecycle-check" 2>&1)
+if echo "$lifecycle_put_out" | grep -qiE '(error|exception|AccessDenied|InvalidArgument)'; then
+  echo "   ERROR: lifecycle-check PUT failed: $lifecycle_put_out"
+  echo "   Cannot verify Test 11 — lifecycle-check object not created."
+fi
 
 # Now add the 1-day lifecycle rule (this targets ALL worm-test/ prefix objects)
 out=$(aws_admin s3api put-bucket-lifecycle-configuration \
