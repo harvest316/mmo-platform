@@ -3762,3 +3762,37 @@ Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer
 
 **Status:** Proposed (pre-implementation review)
 **Impl:** No code yet — findings delivered as architectural review for ERPChat project
+
+---
+
+### DR-212: Scope git hooks to mmo-platform repos only — retire global core.hooksPath (2026-04-16)
+
+**Context:** A global `core.hooksPath = ~/code/mmo-platform/hooks` in `~/.gitconfig` caused the mmo-platform delegation hub (`hooks/pre-commit`) — running `check-pii.sh`, `ai-review.sh`, and `lint-staged` — to execute on every commit in every git repo on the machine, including unrelated client projects. Specifically, a client project using `.githooks/pre-commit` with its own guards got a double-hook run (client guards + mmo-platform PII check) that blocked legitimate governance doc commits because the PII scan pattern for `auditandfix.com` matched context text in an ADR entry.
+
+Additionally, three repos (333Method, 2Step, ContactReplyAI) had local `core.hooksPath` pointing to `../mmo-platform/.githooks`, which only contains `pre-commit-archive-check.sh` (not a `pre-commit` file), so their PII and AI review hooks were silently not running despite appearing configured.
+
+Two repos (AdManager, AgentSystem) and auditandfix-website had no local hooksPath at all, meaning they relied entirely on the global to get any hook coverage.
+
+**Decision:**
+
+1. **Remove global `core.hooksPath`** from `~/.gitconfig`. Each repo's `.envrc` is responsible for setting its own `core.hooksPath` via `git config --local` — local config takes precedence over global, making per-repo opt-in the only mechanism.
+
+2. **All mmo-platform workspace repos** (333Method, 2Step, ContactReplyAI, AdManager, AgentSystem, auditandfix-website) get `core.hooksPath = ../mmo-platform/hooks` in their `.envrc`, pointing at the delegation hub. Updated with idempotent guard (only writes if value differs — avoids dirtying git config on every `direnv reload`).
+
+3. **333Method/2Step/ContactReplyAI** corrected from `../mmo-platform/.githooks` (dead — no `pre-commit` file) to `../mmo-platform/hooks` (delegation hub, runs PII check + AI review + per-repo `.hooks/pre-commit`).
+
+4. **mmo-platform itself** retains `.git/hooks` (standard hooks dir) as its local hooksPath — the platform repo that owns the hooks doesn't run them on itself.
+
+5. **Client projects** (currently: ERPChat) use `core.hooksPath = .githooks` in their own `.envrc`, pointing at project-owned hooks only. The global removal eliminates any risk of mmo-platform hooks running in client repos after initial setup.
+
+**PII regex fix (same commit):** `check-pii.sh` pattern `re_[A-Za-z0-9_]{20,}` (Resend API key) false-positives on Android constants like `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` because the `RE_` substring in `IGNORE_` plus the remaining uppercase chars satisfies `{20,}`. Fixed by removing `_` from the character class: `re_[A-Za-z0-9]{20,}`. Real Resend API keys use only alphanumeric chars in the token portion.
+
+**SKIP_* audit:** Searched all workspace repos for `SKIP_PII_CHECK`, `SKIP_AI_REVIEW`, `SKIP_HOOKS`, `SKIP_ARCHIVE_CHECK`, `SKIP_ERPCHAT_GUARDS`, and `--no-verify`. All references are internal to the hook scripts themselves (implementation + help text) or in governance docs. No automated script or CI config calls these bypasses — low risk.
+
+**Rejected alternatives:**
+- Keep global hooksPath, use allowlist inside the hook — fragile; any new unrelated repo would need to be added to the allowlist; still couples client projects to mmo-platform internals.
+- One unified hook that detects the repo and routes accordingly — increases the blast radius of mmo-platform hook changes and violates client isolation.
+
+**Status:** Accepted.
+
+**Impl:** `.envrc` in 333Method, 2Step, ContactReplyAI, AdManager, AgentSystem, auditandfix-website; `scripts/check-pii.sh` (Resend regex fix). `~/.gitconfig` global unset requires manual step — container cannot write to locked file; run `git config --global --unset core.hooksPath` from host terminal once.

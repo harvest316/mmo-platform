@@ -60,7 +60,7 @@ check_pattern 'ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}' 'GitHub token'
 check_pattern 'AKIA[A-Z0-9]{16}' 'AWS access key'
 check_pattern 'sk-ant-[A-Za-z0-9-]{20,}' 'Anthropic API key'
 check_pattern 'sk-or-[A-Za-z0-9-]{20,}' 'OpenRouter API key'
-check_pattern 're_[A-Za-z0-9_]{20,}' 'Resend API key (legacy — should not appear)'
+check_pattern 're_[A-Za-z0-9]{20,}' 'Resend API key (legacy — should not appear)'
 check_pattern 'password\s*[:=]\s*["\x27][^"\x27]{6,}' 'Hardcoded password'
 
 # ── Dynamic: check if any .env/.env.secrets VALUES appear in the diff ──
