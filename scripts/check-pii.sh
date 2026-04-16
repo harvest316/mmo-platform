@@ -70,6 +70,10 @@ for envfile in .env .env.secrets; do
       # Skip comments, empty lines, short values (<12 chars — too many false positives)
       case "$key" in \#*|"") continue ;; esac
       value=$(echo "$value" | sed 's/^["'\''"]//;s/["'\''"]$//')
+      # Skip multi-line values (PEM keys, base64 blobs) — grep -F can't handle them
+      # and they won't appear verbatim in a diff anyway.
+      case "$value" in *"
+"*) continue ;; esac
       if [ ${#value} -ge 12 ]; then
         matches=$(echo "$DIFF" | grep -inF "^\+" | grep -F "$value" | grep -v "^+++\|\.env\|\.env\.secrets\|check-pii" | head -3)
         if [ -n "$matches" ]; then
