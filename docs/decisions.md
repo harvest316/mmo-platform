@@ -4,6 +4,16 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-229: SES inbound domain verification required per-region for email receipt (2026-04-17)
+
+**Context:** Test 13 of `auditandfix-website/tests/e2e/contact-form.spec.js` ("submitted email arrives in SES inbound S3 bucket") was failing. All infrastructure appeared correct: MX record for `e2e.auditandfix.com` pointed to `inbound-smtp.us-west-2.amazonaws.com`, the S3 bucket existed with `AMAZON_SES_SETUP_NOTIFICATION` confirming SES had write access, receipt rule set `e2e-inbound` was active in us-west-2, and the PHP form returned `.success-box` (SES SMTP submission accepted the email). Direct SMTP probes via Python confirmed the SES SMTP outbound accepted emails, yet after 90+ seconds no objects appeared in `mmo-e2e-inbound-575751781585/incoming/`. The `setup-ses-inbound.sh` script created all rule infrastructure but omitted domain verification.
+
+**Decision:** AWS SES requires that the domain (or parent domain) receiving email be verified as a domain identity in the **same region as the receipt rule set**. Outbound SES verification in ap-southeast-2 does NOT carry over to us-west-2. Without verification, SES inbound silently drops delivered emails after returning 250 to the sender. The `setup-ses-inbound.sh` script now includes a domain verification step: it calls `ses verify-domain-identity` for `auditandfix.com` in us-west-2 and prints the `_amazonses.auditandfix.com` TXT record that must be added to Hostinger DNS. A new `diagnose-ses-inbound.sh` script checks all five SES inbound prerequisites (domain verification status, active rule set, rule existence/enablement, S3 bucket, MX record).
+
+**Status:** Scripts updated. Domain verification TXT record must be added via Hostinger DNS by user, then `setup-ses-inbound.sh` re-run to confirm `VerificationStatus: Success`.
+
+**Implementation:** `mmo-platform/scripts/setup-ses-inbound.sh` (domain verification section added), `mmo-platform/scripts/diagnose-ses-inbound.sh` (new).
+
 ### DR-228: PayPal hermes "Agree & Subscribe" confirm is an `<input type=submit>`, not `<button>` (2026-04-16)
 
 **Context:** The CRAI subscription E2E test (`auditandfix-website/tests/e2e/crai-subscription.test.js`) was timing out on the final hermes step at `#/checkout/review`. Selectors like `button:has-text("Agree & Subscribe")` never matched, the fallback's `page.locator('button:visible').count()` always returned 0, and the test kept force-clicking the hidden "OK" modal button instead. Diagnostic DOM dump revealed the actual confirm control:

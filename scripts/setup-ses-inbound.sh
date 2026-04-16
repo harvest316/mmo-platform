@@ -51,6 +51,7 @@ IAM_USER="mmo-e2e-email-reader"
 RULE_SET="e2e-inbound"
 RULE_NAME="accept-e2e-auditandfix"
 DOMAIN="e2e.auditandfix.com"
+PARENT_DOMAIN="auditandfix.com"
 
 # ── S3 bucket ────────────────────────────────────────────────────────────────
 
@@ -197,6 +198,47 @@ fi
 
 echo
 
+# ── SES domain identity verification (required for email receiving) ──────────
+#
+# SES only delivers inbound email for domains that are verified in the same
+# region as the receipt rule set. Without this, emails are silently discarded
+# after the SMTP submission returns 250 OK.
+
+echo "── SES domain identity: $PARENT_DOMAIN (region: $REGION)"
+
+VERIFY_STATUS=$(aws ses get-identity-verification-attributes \
+  --identities "$PARENT_DOMAIN" \
+  --region "$REGION" \
+  --query "VerificationAttributes.\"${PARENT_DOMAIN}\".VerificationStatus" \
+  --output text 2>/dev/null || echo "NotFound")
+
+if [[ "$VERIFY_STATUS" == "Success" ]]; then
+  echo "   ${PARENT_DOMAIN} already verified in ${REGION} ✓"
+else
+  echo "   Status: ${VERIFY_STATUS} — initiating domain verification..."
+  if [[ $DRY_RUN == 0 ]]; then
+    VERIFY_TOKEN=$(aws ses verify-domain-identity \
+      --domain "$PARENT_DOMAIN" \
+      --region "$REGION" \
+      --query "VerificationToken" \
+      --output text)
+    echo "   Verification token: $VERIFY_TOKEN"
+    echo ""
+    echo "   ⚠  ADD this DNS TXT record in Hostinger BEFORE running tests:"
+    echo "   Name:  _amazonses.${PARENT_DOMAIN}"
+    echo "   Type:  TXT"
+    echo "   Value: ${VERIFY_TOKEN}"
+    echo "   TTL:   3600"
+    echo ""
+    echo "   Then wait ~5 min and re-run this script to confirm: Success"
+    NEEDS_DNS_VERIFY=1
+  else
+    echo "   [dry-run] Would call verify-domain-identity for ${PARENT_DOMAIN}"
+  fi
+fi
+
+echo
+
 # ── SES receipt rule set ─────────────────────────────────────────────────────
 
 echo "── SES receipt rule set: $RULE_SET (region: $REGION)"
@@ -269,16 +311,37 @@ echo
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo "════════════════════════════════════════════════════════════"
-echo " Setup complete"
+if [[ ${NEEDS_DNS_VERIFY:-0} == 1 ]]; then
+  echo " Setup INCOMPLETE — DNS records required before tests will work"
+else
+  echo " Setup complete"
+fi
 echo "════════════════════════════════════════════════════════════"
 echo
-echo "1. Add to Hostinger DNS (auditandfix.com zone):"
-echo "   Type:  MX"
+echo "DNS records to add in Hostinger (auditandfix.com zone):"
+echo ""
+if [[ ${NEEDS_DNS_VERIFY:-0} == 1 ]]; then
+  echo "1. Domain verification TXT record (required for SES receiving):"
+  echo "   Name:  _amazonses.${PARENT_DOMAIN}"
+  echo "   Type:  TXT"
+  echo "   Value: ${VERIFY_TOKEN:-<run-script-again-to-get-token>}"
+  echo "   TTL:   3600"
+  echo ""
+  echo "2. MX record for inbound email routing:"
+else
+  echo "1. MX record for inbound email routing:"
+fi
 echo "   Name:  e2e"
+echo "   Type:  MX"
 echo "   Value: 10 inbound-smtp.${REGION}.amazonaws.com"
 echo "   TTL:   3600"
 echo
-echo "2. Add to tests/.env in both projects:"
+echo "After adding DNS records, wait ~5 min then verify:"
+echo "   aws --profile mmo-admin ses get-identity-verification-attributes \\"
+echo "     --identities ${PARENT_DOMAIN} --region ${REGION}"
+echo "   (VerificationStatus should be 'Success')"
+echo
+echo "Tests/.env vars:"
 echo "   E2E_AWS_ACCESS_KEY_ID=${ACCESS_KEY}"
 if [[ ${KEY_CREATED:-0} == 1 ]]; then
   echo "   E2E_AWS_SECRET_ACCESS_KEY=${SECRET_KEY}"
@@ -286,14 +349,7 @@ fi
 echo "   E2E_EMAIL_BUCKET=${BUCKET}"
 echo "   E2E_EMAIL_REGION=${REGION}"
 echo
-echo "3. Deploy CRAI Worker + set secret (host terminal):"
-echo "   cd ~/code/ContactReplyAI/workers"
-echo "   npx wrangler secret put E2E_SHARED_SECRET"
-echo "   npx wrangler deploy"
-echo
-echo "4. Add to auditandfix.com site/.htaccess (already set — verify value matches):"
+echo "auditandfix.com site/.htaccess (already set — verify value matches):"
 echo "   SetEnv E2E_HARNESS_ENABLED 1"
 echo "   SetEnv E2E_SHARED_SECRET \"<same-value-as-wrangler-secret>\""
-echo
-echo "Wait ~5 min after adding the MX record before running email receipt tests."
 echo
