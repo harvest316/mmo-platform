@@ -4,6 +4,34 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-228: PayPal hermes "Agree & Subscribe" confirm is an `<input type=submit>`, not `<button>` (2026-04-16)
+
+**Context:** The CRAI subscription E2E test (`auditandfix-website/tests/e2e/crai-subscription.test.js`) was timing out on the final hermes step at `#/checkout/review`. Selectors like `button:has-text("Agree & Subscribe")` never matched, the fallback's `page.locator('button:visible').count()` always returned 0, and the test kept force-clicking the hidden "OK" modal button instead. Diagnostic DOM dump revealed the actual confirm control:
+
+```html
+<input type="submit" id="confirmButtonTop" value="Agree and Subscribe"
+       class="btn full confirmButton continueButton">
+```
+
+`offsetParent: true` proves it is layout-visible — Playwright's `:visible` pseudo just doesn't match `input[type=submit]` when the locator is scoped to `button`. Additionally, the button text is carried in the `value` attribute, not `textContent`, so any `:has-text(...)` selector is structurally blind to it.
+
+**Decision:** For any Playwright automation touching PayPal hermes subscription approval flows (CRAI, future 2Step subscriptions, or any other child project wiring PayPal Billing Subscriptions), the confirm-button selector list must include:
+
+- `#confirmButtonTop` (stable id, preferred)
+- `input[type=submit].confirmButton`
+- `input[type=submit][value*="Agree"]`
+- `input[type=submit][value*="Subscribe"]`
+
+…in addition to `button:has-text("Agree & Subscribe")` (for robustness against hermes redesigns). Fallback logic that iterates "all buttons on the page" must locate `button:not(.hide), input[type=submit]` — not just `button` — otherwise hermes review screens are unreachable.
+
+**Secondary gotcha:** the `page.waitForURL(predicate)` callback receives a `URL` *object*, not a string. `url.includes('paypal.com')` throws `TypeError: url.includes is not a function`. Use `url.toString().includes('paypal.com')` or `url.hostname`.
+
+**Status:** Accepted. Codified in [auditandfix-website/tests/e2e/crai-subscription.test.js](../../auditandfix-website/tests/e2e/crai-subscription.test.js) (commit `2be3586`). All 6 tests in the CRAI sandbox E2E suite now pass end-to-end (subscription creation → hermes login → selectFi → review → capture → thank-you redirect).
+
+**Impl:** [auditandfix-website/tests/e2e/crai-subscription.test.js](../../auditandfix-website/tests/e2e/crai-subscription.test.js). When 2Step wires PayPal subscription E2E, import the same selector list or reference this DR.
+
+---
+
 ### DR-227: Scope of this register is the mmo-platform ecosystem only (2026-04-16)
 
 **Context:** The global instruction in `~/.claude/CLAUDE.md` says *"All architectural and technical decisions must be recorded in `~/code/mmo-platform/docs/decisions.md`"*. Taken literally, that instruction would pull in decisions from any project under `~/code/` — including paid external-client engagements whose code, secrets, compliance posture, and audit trail need to stay separate. Mixing external-client decisions into this register would leak client context into shared tooling, pollute memory, and complicate future due-diligence on the mmo-platform side.
