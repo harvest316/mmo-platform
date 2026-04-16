@@ -47,6 +47,11 @@ const BASE = {
   preseedSends: 10,
   preseedRecips: 5,
   currentTier: 'normal',
+  // Explicit brand fields — makes tests self-contained, independent of env vars
+  brandName: 'Audit&Fix',
+  brandDomain: 'auditandfix.com',
+  brandAppDomain: 'auditandfix.app',
+  preseedFrom: 'status@auditandfix.net',
 };
 
 describe('buildDraftEmail', () => {
