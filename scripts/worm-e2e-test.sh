@@ -348,7 +348,33 @@ else
 fi
 
 # ── Test 11: Lifecycle config does NOT delete locked object ──────────────────
+# Create a DEDICATED lifecycle test object with 2-day retention.
+# The main TEST_KEY has only 90s retention — it will expire before the lifecycle
+# job runs, so checking it tomorrow wouldn't prove Object Lock blocks lifecycle.
+# This separate object stays locked for 2 days, so tomorrow's follow-up check
+# actually exercises the S3 guarantee that lifecycle never overrides an active lock.
 
+LIFECYCLE_RETAIN_UNTIL=$(date -u -d '+2 days' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+  || date -u -v+2d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+  || python3 -c "from datetime import datetime, timedelta; print((datetime.utcnow()+timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
+LIFECYCLE_TEST_KEY="worm-test/$(date -u '+%Y/%m/%d')/${TEST_TS}_lifecycle-check.eml"
+LIFECYCLE_BODY_FILE=$(mktemp /tmp/worm-test-lifecycle.XXXXXX)
+printf "From: worm-test@mmo-platform\r\nTo: drill@mmo-platform\r\nSubject: WORM Lifecycle Follow-up %s\r\nX-Mmo-Worm-Test: lifecycle\r\n\r\nThis object has 2-day Object Lock. It must survive the 1-day lifecycle rule.\r\n" \
+  "$TEST_TS" > "$LIFECYCLE_BODY_FILE"
+trap 'rm -f "$TEST_BODY_FILE" "$LIFECYCLE_BODY_FILE" /tmp/worm-test-read.tmp /tmp/worm-test-kms.tmp' EXIT
+
+# Write the 2-day locked object first
+aws_writer s3api put-object \
+  --bucket "$SANDBOX_BUCKET" \
+  --key "$LIFECYCLE_TEST_KEY" \
+  --body "$LIFECYCLE_BODY_FILE" \
+  --content-type "message/rfc822" \
+  --object-lock-mode COMPLIANCE \
+  --object-lock-retain-until-date "$LIFECYCLE_RETAIN_UNTIL" \
+  --metadata "x-mmo-worm-test=lifecycle-check" \
+  > /dev/null 2>&1 || true
+
+# Now add the 1-day lifecycle rule (this targets ALL worm-test/ prefix objects)
 out=$(aws_admin s3api put-bucket-lifecycle-configuration \
   --bucket "$SANDBOX_BUCKET" \
   --lifecycle-configuration '{
@@ -362,14 +388,12 @@ out=$(aws_admin s3api put-bucket-lifecycle-configuration \
   }' 2>&1)
 r=$(expect_success "$out")
 if [ "$r" = "pass" ]; then
-  # Lifecycle rule accepted, but Object Lock prevents actual deletion
-  # We note this as requiring a 24h follow-up assertion; schedule it and pass now
-  FOLLOWUP_KEY="${TEST_KEY}.lifecycle-followup-ts=$(date -u +%s)"
   echo "   NOTE: Lifecycle rule accepted. Follow-up assertion needed in 24h."
-  echo "   Follow-up: verify test object still exists tomorrow despite lifecycle rule."
-  echo "   Key: $TEST_KEY"
-  record_result 11 "Lifecycle expire rule accepted (WORM prevents actual deletion)" \
-    "Rule accepted, object survives" "Rule accepted — 24h follow-up scheduled" "true"
+  echo "   Follow-up: verify 2-day locked object still exists tomorrow despite 1-day lifecycle rule."
+  echo "   Key: $LIFECYCLE_TEST_KEY  (lock expires: $LIFECYCLE_RETAIN_UNTIL)"
+  echo "   Command: aws --profile mmo-archive-reader s3api head-object --bucket $SANDBOX_BUCKET --key \"$LIFECYCLE_TEST_KEY\""
+  record_result 11 "Lifecycle expire rule accepted (2-day locked object must survive 1-day rule)" \
+    "Rule accepted, locked object survives" "Rule accepted — 24h follow-up: $LIFECYCLE_TEST_KEY" "true"
 else
   record_result 11 "Lifecycle expire rule accepted" "200 OK" "$out" "false"
 fi
