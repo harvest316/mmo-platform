@@ -87,6 +87,7 @@ Deferred to Pty Ltd trigger / MEDIUM priority (logged in CRAI TODO.md): Gmail do
 - Phase 7: `src/archive-uploader.js` exports `runArchiveUploader()`; `ops.cron_jobs` row seeded (task_key=archiveUploader, 1min interval); handler registered in `333Method/src/cron.js` HANDLERS.
 - Phase 8: `scripts/backfill-archive.js` — one-time reconstruction for 54,136 historical `msgs.messages` rows (email + SMS), all marked `reconstructed=true`. Out-of-scope channels (form/linkedin/x) marked with synthetic key.
 - Phase 9: Enforcement — `.githooks/pre-commit-archive-check.sh` (Layer 1), `.github/workflows/archive-enforcement.yml` (Layer 2 CI gate), `CLAUDE.md` Code Review Rules (Layer 3), `scripts/worm-e2e-test.sh` (20-point WORM tamper-resistance drill).
+- **WORM drill first run: 20/20 PASS** (2026-04-16T04:26:56Z, sandbox bucket). Two assertion bugs found and fixed during initial runs (Tests 19-20): `cancel-key-deletion` returns `{KeyId}` only (no `KeyState`), so `enable-key` must be called explicitly after cancel; `GetObject` during `PendingDeletion` fails immediately with `KMSInvalidStateException` (key is disabled at scheduling, not on expiry). Both fixed in commit `20819eb`. Test 11 follow-up pending (~2026-04-17T04:27Z AEST): verify lifecycle rule did NOT delete the test object `worm-test/2026/04/16/2026-04-16T04-27-03Z_drill.eml` — Object Lock must override lifecycle expiration.
 
 **Impl:** `mmo-platform/src/archive.js`, `mmo-platform/src/archive-uploader.js`, `mmo-platform/tests/unit/archive.test.js`, `mmo-platform/scripts/backfill-archive.js`, `mmo-platform/scripts/worm-e2e-test.sh`, `mmo-platform/.githooks/pre-commit-archive-check.sh`, `mmo-platform/.github/workflows/archive-enforcement.yml`, `333Method/src/cron.js` (archiveUploader handler + import), migrations in `mmo-platform/migrations/pg/`.
 
@@ -3675,3 +3676,21 @@ Code review enforcement rule added to `mmo-platform/CLAUDE.md` — Code Reviewer
 
 **Status:** Committed
 **Impl:** `site/api.php` (provisionSubscription, activateSubscription, handlePayPalWebhook), `site/includes/config.php`
+
+### DR-211: ERPChat architectural review — key findings and recommendations (2026-04-16)
+
+**Context:** Reviewed the full architectural plan for ERPChat, an Android voice/photo chatbot for warehouse staff interacting with ERPNext via Frappe Cloud. The plan proposes a "no backend server" design calling OpenRouter, ERPNext, and ElevenLabs directly from the device. Performed thorough review covering security, data flow, tool-call engine, offline handling, and component coupling.
+
+**Decision (key recommendations):**
+1. **Showstopper — API keys on device:** Plan stores OpenRouter, ERPNext, and ElevenLabs keys on the Android device. Recommended adding a thin Cloudflare Worker proxy to hold OpenRouter and ElevenLabs keys server-side. Device authenticates to proxy with per-user revocable token. Near-zero cost, also provides rate limiting and audit logging.
+2. **Keyword sanitizer must fail-closed:** If keyword list is empty (cold start, no network) or decryption fails, block outbound LLM requests rather than passing unsanitized text. Use AtomicReference for lock-free automaton swap on sync.
+3. **Reverse-mapping gap in sanitizer design:** Sanitized codewords in LLM tool-call arguments will fail against ERPNext (no matching records). Need entity-aware sanitization with reverse-mapping in the tool-call engine, or bypass sanitization for direct device-to-ERPNext API payloads.
+4. **Tool-call engine safety:** Add max 10-15 tool calls per turn, 50 per conversation, 90s wall-clock limit. Enforce confirmation gate for `submit` operations (irreversible in ERPNext). Validate tool arguments against doctype metadata before execution.
+5. **Keyword sync deletions:** Union merge handles additions but re-adds admin-deleted keywords. Use server-authoritative for deletions, union merge for additions.
+6. **ntfy topic security:** Use UUID v4 topic names + ntfy access tokens. Keep business data out of payloads (signal-only, fetch details from ERPNext).
+7. **Offline queue needs:** FIFO ordering with dependency tracking, modified-timestamp conflict detection, idempotency via per-entry status tracking, queue size limits.
+8. **Service consolidation:** Seven background services = seven persistent notifications. Consolidate to 2-3 services with internal dispatching.
+9. **Fallback TTS:** Add Android built-in TTS as fallback when ElevenLabs is unavailable or quota exhausted.
+
+**Status:** Proposed (pre-implementation review)
+**Impl:** No code yet — findings delivered as architectural review for ERPChat project
