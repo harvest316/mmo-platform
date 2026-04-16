@@ -17,13 +17,21 @@
 #   aws CLI installed and configured (admin-level credentials in default profile or AWS_PROFILE)
 #
 # Usage:
-#   bash scripts/setup-ses-inbound.sh [--dry-run]
+#   bash scripts/setup-ses-inbound.sh [--dry-run] [--profile=<aws-profile>]
+#   Default profile: mmo-admin
 
 set -euo pipefail
 
 DRY_RUN=0
-for arg in "$@"; do [[ "$arg" == "--dry-run" ]] && DRY_RUN=1; done
+PROFILE="mmo-admin"
+for arg in "$@"; do
+  [[ "$arg" == "--dry-run" ]] && DRY_RUN=1
+  [[ "$arg" == --profile=* ]] && PROFILE="${arg#--profile=}"
+done
 [[ $DRY_RUN == 1 ]] && echo "⚠  DRY RUN — no AWS changes will be made" && echo
+
+# Thread --profile through every aws CLI call transparently
+aws() { command aws --profile "$PROFILE" "$@"; }
 
 # ── Prerequisites ────────────────────────────────────────────────────────────
 
