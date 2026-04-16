@@ -4,6 +4,30 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-227: Scope of this register is the mmo-platform ecosystem only (2026-04-16)
+
+**Context:** The global instruction in `~/.claude/CLAUDE.md` says *"All architectural and technical decisions must be recorded in `~/code/mmo-platform/docs/decisions.md`"*. Taken literally, that instruction would pull in decisions from any project under `~/code/` — including paid external-client engagements whose code, secrets, compliance posture, and audit trail need to stay separate. Mixing external-client decisions into this register would leak client context into shared tooling, pollute memory, and complicate future due-diligence on the mmo-platform side.
+
+**Decision:** This register is scoped to the **mmo-platform ecosystem** only. In-scope projects:
+
+- `~/code/mmo-platform/` (umbrella)
+- `~/code/333Method/`
+- `~/code/2Step/`
+- `~/code/AdManager/`
+- `~/code/ContactReplyAI/`
+- `~/code/AgentSystem/`
+- `~/code/distributed-infra/`
+- `~/code/auditandfix-website/`
+- `~/code/colormora-base44/`
+
+Projects **not in `~/code/mmo.code-workspace`** are out of scope. External-client engagements keep their own project-local decision registers at `<project>/docs/decisions.md` with their own DR sequence. Decisions made during work on out-of-scope projects are **not** migrated into this register — ever.
+
+**Status:** Accepted. This DR is the authoritative scope statement; future Claude sessions encountering a decision made outside the in-scope list should leave it where it is, not attempt to migrate it here.
+
+**Impl:** No code change. This DR is a governance record only.
+
+---
+
 ### DR-226: CRAI onboarding canonicalised to browser wizard; SMS-first copy removed (2026-04-16)
 
 **Context:** Inspecting the sandbox thank-you page surfaced a design contradiction. [public/thank-you.php](../../ContactReplyAI/public/thank-you.php) body copy and the PayPal confirmation email told the customer: *"Check your phone — we'll text you within 30 minutes. Answer a few questions by text..."* (SMS-driven onboarding). But the CTA button on the same page routed to [public/onboarding.php](../../ContactReplyAI/public/onboarding.php) — a 6-step browser wizard that does its own capture. No phone number is collected in [public/checkout.php](../../ContactReplyAI/public/checkout.php) (email + name only) and no SMS-bot backend exists to drive an SMS-first flow. The copy promised a system that wasn't built.
