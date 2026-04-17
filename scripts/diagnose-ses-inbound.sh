@@ -15,7 +15,7 @@ done
 
 aws() { command aws --profile "$PROFILE" "$@"; }
 
-REGION="us-west-2"
+REGION="ap-southeast-2"
 PARENT_DOMAIN="auditandfix.com"
 E2E_DOMAIN="e2e.auditandfix.com"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
