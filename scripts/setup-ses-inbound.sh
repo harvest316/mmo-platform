@@ -6,12 +6,12 @@
 #   - Bucket policy allowing SES (us-west-2) to write raw emails
 #   - IAM user   mmo-e2e-email-reader  with GetObject/ListBucket/DeleteObject
 #   - IAM access key for that user (only created once; printed once)
-#   - SES receipt rule set  e2e-inbound  (us-west-2)
+#   - SES receipt rule set  e2e-inbound  (ap-southeast-2 — must match verified domain region)
 #   - SES receipt rule accepting *@e2e.auditandfix.com → S3 prefix incoming/
-#   - Sets the rule set as the active rule set in us-west-2
+#   - Sets the rule set as the active rule set in ap-southeast-2
 #
 # After running, add to Hostinger DNS for auditandfix.com:
-#   MX  e2e  10  inbound-smtp.us-west-2.amazonaws.com
+#   MX  e2e  10  inbound-smtp.ap-southeast-2.amazonaws.com
 #
 # Requirements:
 #   aws CLI installed and configured (admin-level credentials in default profile or AWS_PROFILE)
@@ -45,7 +45,7 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 echo "   Account: $ACCOUNT_ID"
 echo
 
-REGION="us-west-2"
+REGION="ap-southeast-2"  # Sydney — same region as auditandfix.com SES sending identity; us-west-2 has no verified domain
 BUCKET="mmo-e2e-inbound-${ACCOUNT_ID}"
 IAM_USER="mmo-e2e-email-reader"
 RULE_SET="e2e-inbound"
