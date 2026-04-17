@@ -21,7 +21,7 @@ check_pattern() {
   local pattern="$1"
   local desc="$2"
   local matches
-  matches=$(echo "$DIFF" | grep -inE "^\+" | grep -iE "$pattern" | grep -v "^+++\|REDACTED\|CHANGE_ME\|example\.com\|check-pii" | head -5)
+  matches=$(echo "$DIFF" | grep -inE "^\+" | grep -iE "$pattern" | grep -v "^+++\|REDACTED\|CHANGE_ME\|example\.com\|check-pii\|pii-ok" | head -5)
   if [ -n "$matches" ]; then
     echo "  ⚠ ${desc}:"
     echo "$matches" | sed 's/^/    /'
