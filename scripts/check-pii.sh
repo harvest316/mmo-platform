@@ -16,6 +16,15 @@ fi
 
 FOUND=0
 
+# ── Block .htaccess files (contain server secrets, should be .gitignored) ──
+HTACCESS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.htaccess$' | grep -v '\.example$' || true)
+if [ -n "$HTACCESS_FILES" ]; then
+  echo "  ⚠ .htaccess file staged for commit (likely contains secrets):"
+  echo "$HTACCESS_FILES" | sed 's/^/    /'
+  echo "    → Use .htaccess.example (with placeholders) + .gitignore instead"
+  FOUND=1
+fi
+
 # Patterns to check (each is a regex + description)
 check_pattern() {
   local pattern="$1"
@@ -62,6 +71,11 @@ check_pattern 'sk-ant-[A-Za-z0-9-]{20,}' 'Anthropic API key'
 check_pattern 'sk-or-[A-Za-z0-9-]{20,}' 'OpenRouter API key'
 check_pattern 're_[A-Za-z0-9]{20,}' 'Resend API key (legacy — should not appear)'
 check_pattern 'password\s*[:=]\s*["\x27][^"\x27]{6,}' 'Hardcoded password'
+check_pattern 'PAYPAL_CLIENT_SECRET\s+["'\''"][A-Za-z0-9]{20,}' 'PayPal client secret'
+check_pattern 'SES_SMTP_PASSWORD\s+["'\''"][A-Za-z0-9+/=]{20,}' 'SES SMTP password'
+
+# ── Server config files with inline secrets ──
+check_pattern 'SetEnv\s+\S*(SECRET|PASSWORD|TOKEN|KEY)\s+["'\''"][^<][^"'\'']{8,}' 'Secret in SetEnv directive (use .htaccess.example + .gitignore)'
 
 # ── Dynamic: check if any .env/.env.secrets VALUES appear in the diff ──
 for envfile in .env .env.secrets; do
