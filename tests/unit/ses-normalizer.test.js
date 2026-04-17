@@ -181,7 +181,7 @@ describe('normalizeSesReceipt', () => {
 
   it('passes S3 bucket and key through correctly', () => {
     const result = normalizeSesReceipt(receiptEvent);
-    expect(result.data.s3_bucket).toBe('auditandfix-ses-inbound');
+    expect(result.data.s3_bucket).toBe('brand-ses-inbound');
     expect(result.data.s3_key).toBe('emails/inbound-msg-001');
   });
 
