@@ -4,6 +4,16 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-230: CRAI tradie platform integration strategy — downstream-only (2026-04-17)
+
+**Context:** Investigated whether CRAI could integrate directly with AU tradie lead platforms (hipages, Airtasker, ServiceSeeking, Oneflare, Bark.com, Gumtree) to auto-respond to incoming job leads. Research covered API availability, ToS restrictions, email notification content, and post-lead communication flows across all major platforms.
+
+**Decision:** No AU tradie lead platform offers a public API, webhooks, or any third-party integration for lead delivery or messaging. Hipages, Airtasker, and Bark.com explicitly prohibit automation in their ToS. CRAI's integration strategy is **downstream-only**: we handle the conversation after the tradie has the customer's contact details, regardless of which platform generated the lead. Three viable paths: (1) Gumtree/directory listings with CRAI email/phone — customer enquiries arrive directly, zero platform involvement; (2) platform-agnostic downstream SMS via Mode A/F — works with any lead source; (3) email forwarding from platform notification emails to a CRAI ingest address (Phase 2 feature, leverages existing SES inbound pipeline). Watch hipages tradiecore for future partner API — file partnership inquiry proactively.
+
+**Status:** Research complete. No implementation needed — this validates existing CRAI architecture (Modes A-F) as the correct approach. Email forwarding ingest is a Phase 2 product feature.
+
+**Implementation:** Memory reference: `reference_tradie_platforms.md`. Product implications documented for CRAI onboarding flow (platform-specific setup instructions per lead source).
+
 ### DR-229: SES inbound domain verification required per-region for email receipt (2026-04-17)
 
 **Context:** Test 13 of `auditandfix-website/tests/e2e/contact-form.spec.js` ("submitted email arrives in SES inbound S3 bucket") was failing. All infrastructure appeared correct: MX record for `e2e.auditandfix.com` pointed to `inbound-smtp.us-west-2.amazonaws.com`, the S3 bucket existed with `AMAZON_SES_SETUP_NOTIFICATION` confirming SES had write access, receipt rule set `e2e-inbound` was active in us-west-2, and the PHP form returned `.success-box` (SES SMTP submission accepted the email). Direct SMTP probes via Python confirmed the SES SMTP outbound accepted emails, yet after 90+ seconds no objects appeared in `mmo-e2e-inbound-575751781585/incoming/`. The `setup-ses-inbound.sh` script created all rule infrastructure but omitted domain verification.

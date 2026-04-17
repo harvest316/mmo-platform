@@ -54,7 +54,7 @@ PAYPAL_SANDBOX_CLIENT_SECRET=…      # same
 # optional but recommended
 PAYPAL_SANDBOX_BUYER_EMAIL=…        # included in the approval prompt
 PAYPAL_SANDBOX_BUYER_PASSWORD=…     # same
-AUDITANDFIX_BASE=https://auditandfix.com   # default if unset
+BRAND_URL=https://auditandfix.com   # default if unset
 M333_WORKER_SECRET=…                # enables Hop 3 R2 cross-check
 
 # unused today but documented for future symmetry

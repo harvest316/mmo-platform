@@ -49,7 +49,7 @@ const ENV = {
   PAYPAL_SANDBOX_CLIENT_ID: readEnv('PAYPAL_SANDBOX_CLIENT_ID'),
   PAYPAL_SANDBOX_CLIENT_SECRET: readEnv('PAYPAL_SANDBOX_CLIENT_SECRET'),
   PAYPAL_SANDBOX_WEBHOOK_ID: readEnv('PAYPAL_SANDBOX_WEBHOOK_ID', { required: false }),
-  AUDITANDFIX_BASE: readEnv('AUDITANDFIX_BASE', { fallback: 'https://auditandfix.com' }),
+  BRAND_URL: readEnv('BRAND_URL', { fallback: 'https://auditandfix.com' }),
   PAYPAL_SANDBOX_BUYER_EMAIL: readEnv('PAYPAL_SANDBOX_BUYER_EMAIL', { required: false }),
   PAYPAL_SANDBOX_BUYER_PASSWORD: readEnv('PAYPAL_SANDBOX_BUYER_PASSWORD', { required: false }),
   M333_WORKER_SECRET: readEnv('M333_WORKER_SECRET', { required: false }),
@@ -110,7 +110,7 @@ function doRequest(urlStr, { method = 'GET', headers = {}, body = null } = {}) {
 // ──────────────────────────────────────────────────────────────────────────
 
 async function createSandboxSubscription() {
-  const url = `${ENV.AUDITANDFIX_BASE}/api.php`
+  const url = `${ENV.BRAND_URL}/api.php`
     + `?sandbox=${encodeURIComponent(ENV.E2E_SANDBOX_KEY)}`
     + `&action=create-subscription`;
 
@@ -210,7 +210,7 @@ async function promptForApproval({ subscriptionId, approveUrl }) {
  * any api.php logic — the full retrieve-verify + DB write path runs as normal.
  */
 async function replayEventToSandboxEndpoint(eventType, subscriptionId) {
-  const url = `${ENV.AUDITANDFIX_BASE}/api.php?action=paypal-webhook-sandbox`;
+  const url = `${ENV.BRAND_URL}/api.php?action=paypal-webhook-sandbox`;
   const body = JSON.stringify({
     id: `WH-REPLAY-${Date.now()}`,
     event_version: '1.0',
@@ -265,7 +265,7 @@ async function checkApiPhpSandboxRow(subscriptionId, { expectStatus }) {
   // Placeholder implementation — no way to inspect the sandbox SQLite
   // from outside the host without shell access. Returns 'manual' so the
   // report surfaces the gap instead of silently passing.
-  const endpointUrl = `${ENV.AUDITANDFIX_BASE}/api.php?action=e2e-sandbox-subscription-status&sub_id=${encodeURIComponent(subscriptionId)}`;
+  const endpointUrl = `${ENV.BRAND_URL}/api.php?action=e2e-sandbox-subscription-status&sub_id=${encodeURIComponent(subscriptionId)}`;
   const bearer = process.env.E2E_SHARED_SECRET;
 
   if (!bearer) {
@@ -578,7 +578,7 @@ function printReport({ subscriptionId, activated, cancelled, cancelStatus }) {
 async function main() {
   console.log('PayPal Sandbox Live-Run Harness (DR-215)');
   console.log('========================================');
-  console.log('base:', ENV.AUDITANDFIX_BASE);
+  console.log('base:', ENV.BRAND_URL);
   console.log();
 
   let subscriptionId, approveUrl;

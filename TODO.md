@@ -167,3 +167,115 @@ structured data in `index.php` with real `aggregateRating` and
 - Schema location: `index.php` → `@graph` → `Product` → `aggregateRating` + `review`
 - Consider: pull rating/count from Trustpilot API automatically, or update manually
   after first 5–10 reviews
+
+---
+
+## Remove hardcoded `auditandfix.com` and `contactreplyai.com` references
+
+DR-145/146/147/152/157/158 replaced most runtime source code references with
+`BRAND_DOMAIN`/`BRAND_URL` env vars. What remains are comments, constants,
+test fixtures, docs, and infrastructure scripts. This TODO tracks cleaning up
+the stragglers.
+
+### Scripts (infrastructure — real domain references)
+
+These scripts configure real AWS/CF resources and legitimately reference the
+domains. Decide per-script: parameterise with env vars, or leave as-is since
+they're internal tooling.
+
+- [ ] `scripts/setup-ses.mjs` — ~40 references: domain lists (lines 92–106),
+  MAIL FROM helpers (343–348), receipt rules (936–981), IAM policy ARNs
+  (1056–1077), SPF/DMARC records (1196–1270), MX setup (1304–1319). Consider
+  extracting domain lists to a `DOMAINS` const at top or a config file.
+- [ ] `scripts/setup-ses-inbound.sh` — 7 references: `DOMAIN`, `PARENT_DOMAIN`
+  constants and DNS instructions. Already uses variables but defaults are
+  hardcoded.
+- [ ] `scripts/diagnose-ses-inbound.sh` — `PARENT_DOMAIN` and `E2E_DOMAIN`
+  constants (lines 19–20, 109).
+- [ ] `scripts/citation-monitor.sh` — `BRAND_DOMAIN` default fallback (line 31).
+  Already parameterised, just has `auditandfix.com` as default.
+- [ ] `scripts/backfill-archive.js` — Reconstructed message-id fallback
+  `@auditandfix.com` (line 119).
+
+### Unit tests
+
+Hardcoded domains in test fixtures and assertions. Replace with constants or
+clearly-named test fixture values (e.g. `TEST_BRAND_DOMAIN`).
+
+- [ ] `tests/unit/setup-ses.test.js` — ~30 references: zone-routing assertions
+  for both domains and all subdomains (lines 45–221). These are testing real
+  zone routing logic so the domain strings are intentional test data, but should
+  use a shared constant.
+- [ ] `tests/unit/ses-normalizer.test.js` — `inbound.contactreplyai.com` in
+  fixture data (lines 131–185).
+- [ ] `tests/unit/email-forwarder.test.js` — `marcus@auditandfix.com`,
+  `status@dev.auditandfix.com` in test fixtures (lines 99–157).
+- [ ] `tests/unit/draft-ip-rerequest.test.js` — `brandDomain: 'auditandfix.com'`
+  fixture and assertion (lines 52, 150).
+- [ ] `tests/unit/canary-magic-link.test.js` — `test+canary@auditandfix.com`
+  in canary config fixtures (lines 85–101).
+
+### E2E / PayPal test harness
+
+- [ ] `tests/e2e/paypal/harness/sandbox-live-run.js` — generated email
+  `@auditandfix.com` (line 118), comments referencing the host (lines 176, 564).
+  (`AUDITANDFIX_BASE` → `BRAND_URL` rename already done — DR-154.)
+- [ ] `tests/e2e/paypal/harness/README.md` — endpoint URLs, `.htaccess`
+  references (~5 remaining; `BRAND_URL` env example already updated).
+- [ ] `tests/e2e/paypal/README.md` — architecture diagram mentioning
+  `auditandfix.com/api.php` (line 23).
+- [ ] `tests/e2e/paypal/scripts/capture-sandbox-fixtures.js` — deploy
+  instructions and URL in comments (lines 23, 26).
+- [ ] `tests/e2e/paypal/fixtures/m333-worker/checkout-order-approved.json` —
+  `payee@auditandfix.com` in fixture payload (line 30).
+
+### Docs — strategy & plans
+
+These are point-in-time documents. May be fine to leave as-is (they describe
+the brand), or update if the brand/domain changes.
+
+- [ ] `docs/growth-strategy-2026-Q2.md` — ~4 references: `site:auditandfix.com`,
+  Meta Pixel install, www canonicalization, referral link.
+- [ ] `docs/seo-strategy-auditandfix.md` — ~6 references: indexing checks, curl
+  commands, www/non-www, Search Console. File is brand-specific by design.
+- [ ] `docs/review-acquisition-campaign.md` — ~7 references: Trustpilot profile
+  URLs, signup email, GBP panel search.
+- [ ] `docs/plans/distributed-agent-system.md` — ~7 references: logo/favicon
+  asset paths, copy instructions, dashboard mention.
+
+### Docs — Google Ads
+
+All ad copy and campaign docs are brand-specific by design. If the brand
+changes, these need a full rewrite anyway.
+
+- [ ] `docs/google-ads/ad-copy.md` — ~30 references: Final URLs, display path,
+  sitelink URLs. All point to `auditandfix.com/scan`.
+- [ ] `docs/google-ads/campaign-structure.md` — title and landing page URL.
+- [ ] `docs/google-ads/measurement-plan.md` — GTM container name, page URL.
+- [ ] `docs/google-ads/2step-video-ads.md` — ~15 references: landing page URLs,
+  sitelink URLs, budget references.
+- [ ] `docs/google-ads/keywords.csv` — brand keyword `auditandfix.com` (line 5).
+
+### Docs — operational
+
+- [ ] `docs/MANUAL-CHECKS.md` — Cloudflare dashboard URLs, Google Search
+  Console URLs, Postmaster Tools URL (~6 references). These are bookmarks —
+  the URLs are real and correct.
+- [ ] `docs/decisions.md` — ~50+ references across dozens of DRs. These are
+  historical records and should NOT be changed (they document what was decided
+  at the time). **Leave as-is.**
+
+### This file (TODO.md)
+
+- [ ] Existing sections in this file reference both domains in DMARC, SES,
+  Cloudflare, and domain purchase tasks. These are operational TODOs about the
+  real domains — **leave as-is** until the tasks are completed.
+
+### Approach
+
+1. **Don't touch** `docs/decisions.md` or existing TODO items — they're historical/operational.
+2. **Scripts**: extract domain lists to top-level constants or a shared config.
+3. **Tests**: introduce `TEST_BRAND_DOMAIN` / `TEST_CRAI_DOMAIN` constants.
+4. **Docs (strategy/ads)**: leave for now — they're brand-specific content.
+5. **Docs (operational)**: leave — they're real bookmarks/URLs.
+6. **Priority**: scripts → tests → docs (if brand changes).
