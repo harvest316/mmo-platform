@@ -24,7 +24,7 @@ events (per DR-213 follow-up):
 
 | URL | Events | Purpose |
 |---|---|---|
-| `https://auditandfix.com/api.php?action=paypal-webhook-sandbox` | `BILLING.SUBSCRIPTION.ACTIVATED`, `CANCELLED`, `SUSPENDED` | 2Step subscription lifecycle |
+| `https://<BRAND_URL>/api.php?action=paypal-webhook-sandbox` | `BILLING.SUBSCRIPTION.ACTIVATED`, `CANCELLED`, `SUSPENDED` | 2Step subscription lifecycle |
 | `https://api-staging.contactreply.app/webhooks/paypal` | CRAI lifecycle + `PAYMENT.SALE.*` | ContactReplyAI tenant billing (informational — not exercised by this 2Step harness) |
 | `https://paypal-webhook-worker-test.auditandfix.workers.dev/webhook/paypal` | `CHECKOUT.ORDER.APPROVED`, `PAYMENT.CAPTURE.*`, `BILLING.SUBSCRIPTION.*`, etc. | 333Method R2 mirror (used as cross-check) |
 
@@ -35,7 +35,7 @@ app → Webhooks.
 
 The harness prints these for you if they're in env. To find them:
 
-- Production `.htaccess` on auditandfix.com — `PAYPAL_SANDBOX_BUYER_EMAIL` and
+- Production `.htaccess` on the brand host — `PAYPAL_SANDBOX_BUYER_EMAIL` and
   `PAYPAL_SANDBOX_BUYER_PASSWORD`.
 - Or create a personal sandbox account:
   <https://developer.paypal.com/dashboard/accounts> → "Create Account" →
@@ -47,7 +47,7 @@ They are redacted from this README on purpose — look them up before running.
 
 ```
 # required
-E2E_SANDBOX_KEY=…                   # matches auditandfix.com .htaccess
+E2E_SANDBOX_KEY=…                   # matches the brand host .htaccess
 PAYPAL_SANDBOX_CLIENT_ID=…          # from ~/code/ContactReplyAI/.env or PayPal dashboard
 PAYPAL_SANDBOX_CLIENT_SECRET=…      # same
 
@@ -150,7 +150,7 @@ gaps") — fall back to the SSH command printed by the harness.
 Each run generates a unique sub_id so replays don't collide, but the
 `subscriptions-sandbox.sqlite` table grows over time. Options:
 
-- **Drop the sandbox DB** (simplest): on the auditandfix.com host,
+- **Drop the sandbox DB** (simplest): on the brand host (`$BRAND_URL`),
   `rm data/subscriptions-sandbox.sqlite` — next sandbox POST re-creates it
   with schema migrations.
 - **Add an e2e cleanup endpoint** (follow-up): `?action=e2e-cleanup-sandbox-subs`
@@ -192,8 +192,8 @@ The following follow-ups are intentionally deferred from the DR-220/DR-215 PR:
   the terminal; the webhook fires independently.
 - **"ACTIVATED never lands"** — check the PayPal sandbox dashboard → your app →
   Webhooks → Event History. If PayPal shows a delivery attempt but the
-  handler returned non-2xx, tail `logs/api-error.log` on the auditandfix.com
-  host. If PayPal shows no attempt, the webhook URL isn't subscribed to the
+  handler returned non-2xx, tail `logs/api-error.log` on the brand host.
+ If PayPal shows no attempt, the webhook URL isn't subscribed to the
   event — fix in the dashboard.
 - **"Sandbox creds missing 500"** — DR-220 strict-creds behaviour. The config
   refuses to fall back to live creds when sandbox mode is forced by the

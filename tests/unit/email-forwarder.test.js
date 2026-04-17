@@ -11,6 +11,14 @@ import {
   getForwardDestination,
   buildWrapAndNotifyPayload,
 } from '../../../333Method/workers/email-webhook/src/forwarder.js';
+import {
+  BRAND_DOMAIN,
+  BRAND_APP_DOMAIN,
+  BRAND_NET_DOMAIN,
+  TEST_SENDER_EMAIL,
+  TEST_STATUS_EMAIL,
+  TEST_FWD_EMAIL,
+} from '../helpers/test-domains.js';
 
 // ── shouldDrop (RF-8 pre-filter) ─────────────────────────────────────────────
 
@@ -94,11 +102,11 @@ describe('shouldDrop', () => {
   });
 
   it('drops self-loop from our own domain', () => {
-    expect(shouldDrop({ from: 'marcus@auditandfix.app', headers: [] }))
+    expect(shouldDrop({ from: `marcus@${BRAND_APP_DOMAIN}`, headers: [] }))
       .toMatch(/self-loop/);
-    expect(shouldDrop({ from: 'marcus@auditandfix.com', headers: [] }))
+    expect(shouldDrop({ from: TEST_SENDER_EMAIL, headers: [] }))
       .toMatch(/self-loop/);
-    expect(shouldDrop({ from: 'status@auditandfix.net', headers: [] }))
+    expect(shouldDrop({ from: TEST_STATUS_EMAIL, headers: [] }))
       .toMatch(/self-loop/);
   });
 
@@ -128,24 +136,24 @@ describe('shouldDrop', () => {
 
 describe('getForwardDestination', () => {
   const env = {
-    FORWARD_TO_NET_STATUS: 'status@dev.auditandfix.com',
+    FORWARD_TO_NET_STATUS: TEST_FWD_EMAIL,
   };
 
-  it('returns destination for status@auditandfix.net (pre-seed monitoring)', () => {
-    expect(getForwardDestination('status@auditandfix.net', env))
-      .toBe('status@dev.auditandfix.com');
+  it('returns destination for status@<net> (pre-seed monitoring)', () => {
+    expect(getForwardDestination(TEST_STATUS_EMAIL, env))
+      .toBe(TEST_FWD_EMAIL);
   });
 
-  it('returns null for marcus@auditandfix.app (autoresponder pipeline)', () => {
-    expect(getForwardDestination('marcus@auditandfix.app', env)).toBeNull();
+  it('returns null for marcus@<app> (autoresponder pipeline)', () => {
+    expect(getForwardDestination(`marcus@${BRAND_APP_DOMAIN}`, env)).toBeNull();
   });
 
   it('returns null for marcus@contactreply.app (CRAI autoresponder)', () => {
     expect(getForwardDestination('marcus@contactreply.app', env)).toBeNull();
   });
 
-  it('returns null for marcus@auditandfix.com (existing reply processor)', () => {
-    expect(getForwardDestination('marcus@auditandfix.com', env)).toBeNull();
+  it('returns null for marcus@<brand> (existing reply processor)', () => {
+    expect(getForwardDestination(TEST_SENDER_EMAIL, env)).toBeNull();
   });
 
   it('returns null for unknown address', () => {
@@ -153,12 +161,12 @@ describe('getForwardDestination', () => {
   });
 
   it('is case-insensitive on the To address', () => {
-    expect(getForwardDestination('Status@Auditandfix.Net', env))
-      .toBe('status@dev.auditandfix.com');
+    expect(getForwardDestination(TEST_STATUS_EMAIL.toUpperCase(), env))
+      .toBe(TEST_FWD_EMAIL);
   });
 
   it('returns null when forward secret is not configured', () => {
-    expect(getForwardDestination('status@auditandfix.net', {})).toBeNull();
+    expect(getForwardDestination(TEST_STATUS_EMAIL, {})).toBeNull();
   });
 });
 

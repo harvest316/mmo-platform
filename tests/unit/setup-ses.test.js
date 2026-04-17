@@ -14,6 +14,13 @@
 
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
+import {
+  BRAND_DOMAIN,
+  BRAND_APP_DOMAIN,
+  BRAND_NET_DOMAIN,
+  CRAI_DOMAIN,
+  CRAI_APP_DOMAIN,
+} from '../helpers/test-domains.js';
 
 // ── Inline copies of the helper functions under test ─────────────────────────
 // The script is not designed for import (top-level await + process.exit calls),
@@ -133,97 +140,97 @@ describe('zoneIdForDomain', () => {
     crApp: 'zone-crapp-bbbbbb',
   };
 
-  // ── auditandfix.com (cold outreach + marketing) ──
-  it('auditandfix.com → AF zone', () => {
-    expect(zoneIdForDomain('auditandfix.com', ZONES)).toBe(ZONES.af);
+  // ── BRAND_DOMAIN (cold outreach + marketing) ──
+  it(`${BRAND_DOMAIN} → AF zone`, () => {
+    expect(zoneIdForDomain(BRAND_DOMAIN, ZONES)).toBe(ZONES.af);
   });
-  it('send.auditandfix.com → AF zone', () => {
-    expect(zoneIdForDomain('send.auditandfix.com', ZONES)).toBe(ZONES.af);
+  it(`send.${BRAND_DOMAIN} → AF zone`, () => {
+    expect(zoneIdForDomain(`send.${BRAND_DOMAIN}`, ZONES)).toBe(ZONES.af);
   });
-  it('mail.auditandfix.com → AF zone', () => {
-    expect(zoneIdForDomain('mail.auditandfix.com', ZONES)).toBe(ZONES.af);
+  it(`mail.${BRAND_DOMAIN} → AF zone`, () => {
+    expect(zoneIdForDomain(`mail.${BRAND_DOMAIN}`, ZONES)).toBe(ZONES.af);
   });
-  it('deep.sub.auditandfix.com → AF zone', () => {
-    expect(zoneIdForDomain('deep.sub.auditandfix.com', ZONES)).toBe(ZONES.af);
+  it(`deep.sub.${BRAND_DOMAIN} → AF zone`, () => {
+    expect(zoneIdForDomain(`deep.sub.${BRAND_DOMAIN}`, ZONES)).toBe(ZONES.af);
   });
-  it('bounce.outreach.auditandfix.com (MAIL FROM) → AF zone', () => {
-    expect(zoneIdForDomain('bounce.outreach.auditandfix.com', ZONES)).toBe(ZONES.af);
-  });
-
-  // ── auditandfix.app (customer portal + transactional) ──
-  it('auditandfix.app → AF.app zone', () => {
-    expect(zoneIdForDomain('auditandfix.app', ZONES)).toBe(ZONES.afApp);
-  });
-  it('send.auditandfix.app → AF.app zone', () => {
-    expect(zoneIdForDomain('send.auditandfix.app', ZONES)).toBe(ZONES.afApp);
-  });
-  it('bounce.auditandfix.app (MAIL FROM) → AF.app zone', () => {
-    expect(zoneIdForDomain('bounce.auditandfix.app', ZONES)).toBe(ZONES.afApp);
-  });
-  it('bounce.outbound.auditandfix.app → AF.app zone', () => {
-    expect(zoneIdForDomain('bounce.outbound.auditandfix.app', ZONES)).toBe(ZONES.afApp);
+  it(`bounce.outreach.${BRAND_DOMAIN} (MAIL FROM) → AF zone`, () => {
+    expect(zoneIdForDomain(`bounce.outreach.${BRAND_DOMAIN}`, ZONES)).toBe(ZONES.af);
   });
 
-  // ── auditandfix.net (pre-seed) ──
-  it('auditandfix.net → AF.net zone', () => {
-    expect(zoneIdForDomain('auditandfix.net', ZONES)).toBe(ZONES.afNet);
+  // ── BRAND_APP_DOMAIN (customer portal + transactional) ──
+  it(`${BRAND_APP_DOMAIN} → AF.app zone`, () => {
+    expect(zoneIdForDomain(BRAND_APP_DOMAIN, ZONES)).toBe(ZONES.afApp);
   });
-  it('send.auditandfix.net → AF.net zone', () => {
-    expect(zoneIdForDomain('send.auditandfix.net', ZONES)).toBe(ZONES.afNet);
+  it(`send.${BRAND_APP_DOMAIN} → AF.app zone`, () => {
+    expect(zoneIdForDomain(`send.${BRAND_APP_DOMAIN}`, ZONES)).toBe(ZONES.afApp);
   });
-  it('bounce.auditandfix.net (MAIL FROM) → AF.net zone', () => {
-    expect(zoneIdForDomain('bounce.auditandfix.net', ZONES)).toBe(ZONES.afNet);
+  it(`bounce.${BRAND_APP_DOMAIN} (MAIL FROM) → AF.app zone`, () => {
+    expect(zoneIdForDomain(`bounce.${BRAND_APP_DOMAIN}`, ZONES)).toBe(ZONES.afApp);
   });
-
-  // ── contactreplyai.com (CRAI marketing) ──
-  it('contactreplyai.com → CRAI zone', () => {
-    expect(zoneIdForDomain('contactreplyai.com', ZONES)).toBe(ZONES.crai);
-  });
-  it('sub.contactreplyai.com → CRAI zone', () => {
-    expect(zoneIdForDomain('sub.contactreplyai.com', ZONES)).toBe(ZONES.crai);
-  });
-  it('outbound.contactreplyai.com → CRAI zone', () => {
-    expect(zoneIdForDomain('outbound.contactreplyai.com', ZONES)).toBe(ZONES.crai);
+  it(`bounce.outbound.${BRAND_APP_DOMAIN} → AF.app zone`, () => {
+    expect(zoneIdForDomain(`bounce.outbound.${BRAND_APP_DOMAIN}`, ZONES)).toBe(ZONES.afApp);
   });
 
-  // ── contactreply.app (CRAI future portal) ──
-  it('contactreply.app → CR.app zone', () => {
-    expect(zoneIdForDomain('contactreply.app', ZONES)).toBe(ZONES.crApp);
+  // ── BRAND_NET_DOMAIN (pre-seed) ──
+  it(`${BRAND_NET_DOMAIN} → AF.net zone`, () => {
+    expect(zoneIdForDomain(BRAND_NET_DOMAIN, ZONES)).toBe(ZONES.afNet);
   });
-  it('send.contactreply.app → CR.app zone', () => {
-    expect(zoneIdForDomain('send.contactreply.app', ZONES)).toBe(ZONES.crApp);
+  it(`send.${BRAND_NET_DOMAIN} → AF.net zone`, () => {
+    expect(zoneIdForDomain(`send.${BRAND_NET_DOMAIN}`, ZONES)).toBe(ZONES.afNet);
   });
-  it('bounce.contactreply.app → CR.app zone', () => {
-    expect(zoneIdForDomain('bounce.contactreply.app', ZONES)).toBe(ZONES.crApp);
+  it(`bounce.${BRAND_NET_DOMAIN} (MAIL FROM) → AF.net zone`, () => {
+    expect(zoneIdForDomain(`bounce.${BRAND_NET_DOMAIN}`, ZONES)).toBe(ZONES.afNet);
+  });
+
+  // ── CRAI_DOMAIN (CRAI marketing) ──
+  it(`${CRAI_DOMAIN} → CRAI zone`, () => {
+    expect(zoneIdForDomain(CRAI_DOMAIN, ZONES)).toBe(ZONES.crai);
+  });
+  it(`sub.${CRAI_DOMAIN} → CRAI zone`, () => {
+    expect(zoneIdForDomain(`sub.${CRAI_DOMAIN}`, ZONES)).toBe(ZONES.crai);
+  });
+  it(`outbound.${CRAI_DOMAIN} → CRAI zone`, () => {
+    expect(zoneIdForDomain(`outbound.${CRAI_DOMAIN}`, ZONES)).toBe(ZONES.crai);
+  });
+
+  // ── CRAI_APP_DOMAIN (CRAI future portal) ──
+  it(`${CRAI_APP_DOMAIN} → CR.app zone`, () => {
+    expect(zoneIdForDomain(CRAI_APP_DOMAIN, ZONES)).toBe(ZONES.crApp);
+  });
+  it(`send.${CRAI_APP_DOMAIN} → CR.app zone`, () => {
+    expect(zoneIdForDomain(`send.${CRAI_APP_DOMAIN}`, ZONES)).toBe(ZONES.crApp);
+  });
+  it(`bounce.${CRAI_APP_DOMAIN} → CR.app zone`, () => {
+    expect(zoneIdForDomain(`bounce.${CRAI_APP_DOMAIN}`, ZONES)).toBe(ZONES.crApp);
   });
 
   // ── Disambiguation between similar suffixes ──
-  it('does not confuse contactreply.app with contactreplyai.com', () => {
-    expect(zoneIdForDomain('contactreply.app', ZONES)).toBe(ZONES.crApp);
-    expect(zoneIdForDomain('contactreplyai.com', ZONES)).toBe(ZONES.crai);
+  it('does not confuse CRAI_APP_DOMAIN with CRAI_DOMAIN', () => {
+    expect(zoneIdForDomain(CRAI_APP_DOMAIN, ZONES)).toBe(ZONES.crApp);
+    expect(zoneIdForDomain(CRAI_DOMAIN, ZONES)).toBe(ZONES.crai);
     // The two are completely separate zones — never cross-contaminate
-    expect(zoneIdForDomain('contactreply.app', ZONES)).not.toBe(ZONES.crai);
-    expect(zoneIdForDomain('contactreplyai.com', ZONES)).not.toBe(ZONES.crApp);
+    expect(zoneIdForDomain(CRAI_APP_DOMAIN, ZONES)).not.toBe(ZONES.crai);
+    expect(zoneIdForDomain(CRAI_DOMAIN, ZONES)).not.toBe(ZONES.crApp);
   });
 
-  it('does not confuse auditandfix.app, .com, .net', () => {
-    expect(zoneIdForDomain('auditandfix.app', ZONES)).toBe(ZONES.afApp);
-    expect(zoneIdForDomain('auditandfix.com', ZONES)).toBe(ZONES.af);
-    expect(zoneIdForDomain('auditandfix.net', ZONES)).toBe(ZONES.afNet);
+  it('does not confuse .app, .com, .net brand domains', () => {
+    expect(zoneIdForDomain(BRAND_APP_DOMAIN, ZONES)).toBe(ZONES.afApp);
+    expect(zoneIdForDomain(BRAND_DOMAIN, ZONES)).toBe(ZONES.af);
+    expect(zoneIdForDomain(BRAND_NET_DOMAIN, ZONES)).toBe(ZONES.afNet);
     // All three should be distinct zones
     const apps = new Set([ZONES.afApp, ZONES.af, ZONES.afNet]);
     expect(apps.size).toBe(3);
   });
 
   // ── Null / missing zone fallback ──
-  it('contactreplyai.com with no CRAI zone configured → returns undefined', () => {
+  it('CRAI_DOMAIN with no CRAI zone configured → returns undefined', () => {
     const partial = { ...ZONES, crai: undefined };
-    expect(zoneIdForDomain('contactreplyai.com', partial)).toBeUndefined();
+    expect(zoneIdForDomain(CRAI_DOMAIN, partial)).toBeUndefined();
   });
 
-  it('auditandfix.app with no .app zone configured → returns undefined', () => {
+  it('BRAND_APP_DOMAIN with no .app zone configured → returns undefined', () => {
     const partial = { ...ZONES, afApp: undefined };
-    expect(zoneIdForDomain('auditandfix.app', partial)).toBeUndefined();
+    expect(zoneIdForDomain(BRAND_APP_DOMAIN, partial)).toBeUndefined();
   });
 
   // ── Unknown domain fallthrough ──

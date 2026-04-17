@@ -1,5 +1,109 @@
 # TODO
 
+## CRAI: Platform Lead Email Forwarding Ingest (DR-230)
+
+Tradies get job leads from platforms (hipages, ServiceSeeking, Gumtree, Bark,
+Oneflare) via email notifications. CRAI can intercept these by having the tradie
+forward platform emails to a dedicated CRAI ingest address, parse the lead
+details, and prepare a response for when the tradie accepts the lead and contacts
+the customer.
+
+**Research summary (2026-04-17):** No AU tradie platform has a public API. All
+send lead notifications by email. Gumtree emails contain the full customer
+enquiry. ServiceSeeking/Bark contain job details. Hipages/Airtasker emails
+contain only a title + Accept button (less useful). See DR-230 and
+`reference_tradie_platforms.md` for full analysis.
+
+### Phase 1: Ingest infrastructure
+
+The SES inbound pipeline already works for E2E tests (`e2e.auditandfix.com` →
+S3). Extend it for CRAI lead ingest.
+
+- [ ] Provision SES inbound for `leads.contactreplyai.com` subdomain
+  - MX record → `inbound-smtp.ap-southeast-2.amazonaws.com`
+  - SES receipt rule: `*@leads.contactreplyai.com` → S3 bucket + SNS/Lambda
+  - Domain verification in ap-southeast-2 (per DR-229)
+- [ ] Design ingest address scheme: `{tenant_id}@leads.contactreplyai.com`
+  - Each CRAI tenant gets a unique forwarding address shown in their dashboard
+  - Catch-all receipt rule routes to S3, Lambda extracts tenant_id from the `To:`
+- [ ] Lambda or Worker to receive raw email from S3, extract:
+  - Tenant ID (from the To: address)
+  - Original sender platform (match From: domain — `@hipages.com.au`, etc.)
+  - Lead content (subject + body)
+  - Customer contact details (if present in body — Gumtree, ServiceSeeking)
+- [ ] Store parsed lead in PostgreSQL (`crai.leads` table or similar):
+  - `tenant_id`, `platform`, `raw_email_s3_key`, `parsed_subject`,
+    `parsed_body`, `customer_name`, `customer_email`, `customer_phone`,
+    `job_category`, `location`, `status` (new/reviewed/actioned), `created_at`
+
+### Phase 2: Platform-specific parsers
+
+Each platform's notification email has a different format. Build parsers for
+the most useful ones first (ranked by how much actionable content is in the
+email).
+
+- [ ] **Gumtree parser** (highest value — full customer enquiry in email)
+  - Extract: customer name, message text, listing title, reply-to email
+  - CRAI can draft a full response immediately
+- [ ] **ServiceSeeking parser** (good detail — job description + contact post-match)
+  - Extract: job category, description, location, customer name
+  - Pre-match: draft a summary + quote template for the tradie
+  - Post-match: customer contact revealed → CRAI sends via Mode A/F
+- [ ] **Bark.com parser** (decent detail — job requirements)
+  - Extract: service category, job description, location, budget hints
+  - Note: contact details only revealed after credit spend
+- [ ] **Hipages parser** (limited — title + Accept button only)
+  - Extract: job category, location, brief description
+  - Can summarise + notify tradie, but cannot accept on their behalf
+  - Post-accept: customer phone revealed → CRAI handles via Mode A/F
+- [ ] **Oneflare parser** (similar to hipages — job description, pre-credit)
+  - Extract: job category, description, location
+
+### Phase 3: AI lead triage + response drafting
+
+- [ ] Classify lead urgency (emergency plumber vs. quote for next month)
+- [ ] Match against tenant's trade categories and service area
+- [ ] Draft a first-response message using tenant's knowledge base + tone
+  - For platforms where customer contact is already revealed (Gumtree,
+    post-match ServiceSeeking): queue the draft for auto-send or approval
+  - For platforms where contact is behind a paywall (hipages, Bark): show
+    draft in dashboard, send after tradie manually accepts/unlocks
+- [ ] Dashboard notification: "New lead from [platform] — [job summary]"
+  - Push notification (future) or email digest
+
+### Phase 4: Onboarding UX
+
+- [ ] During CRAI tenant onboarding, ask "Where do you get job leads?"
+  - Detect linked platform profiles from tradie's website URL (existing
+    directory-recovery concept from `deployment-modes-and-friction.md`)
+  - Show platform-specific forwarding setup instructions:
+    - Gmail: Settings → Forwarding → add `{tenant_id}@leads.contactreplyai.com`
+    - Outlook: Rules → Forward all from `@hipages.com.au` to the address
+    - Generic: server-side forward rule in email host control panel
+- [ ] "Test forwarding" button in dashboard — tradie sends a test email,
+  CRAI confirms receipt and shows parsed result
+- [ ] Platform-specific tip cards:
+  - Gumtree: "Put your CRAI number and email in your listing"
+  - Hipages: "Accept leads in the app, we'll handle the follow-up call"
+  - ServiceSeeking: "Forward notification emails, we'll draft your quotes"
+
+### Dependencies
+
+- CRAI backend (pre-MVP — the reply service, tenant DB, dashboard)
+- SES inbound receipt rules in ap-southeast-2 (scripts exist, extend them)
+- `mmo-platform/src/email.js` wrapper for outbound replies (archive-compliant)
+- Tenant knowledge base (for AI response drafting)
+
+### Non-goals
+
+- **No platform scraping or API hacking** — all integration is via email
+  forwarding or downstream SMS/phone (Modes A-F). Zero ToS risk.
+- **No in-platform automation** — CRAI never logs into hipages/Airtasker/etc.
+- **No lead acceptance on behalf of tradie** — tradie always makes the
+  accept/unlock/credit decision themselves.
+
+---
+
 ## E2E contact-form test page: replace Fastmail SMTP with SES
 
 The standalone PHP page (`e2e-test-page-XXXXXXX.php`, deployed to a throwaway
@@ -202,26 +306,16 @@ they're internal tooling.
 Hardcoded domains in test fixtures and assertions. Replace with constants or
 clearly-named test fixture values (e.g. `TEST_BRAND_DOMAIN`).
 
-- [ ] `tests/unit/setup-ses.test.js` — ~30 references: zone-routing assertions
-  for both domains and all subdomains (lines 45–221). These are testing real
-  zone routing logic so the domain strings are intentional test data, but should
-  use a shared constant.
-- [ ] `tests/unit/ses-normalizer.test.js` — `inbound.contactreplyai.com` in
-  fixture data (lines 131–185).
-- [ ] `tests/unit/email-forwarder.test.js` — `marcus@auditandfix.com`,
-  `status@dev.auditandfix.com` in test fixtures (lines 99–157).
-- [ ] `tests/unit/draft-ip-rerequest.test.js` — `brandDomain: 'auditandfix.com'`
-  fixture and assertion (lines 52, 150).
-- [ ] `tests/unit/canary-magic-link.test.js` — `test+canary@auditandfix.com`
-  in canary config fixtures (lines 85–101).
+- [x] `tests/unit/setup-ses.test.js` — centralised to `tests/helpers/test-domains.js`
+- [x] `tests/unit/ses-normalizer.test.js` — `CRAI_INBOUND_DOMAIN` constant from test-domains.js
+- [x] `tests/unit/email-forwarder.test.js` — constants from test-domains.js
+- [x] `tests/unit/draft-ip-rerequest.test.js` — constants from test-domains.js
+- [x] `tests/unit/canary-magic-link.test.js` — `TEST_CANARY_EMAIL` from test-domains.js
 
 ### E2E / PayPal test harness
 
-- [ ] `tests/e2e/paypal/harness/sandbox-live-run.js` — generated email
-  `@auditandfix.com` (line 118), comments referencing the host (lines 176, 564).
-  (`AUDITANDFIX_BASE` → `BRAND_URL` rename already done — DR-154.)
-- [ ] `tests/e2e/paypal/harness/README.md` — endpoint URLs, `.htaccess`
-  references (~5 remaining; `BRAND_URL` env example already updated).
+- [x] `tests/e2e/paypal/harness/sandbox-live-run.js` — email derives from `BRAND_URL`, host comments genericised
+- [x] `tests/e2e/paypal/harness/README.md` — `.htaccess` + host refs genericised; `BRAND_URL` default retained
 - [ ] `tests/e2e/paypal/README.md` — architecture diagram mentioning
   `auditandfix.com/api.php` (line 23).
 - [ ] `tests/e2e/paypal/scripts/capture-sandbox-fixtures.js` — deploy

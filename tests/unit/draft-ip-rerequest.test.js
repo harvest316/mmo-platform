@@ -12,6 +12,13 @@ import {
   buildDraftEmail,
   todaySydney,
 } from '../../../333Method/src/cron/draft-ip-rerequest.js';
+import {
+  BRAND_NAME,
+  BRAND_DOMAIN,
+  BRAND_APP_DOMAIN,
+  BRAND_NET_DOMAIN,
+  TEST_STATUS_EMAIL,
+} from '../helpers/test-domains.js';
 
 // ── todaySydney ───────────────────────────────────────────────────────────────
 
@@ -48,10 +55,10 @@ const BASE = {
   preseedRecips: 5,
   currentTier: 'normal',
   // Explicit brand fields — makes tests self-contained, independent of env vars
-  brandName: 'Audit&Fix',
-  brandDomain: 'auditandfix.com',
-  brandAppDomain: 'auditandfix.app',
-  preseedFrom: 'status@auditandfix.net',
+  brandName: BRAND_NAME,
+  brandDomain: BRAND_DOMAIN,
+  brandAppDomain: BRAND_APP_DOMAIN,
+  preseedFrom: TEST_STATUS_EMAIL,
 };
 
 describe('buildDraftEmail', () => {
@@ -147,9 +154,9 @@ describe('buildDraftEmail', () => {
 
   it('includes all three use case sections', () => {
     const result = buildDraftEmail(BASE);
-    expect(result).toContain('auditandfix.com');
-    expect(result).toContain('auditandfix.app');
-    expect(result).toContain('auditandfix.net');
+    expect(result).toContain(BRAND_DOMAIN);
+    expect(result).toContain(BRAND_APP_DOMAIN);
+    expect(result).toContain(BRAND_NET_DOMAIN);
   });
 
   it('mentions split-domain isolation as an operational maturity point', () => {

@@ -12,6 +12,7 @@ import {
   buildSnsCanonicalString,
   isSnsSigningCertUrlValid,
 } from '../../../333Method/workers/email-webhook/src/ses-normalizer.js';
+import { CRAI_INBOUND_DOMAIN } from '../helpers/test-domains.js';
 
 // ── normalizeSesEvent ────────────────────────────────────────────────────────
 
@@ -128,15 +129,15 @@ describe('normalizeSesEvent', () => {
 describe('normalizeSesReceipt', () => {
   const receiptEvent = {
     mail: {
-      messageId: '<inbound-msg-001@inbound.contactreplyai.com>',
+      messageId: `<inbound-msg-001@${CRAI_INBOUND_DOMAIN}>`,
       source: 'customer@example.com',
-      destination: ['reply@inbound.contactreplyai.com'],
+      destination: [`reply@${CRAI_INBOUND_DOMAIN}`],
       commonHeaders: { subject: 'Re: Your Audit Report' },
     },
     receipt: {
       action: {
         type: 'S3',
-        bucketName: 'auditandfix-ses-inbound',
+        bucketName: 'brand-ses-inbound',
         objectKey: 'emails/inbound-msg-001',
       },
     },
@@ -149,10 +150,10 @@ describe('normalizeSesReceipt', () => {
     expect(result.source).toBe('ses');
     expect(result.version).toBe(1);
     expect(result.data.from).toBe('customer@example.com');
-    expect(result.data.to).toBe('reply@inbound.contactreplyai.com');
+    expect(result.data.to).toBe(`reply@${CRAI_INBOUND_DOMAIN}`);
     expect(result.data.subject).toBe('Re: Your Audit Report');
-    expect(result.data.email_id).toBe('<inbound-msg-001@inbound.contactreplyai.com>');
-    expect(result.data.s3_bucket).toBe('auditandfix-ses-inbound');
+    expect(result.data.email_id).toBe(`<inbound-msg-001@${CRAI_INBOUND_DOMAIN}>`);
+    expect(result.data.s3_bucket).toBe('brand-ses-inbound');
     expect(result.data.s3_key).toBe('emails/inbound-msg-001');
     expect(result).toHaveProperty('created_at');
   });
@@ -162,11 +163,11 @@ describe('normalizeSesReceipt', () => {
       ...receiptEvent,
       mail: {
         ...receiptEvent.mail,
-        destination: ['primary@inbound.contactreplyai.com', 'cc@example.com'],
+        destination: [`primary@${CRAI_INBOUND_DOMAIN}`, 'cc@example.com'],
       },
     };
     const result = normalizeSesReceipt(event);
-    expect(result.data.to).toBe('primary@inbound.contactreplyai.com');
+    expect(result.data.to).toBe(`primary@${CRAI_INBOUND_DOMAIN}`);
   });
 
   it('falls back to empty string when subject is absent', () => {

@@ -115,7 +115,7 @@ async function createSandboxSubscription() {
     + `&action=create-subscription`;
 
   const payload = {
-    email: `sandbox-live-run+${Date.now()}@auditandfix.com`,
+    email: `sandbox-live-run+${Date.now()}@${new URL(ENV.BRAND_URL).hostname}`,
     tier: 'monthly_4',
     country: 'AU',
     business_name: 'Sandbox Live Run',
@@ -173,7 +173,7 @@ async function promptForApproval({ subscriptionId, approveUrl }) {
     console.log('    password: ' + ENV.PAYPAL_SANDBOX_BUYER_PASSWORD);
     console.log();
   } else {
-    console.log('  (Sandbox buyer credentials not in env — check auditandfix.com .htaccess');
+    console.log('  (Sandbox buyer credentials not in env — check the brand host .htaccess');
     console.log('   for PAYPAL_SANDBOX_BUYER_EMAIL / PAYPAL_SANDBOX_BUYER_PASSWORD,');
     console.log('   or create a personal sandbox account at developer.paypal.com)');
     console.log();
@@ -561,7 +561,7 @@ function printReport({ subscriptionId, activated, cancelled, cancelStatus }) {
     console.log('✗ MISSING HOP — api.php sandbox DB not verified. Either:');
     console.log('  - add the e2e-sandbox-subscription-status endpoint (deferred,');
     console.log('    see harness/README.md "Scope gaps"), or');
-    console.log('  - SSH to the auditandfix.com host and run:');
+    console.log(`  - SSH to the ${new URL(ENV.BRAND_URL).hostname} host and run:`);
     console.log(`      sqlite3 data/subscriptions-sandbox.sqlite \\`);
     console.log(`        "SELECT paypal_subscription_id,status,activated_at`);
     console.log(`         FROM subscriptions WHERE paypal_subscription_id='${subscriptionId}'"`);

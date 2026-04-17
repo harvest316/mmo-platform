@@ -14,6 +14,7 @@ import {
   parseHarnessToken,
   canRunFullCanary,
 } from '../../../333Method/src/cron/canary-magic-link.js';
+import { TEST_CANARY_EMAIL } from '../helpers/test-domains.js';
 
 // ── shouldAlert ───────────────────────────────────────────────────────────────
 
@@ -82,11 +83,11 @@ describe('parseHarnessToken', () => {
 
 describe('canRunFullCanary', () => {
   it('returns false when e2eSecret is not set', () => {
-    expect(canRunFullCanary({ e2eSecret: undefined, canaryEmail: 'test+canary@auditandfix.com' })).toBe(false);
+    expect(canRunFullCanary({ e2eSecret: undefined, canaryEmail: TEST_CANARY_EMAIL })).toBe(false);
   });
 
   it('returns false when e2eSecret is empty string', () => {
-    expect(canRunFullCanary({ e2eSecret: '', canaryEmail: 'test+canary@auditandfix.com' })).toBe(false);
+    expect(canRunFullCanary({ e2eSecret: '', canaryEmail: TEST_CANARY_EMAIL })).toBe(false);
   });
 
   it('returns false when canaryEmail is not set', () => {
@@ -98,7 +99,7 @@ describe('canRunFullCanary', () => {
   });
 
   it('returns true when both e2eSecret and canaryEmail are set', () => {
-    expect(canRunFullCanary({ e2eSecret: 'secret123', canaryEmail: 'test+canary@auditandfix.com' })).toBe(true);
+    expect(canRunFullCanary({ e2eSecret: 'secret123', canaryEmail: TEST_CANARY_EMAIL })).toBe(true);
   });
 });
 
