@@ -77,6 +77,24 @@ check_pattern 'SES_SMTP_PASSWORD\s+["'\''"][A-Za-z0-9+/=]{20,}' 'SES SMTP passwo
 # ── Server config files with inline secrets ──
 check_pattern 'SetEnv\s+\S*(SECRET|PASSWORD|TOKEN|KEY)\s+["'\''"][^<][^"'\'']{8,}' 'Secret in SetEnv directive (use .htaccess.example + .gitignore)'
 
+# ── High-entropy strings (catch-all for unknown secrets) ──
+# Flags quoted strings ≥32 chars that look random (hex, base64, mixed alnum).
+# Intentionally noisy — a few false flags are better than a leaked secret.
+# Exclusions: URLs, file paths, CSS classes, HTML, placeholders, hashes in lockfiles.
+HIGH_ENTROPY=$(echo "$DIFF" | grep -nE '^\+' | grep -v '^+++' \
+  | grep -v 'package-lock\.json\|yarn\.lock\|composer\.lock\|pnpm-lock' \
+  | grep -v 'integrity.*sha[0-9]' \
+  | grep -v 'pii-ok\|check-pii' \
+  | grep -oE '["'"'"'][A-Za-z0-9+/=_-]{32,}["'"'"']' \
+  | grep -v 'https\?://\|/home/\|/usr/\|/etc/\|node_modules\|REPLACE_ME\|example\|test-secret\|sha256-\|sha512-' \
+  | head -5)
+if [ -n "$HIGH_ENTROPY" ]; then
+  echo "  ⚠ High-entropy string (possible secret — verify before committing):"
+  echo "$HIGH_ENTROPY" | sed 's/^/    /'
+  echo "    → If intentional, add pii-ok comment on the same line to suppress"
+  FOUND=1
+fi
+
 # ── Dynamic: check if any .env/.env.secrets VALUES appear in the diff ──
 for envfile in .env .env.secrets; do
   if [ -f "$envfile" ]; then
