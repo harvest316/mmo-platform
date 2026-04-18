@@ -16,8 +16,8 @@ done
 aws() { command aws --profile "$PROFILE" "$@"; }
 
 REGION="ap-southeast-2"
-PARENT_DOMAIN="auditandfix.com"
-E2E_DOMAIN="e2e.auditandfix.com"
+PARENT_DOMAIN="${PARENT_DOMAIN:?PARENT_DOMAIN must be set (e.g. export PARENT_DOMAIN=auditandfix.com)}"
+E2E_DOMAIN="${E2E_DOMAIN:-e2e.${PARENT_DOMAIN}}"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 BUCKET="mmo-e2e-inbound-${ACCOUNT_ID}"
 
@@ -106,7 +106,7 @@ if echo "$MX" | grep -q "inbound-smtp.${REGION}"; then
   echo "   ✓ MX record correct"
 else
   echo "   ✗ PROBLEM: MX record missing or wrong."
-  echo "   FIX: Add to Hostinger DNS: e2e.auditandfix.com  MX 10  inbound-smtp.${REGION}.amazonaws.com"
+  echo "   FIX: Add to DNS: ${E2E_DOMAIN}  MX 10  inbound-smtp.${REGION}.amazonaws.com"
 fi
 echo
 

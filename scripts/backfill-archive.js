@@ -116,7 +116,7 @@ async function putToS3(s3, key, body, contentType, retainUntilDate) {
 function buildEmailMime(row) {
   const messageId  = row.email_id
     ? `<${row.email_id}>`
-    : `<reconstructed-${row.id}@auditandfix.com>`;
+    : `<reconstructed-${row.id}@${process.env.BRAND_DOMAIN}>`;
   const date       = row.sent_at
     ? new Date(row.sent_at).toUTCString()
     : new Date(row.created_at).toUTCString();

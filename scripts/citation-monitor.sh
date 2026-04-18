@@ -28,8 +28,8 @@ log() {
 log "Starting citation monitor run"
 log "Previous baseline: ${LATEST_BASELINE:-none}"
 
-BRAND_DOMAIN="${BRAND_DOMAIN:-auditandfix.com}"
-BRAND_NAME="${BRAND_NAME:-Audit\&Fix}"
+BRAND_DOMAIN="${BRAND_DOMAIN:?BRAND_DOMAIN must be set}"
+BRAND_NAME="${BRAND_NAME:?BRAND_NAME must be set}"
 
 # Build the prompt with context
 PROMPT=$(cat <<PROMPT_END

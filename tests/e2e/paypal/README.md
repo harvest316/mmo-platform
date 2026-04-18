@@ -20,7 +20,7 @@ sandbox runs.
                                     │ webhooks
                   ┌─────────────────┼─────────────────┐
                   ▼                 ▼                 ▼
-    auditandfix.com/api.php    CRAI Worker      333Method R2 Worker
+    <brand>/api.php            CRAI Worker      333Method R2 Worker
       ?action=paypal-         /webhooks/paypal   /webhook/paypal
        webhook-sandbox         │                      │
        │                       │                      ▼

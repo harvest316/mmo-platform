@@ -7,10 +7,10 @@
 #   - IAM user   mmo-e2e-email-reader  with GetObject/ListBucket/DeleteObject
 #   - IAM access key for that user (only created once; printed once)
 #   - SES receipt rule set  e2e-inbound  (ap-southeast-2 — must match verified domain region)
-#   - SES receipt rule accepting *@e2e.auditandfix.com → S3 prefix incoming/
+#   - SES receipt rule accepting *@e2e.{PARENT_DOMAIN} → S3 prefix incoming/
 #   - Sets the rule set as the active rule set in ap-southeast-2
 #
-# After running, add to Hostinger DNS for auditandfix.com:
+# After running, add to your DNS provider (set PARENT_DOMAIN first):
 #   MX  e2e  10  inbound-smtp.ap-southeast-2.amazonaws.com
 #
 # Requirements:
@@ -45,13 +45,13 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 echo "   Account: $ACCOUNT_ID"
 echo
 
-REGION="ap-southeast-2"  # Sydney — same region as auditandfix.com SES sending identity; us-west-2 has no verified domain
+REGION="ap-southeast-2"  # Sydney — must match verified domain region (SES inbound regional requirement)
 BUCKET="mmo-e2e-inbound-${ACCOUNT_ID}"
 IAM_USER="mmo-e2e-email-reader"
 RULE_SET="e2e-inbound"
-RULE_NAME="accept-e2e-auditandfix"
-DOMAIN="e2e.auditandfix.com"
-PARENT_DOMAIN="auditandfix.com"
+PARENT_DOMAIN="${PARENT_DOMAIN:?PARENT_DOMAIN must be set (e.g. export PARENT_DOMAIN=auditandfix.com)}"
+DOMAIN="${E2E_DOMAIN:-e2e.${PARENT_DOMAIN}}"
+RULE_NAME="${RULE_NAME:-accept-e2e-${PARENT_DOMAIN%%.*}}"
 
 # ── S3 bucket ────────────────────────────────────────────────────────────────
 
@@ -258,7 +258,7 @@ else
   echo "   Already exists"
 fi
 
-# Receipt rule: capture *@e2e.auditandfix.com → S3
+# Receipt rule: capture *@${DOMAIN} → S3
 RULE_JSON=$(cat <<EOF
 {
   "Name": "${RULE_NAME}",
@@ -318,7 +318,7 @@ else
 fi
 echo "════════════════════════════════════════════════════════════"
 echo
-echo "DNS records to add in Hostinger (auditandfix.com zone):"
+echo "DNS records to add for ${PARENT_DOMAIN}:"
 echo ""
 if [[ ${NEEDS_DNS_VERIFY:-0} == 1 ]]; then
   echo "1. Domain verification TXT record (required for SES receiving):"
@@ -349,7 +349,7 @@ fi
 echo "   E2E_EMAIL_BUCKET=${BUCKET}"
 echo "   E2E_EMAIL_REGION=${REGION}"
 echo
-echo "auditandfix.com site/.htaccess (already set — verify value matches):"
+echo "${PARENT_DOMAIN} site/.htaccess (already set — verify value matches):"
 echo "   SetEnv E2E_HARNESS_ENABLED 1"
 echo "   SetEnv E2E_SHARED_SECRET \"<same-value-as-wrangler-secret>\""
 echo

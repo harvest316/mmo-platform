@@ -287,19 +287,11 @@ These scripts configure real AWS/CF resources and legitimately reference the
 domains. Decide per-script: parameterise with env vars, or leave as-is since
 they're internal tooling.
 
-- [ ] `scripts/setup-ses.mjs` — ~40 references: domain lists (lines 92–106),
-  MAIL FROM helpers (343–348), receipt rules (936–981), IAM policy ARNs
-  (1056–1077), SPF/DMARC records (1196–1270), MX setup (1304–1319). Consider
-  extracting domain lists to a `DOMAINS` const at top or a config file.
-- [ ] `scripts/setup-ses-inbound.sh` — 7 references: `DOMAIN`, `PARENT_DOMAIN`
-  constants and DNS instructions. Already uses variables but defaults are
-  hardcoded.
-- [ ] `scripts/diagnose-ses-inbound.sh` — `PARENT_DOMAIN` and `E2E_DOMAIN`
-  constants (lines 19–20, 109).
-- [ ] `scripts/citation-monitor.sh` — `BRAND_DOMAIN` default fallback (line 31).
-  Already parameterised, just has `auditandfix.com` as default.
-- [ ] `scripts/backfill-archive.js` — Reconstructed message-id fallback
-  `@auditandfix.com` (line 119).
+- [x] `scripts/setup-ses.mjs` — `mailFromForDomain` simplified (redundant explicit cases removed); `ALLOWED_FROM_DOMAINS` and IAM ARNs derived from `APEX_DOMAINS_FOR_INBOUND`; `switchMxRecords` dry-run log + mxName now use `AUDITANDFIX_INBOUND_DOMAINS[0]`. DMARC `rua`/`ruf` address (`dmarc@auditandfix.com`) left as-is — operational config, not a code smell.
+- [x] `scripts/setup-ses-inbound.sh` — `PARENT_DOMAIN` now requires env var (`?:`); `DOMAIN`/`RULE_NAME` derived from it.
+- [x] `scripts/diagnose-ses-inbound.sh` — `PARENT_DOMAIN` now requires env var (`?:`); `E2E_DOMAIN` derived; fix-message uses variables.
+- [x] `scripts/citation-monitor.sh` — `BRAND_DOMAIN`/`BRAND_NAME` fallbacks removed; now fail-loud (`?:`).
+- [x] `scripts/backfill-archive.js` — Reconstructed message-id uses `process.env.BRAND_DOMAIN`.
 
 ### Unit tests
 
@@ -316,12 +308,9 @@ clearly-named test fixture values (e.g. `TEST_BRAND_DOMAIN`).
 
 - [x] `tests/e2e/paypal/harness/sandbox-live-run.js` — email derives from `BRAND_URL`, host comments genericised
 - [x] `tests/e2e/paypal/harness/README.md` — `.htaccess` + host refs genericised; `BRAND_URL` default retained
-- [ ] `tests/e2e/paypal/README.md` — architecture diagram mentioning
-  `auditandfix.com/api.php` (line 23).
-- [ ] `tests/e2e/paypal/scripts/capture-sandbox-fixtures.js` — deploy
-  instructions and URL in comments (lines 23, 26).
-- [ ] `tests/e2e/paypal/fixtures/m333-worker/checkout-order-approved.json` —
-  `payee@auditandfix.com` in fixture payload (line 30).
+- [x] `tests/e2e/paypal/README.md` — architecture diagram genericised to `<brand>/api.php`.
+- [x] `tests/e2e/paypal/scripts/capture-sandbox-fixtures.js` — comments use `$BRAND_URL`.
+- [x] `tests/e2e/paypal/fixtures/m333-worker/checkout-order-approved.json` — `payee@example.com`.
 
 ### Docs — strategy & plans
 

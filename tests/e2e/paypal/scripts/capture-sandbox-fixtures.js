@@ -20,10 +20,10 @@
  *        <siteDir>/tmp/fixtures/<event_type>-<timestamp>.json
  *      - returns 200 JSON ack
  *    See plan `~/.claude/plans/cosmic-wibbling-bird.md` §Phase 2 for the
- *    exact code shape. Commit the action, FTP-deploy to auditandfix.com.
+ *    exact code shape. Commit the action, FTP-deploy to $BRAND_URL.
  *
  * 2. In the PayPal Developer Dashboard, point three sandbox webhooks at:
- *      - https://auditandfix.com/api.php?action=paypal-webhook-capture
+ *      - https://$BRAND_URL/api.php?action=paypal-webhook-capture
  *        (subscribed to ALL events you need in fixtures/)
  *
  * 3. Drive each event from the sandbox:

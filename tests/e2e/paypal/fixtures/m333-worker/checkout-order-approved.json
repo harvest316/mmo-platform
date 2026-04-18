@@ -27,7 +27,7 @@
           "value": "337.00",
           "breakdown": { "item_total": { "currency_code": "AUD", "value": "337.00" } }
         },
-        "payee": { "email_address": "payee@auditandfix.com" },
+        "payee": { "email_address": "payee@example.com" },
         "description": "CRO Audit Report"
       }],
       "payer": {

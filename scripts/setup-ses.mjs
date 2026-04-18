@@ -339,13 +339,7 @@ async function step1_verifyDomains() {
  * `bounce.{subdomain}.{apex}` to keep bounce streams isolated per identity.
  */
 function mailFromForDomain(domain) {
-  // Apex domains
-  if (domain === 'auditandfix.com')      return 'bounce.auditandfix.com';
-  if (domain === 'contactreplyai.com')   return 'bounce.contactreplyai.com';
-  if (domain === 'auditandfix.app')      return 'bounce.auditandfix.app';
-  if (domain === 'contactreply.app')     return 'bounce.contactreply.app';
-  if (domain === 'auditandfix.net')      return 'bounce.auditandfix.net';
-  // Subdomains — bounce.{subdomain}.{root} e.g. bounce.outreach.auditandfix.com
+  // All identities: bounce.{domain} (flat for apex, isolated per subdomain)
   return `bounce.${domain}`;
 }
 
@@ -1052,13 +1046,7 @@ async function step9_createIamUser(accountId) {
   // Resource wildcards cover all verified identities across the 5 apex domains.
   // ses:FromAddress condition (RF-1) is defense-in-depth: even if this key is
   // leaked, it cannot send from unrelated addresses.
-  const ALLOWED_FROM_DOMAINS = [
-    '*@auditandfix.com',    '*@*.auditandfix.com',
-    '*@auditandfix.app',    '*@*.auditandfix.app',
-    '*@auditandfix.net',    '*@*.auditandfix.net',
-    '*@contactreplyai.com', '*@*.contactreplyai.com',
-    '*@contactreply.app',   '*@*.contactreply.app',
-  ];
+  const ALLOWED_FROM_DOMAINS = APEX_DOMAINS_FOR_INBOUND.flatMap(d => [`*@${d}`, `*@*.${d}`]);
   const policy = {
     Version: '2012-10-17',
     Statement: [
@@ -1067,16 +1055,10 @@ async function step9_createIamUser(accountId) {
         Effect: 'Allow',
         Action: ['ses:SendEmail', 'ses:SendRawEmail'],
         Resource: [
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/auditandfix.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.auditandfix.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/auditandfix.app`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.auditandfix.app`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/auditandfix.net`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.auditandfix.net`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/contactreplyai.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.contactreplyai.com`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/contactreply.app`,
-          `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.contactreply.app`,
+          ...APEX_DOMAINS_FOR_INBOUND.flatMap(d => [
+            `arn:aws:ses:${AWS_REGION}:${accountId}:identity/${d}`,
+            `arn:aws:ses:${AWS_REGION}:${accountId}:identity/*.${d}`,
+          ]),
           // Both DR-214 config sets — sender must be authorised on each.
           ...CONFIG_SET_NAMES.map(
             n => `arn:aws:ses:${AWS_REGION}:${accountId}:configuration-set/${n}`
@@ -1301,7 +1283,7 @@ async function switchMxRecords() {
   console.log('\n── Phase 4: Switching MX records ─────────────────────────────────────');
 
   if (DRY_RUN) {
-    console.log('  [dry-run] Would update MX records for auditandfix.com to SES inbound');
+    console.log(`  [dry-run] Would update MX records for ${AUDITANDFIX_INBOUND_DOMAINS[0]} to SES inbound`);
     return;
   }
 
@@ -1316,7 +1298,7 @@ async function switchMxRecords() {
   }
 
   // Create SES inbound MX record
-  const mxName = 'auditandfix.com';
+  const mxName = AUDITANDFIX_INBOUND_DOMAINS[0];
   const mxContent = `10 ${inboundSmtp}`;
 
   const exists = await cfRequest('GET', `/zones/${zoneId}/dns_records?type=MX&name=${encodeURIComponent(mxName)}&content=${encodeURIComponent(mxContent)}`);
