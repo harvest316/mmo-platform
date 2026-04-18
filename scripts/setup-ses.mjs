@@ -10,7 +10,7 @@
  *
  * Required env vars:
  *   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION (default: us-east-1)
- *   CF_API_TOKEN, CF_ZONE_ID_AUDITANDFIX
+ *   CF_API_TOKEN, CF_ZONE_ID_BRAND
  *
  * Optional env vars:
  *   CF_ZONE_ID_CONTACTREPLYAI — if missing, CNAMEs for contactreplyai.com are printed for manual setup
@@ -64,11 +64,11 @@ const AWS_SECRET_ACCESS_KEY = requireEnv('AWS_SECRET_ACCESS_KEY');
 const AWS_REGION            = process.env.AWS_REGION ?? 'ap-southeast-2';
 const CF_API_TOKEN          = process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
 if (!CF_API_TOKEN) { console.error('✗ Missing required env var: CF_API_TOKEN or CLOUDFLARE_API_TOKEN'); process.exit(1); }
-const CF_ZONE_ID_AUDITANDFIX        = requireEnv('CF_ZONE_ID_AUDITANDFIX');
+const CF_ZONE_ID_BRAND        = requireEnv('CF_ZONE_ID_BRAND');
 const CF_ZONE_ID_CONTACTREPLYAI     = process.env.CF_ZONE_ID_CONTACTREPLYAI    ?? null;
-const CF_ZONE_ID_AUDITANDFIX_APP    = process.env.CF_ZONE_ID_AUDITANDFIX_APP   ?? null;
+const CF_ZONE_ID_BRAND_APP    = process.env.CF_ZONE_ID_BRAND_APP   ?? null;
 const CF_ZONE_ID_CONTACTREPLY_APP   = process.env.CF_ZONE_ID_CONTACTREPLY_APP  ?? null;
-const CF_ZONE_ID_AUDITANDFIX_NET    = process.env.CF_ZONE_ID_AUDITANDFIX_NET   ?? null;
+const CF_ZONE_ID_BRAND_NET    = process.env.CF_ZONE_ID_BRAND_NET   ?? null;
 
 // ---------------------------------------------------------------------------
 // AWS client config
@@ -137,10 +137,10 @@ const DOMAINS = [
 // Zone ID lookup by domain root. Subdomains of each apex use the apex's zone.
 function zoneIdForDomain(domain) {
   if (domain === 'auditandfix.app' || domain.endsWith('.auditandfix.app')) {
-    return CF_ZONE_ID_AUDITANDFIX_APP;
+    return CF_ZONE_ID_BRAND_APP;
   }
   if (domain === 'auditandfix.net' || domain.endsWith('.auditandfix.net')) {
-    return CF_ZONE_ID_AUDITANDFIX_NET;
+    return CF_ZONE_ID_BRAND_NET;
   }
   if (domain === 'contactreply.app' || domain.endsWith('.contactreply.app')) {
     return CF_ZONE_ID_CONTACTREPLY_APP;
@@ -148,7 +148,7 @@ function zoneIdForDomain(domain) {
   if (domain === 'contactreplyai.com' || domain.endsWith('.contactreplyai.com')) {
     return CF_ZONE_ID_CONTACTREPLYAI;
   }
-  return CF_ZONE_ID_AUDITANDFIX;
+  return CF_ZONE_ID_BRAND;
 }
 
 // Two configuration sets per DR-214:
@@ -180,7 +180,7 @@ const CRAI_RECEIPT_RULE_NAME = ENV_TEST ? 'crai-inbound-test-rule' : 'crai-inbou
 const CRAI_WORKER_ENDPOINT   = ENV_TEST
   ? 'https://crai-api-test.auditandfix.workers.dev/webhooks/ses/email'
   : 'https://crai-api.auditandfix.workers.dev/webhooks/ses/email';
-const AUDITANDFIX_INBOUND_DOMAINS = ['auditandfix.com', 'auditandfix.app', 'auditandfix.net'];
+const BRAND_INBOUND_DOMAINS = ['auditandfix.com', 'auditandfix.app', 'auditandfix.net'];
 const CRAI_INBOUND_DOMAINS        = ['contactreplyai.com', 'contactreply.app'];
 
 // ---------------------------------------------------------------------------
@@ -910,7 +910,7 @@ async function step8_createReceiptRules(topicArn, craiTopicArn) {
 
   if (DRY_RUN) {
     console.log(`  [dry-run] Would create receipt rule set: ${RECEIPT_RULE_SET}`);
-    console.log(`  [dry-run] Would create/update receipt rule: ${RECEIPT_RULE_NAME} (recipients: ${AUDITANDFIX_INBOUND_DOMAINS.join(', ')})`);
+    console.log(`  [dry-run] Would create/update receipt rule: ${RECEIPT_RULE_NAME} (recipients: ${BRAND_INBOUND_DOMAINS.join(', ')})`);
     console.log(`  [dry-run] Would create receipt rule: ${CRAI_RECEIPT_RULE_NAME} (recipients: ${CRAI_INBOUND_DOMAINS.join(', ')}, topic: ${craiTopicArn})`);
     return;
   }
@@ -933,7 +933,7 @@ async function step8_createReceiptRules(topicArn, craiTopicArn) {
     Name: RECEIPT_RULE_NAME,
     Enabled: true,
     TlsPolicy: 'Optional',
-    Recipients: AUDITANDFIX_INBOUND_DOMAINS,
+    Recipients: BRAND_INBOUND_DOMAINS,
     Actions: [
       {
         S3Action: {
@@ -956,7 +956,7 @@ async function step8_createReceiptRules(topicArn, craiTopicArn) {
       RuleSetName: RECEIPT_RULE_SET,
       Rule: auditandfixRule,
     }));
-    console.log(`  ✓ Created receipt rule: ${RECEIPT_RULE_NAME} (${AUDITANDFIX_INBOUND_DOMAINS.join(', ')})`);
+    console.log(`  ✓ Created receipt rule: ${RECEIPT_RULE_NAME} (${BRAND_INBOUND_DOMAINS.join(', ')})`);
   } catch (err) {
     if (err.name === 'AlreadyExists' || err.name === 'AlreadyExistsException' || err.__type?.includes('AlreadyExists') || err.name === 'RuleExists' || err.name === 'RuleDoesNotExistException') {
       // Rule exists — update it to ensure recipients match the new auditandfix-only list.
@@ -966,7 +966,7 @@ async function step8_createReceiptRules(topicArn, craiTopicArn) {
         RuleSetName: RECEIPT_RULE_SET,
         Rule: auditandfixRule,
       }));
-      console.log(`  ✓ Updated receipt rule: ${RECEIPT_RULE_NAME} → recipients now ${AUDITANDFIX_INBOUND_DOMAINS.join(', ')}`);
+      console.log(`  ✓ Updated receipt rule: ${RECEIPT_RULE_NAME} → recipients now ${BRAND_INBOUND_DOMAINS.join(', ')}`);
     } else {
       throw err;
     }
@@ -1283,12 +1283,12 @@ async function switchMxRecords() {
   console.log('\n── Phase 4: Switching MX records ─────────────────────────────────────');
 
   if (DRY_RUN) {
-    console.log(`  [dry-run] Would update MX records for ${AUDITANDFIX_INBOUND_DOMAINS[0]} to SES inbound`);
+    console.log(`  [dry-run] Would update MX records for ${BRAND_INBOUND_DOMAINS[0]} to SES inbound`);
     return;
   }
 
   const inboundSmtp = `inbound-smtp.${AWS_REGION}.amazonaws.com`;
-  const zoneId = CF_ZONE_ID_AUDITANDFIX;
+  const zoneId = CF_ZONE_ID_BRAND;
 
   // Fetch existing MX records
   const existing = await cfRequest('GET', `/zones/${zoneId}/dns_records?type=MX`);
@@ -1298,7 +1298,7 @@ async function switchMxRecords() {
   }
 
   // Create SES inbound MX record
-  const mxName = AUDITANDFIX_INBOUND_DOMAINS[0];
+  const mxName = BRAND_INBOUND_DOMAINS[0];
   const mxContent = `10 ${inboundSmtp}`;
 
   const exists = await cfRequest('GET', `/zones/${zoneId}/dns_records?type=MX&name=${encodeURIComponent(mxName)}&content=${encodeURIComponent(mxContent)}`);
