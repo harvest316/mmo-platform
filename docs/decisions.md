@@ -3818,3 +3818,23 @@ Two repos (AdManager, AgentSystem) and auditandfix-website had no local hooksPat
 **Status:** Accepted.
 
 **Impl:** `.envrc` in 333Method, 2Step, ContactReplyAI, AdManager, AgentSystem, auditandfix-website; `scripts/check-pii.sh` (Resend regex fix). `~/.gitconfig` global unset requires manual step — container cannot write to locked file; run `git config --global --unset core.hooksPath` from host terminal once.
+
+### DR-213: CRAI SMS provisioning — Twilio number purchase + ElevenLabs voicemail greeting on step 1 save (2026-04-18)
+
+**Context:** Sandbox mode previously skipped all real provisioning (fake number +61 400 000 001, no voicemail). To run a genuine end-to-end test we need actual Twilio numbers and a real greeting.
+
+**Decision:**
+- Trigger `provisionSmsChannel()` in `ctx.waitUntil()` when `PUT /api/onboarding/step` receives step=1 (which carries `business_name`). Idempotent — exits immediately if SMS channel already exists.
+- Provisioning: search Twilio AU Mobile → purchase → configure SMS + VoiceUrl webhooks → generate greeting via ElevenLabs eleven_turbo_v2 (voice: Charlie, IKne3meq5aSn9XLyUdCD, Australian male) → store MP3 in new `CRAI_MEDIA_KV` KV namespace.
+- Two public routes added (no auth): `GET /media/greeting/{tenantId}` (serves MP3 from KV) and `GET /twiml/voice?t={tenantId}` (returns TwiML `<Play>` + `<Record>`; falls back to Polly.Nicole `<Say>` if greeting not yet stored).
+- This applies to both sandbox and real tenants — sandbox testing drives production-path provisioning.
+
+**Audio storage:** Cloudflare KV (`CRAI_MEDIA_KV`). Chosen over R2 (no new bucket setup) and Postgres bytea (no serving complexity). Greeting audio ~50–150 KB; well within KV 25 MB limit.
+
+**Greeting text:** `"Hi, you've reached {businessName}. We're unavailable right now — please leave a message and we'll text you back as soon as possible."`
+
+**Status:** Accepted.
+
+**Impl:** `workers/index.js` — `provisionSmsChannel()`, `generateVoicemailGreeting()`, `/media/greeting/` route, `/twiml/voice` route; `workers/wrangler.toml` — `CRAI_MEDIA_KV` binding, `ELEVENLABS_MODEL`/`ELEVENLABS_VOICE_ID` vars; `public/onboarding.php` — sandbox banner updated.
+
+**⚠️ Manual step:** `npx wrangler secret put ELEVENLABS_API_KEY --env production` (from host, inside `workers/` dir).
