@@ -3838,3 +3838,54 @@ Two repos (AdManager, AgentSystem) and auditandfix-website had no local hooksPat
 **Impl:** `workers/index.js` — `provisionSmsChannel()`, `generateVoicemailGreeting()`, `/media/greeting/` route, `/twiml/voice` route; `workers/wrangler.toml` — `CRAI_MEDIA_KV` binding, `ELEVENLABS_MODEL`/`ELEVENLABS_VOICE_ID` vars; `public/onboarding.php` — sandbox banner updated.
 
 **⚠️ Manual step:** `npx wrangler secret put ELEVENLABS_API_KEY --env production` (from host, inside `workers/` dir).
+
+---
+
+### DR-231: CRAI cross-domain SSO — signed handoff nonce from contactreplyai.com → contactreply.app (2026-04-20)
+
+**Context:** Post-payment onboarding runs on `contactreplyai.com/onboarding.php` (sales host). The authenticated dashboard lives on `contactreply.app` (portal host). After "Go live" the old code redirected to `/dashboard/index.html?onboarded=1` (relative, wrong extension, wrong domain) — a 404. Three related problems:
+
+1. **We can't share a cookie across the two apexes.** Browser cookies are scoped to an eTLD+1; `contactreplyai.com` and `contactreply.app` are separate registrable domains. No cookie, localStorage, or sessionStorage crosses.
+2. **We don't want a duplicate dashboard on the sales host.** Single source of truth is `contactreply.app`.
+3. **Users must not have to re-authenticate** (re-enter email, wait for magic link) immediately after completing onboarding.
+
+**Decision:** Short-lived, single-use handoff token delivered via URL, consumed server-side by the portal.
+
+**Flow:**
+1. Browser (on `contactreplyai.com`) already has a 30-day Bearer JWT in localStorage (`crai_token`, minted by `/api/onboarding-status` during the wizard).
+2. After `goLive()` success, browser calls `POST /api/handoff/mint` on the Worker with `Authorization: Bearer <crai_token>`. Worker:
+   - Verifies Bearer, extracts `tenantId`.
+   - Generates a 64-char hex nonce (`crypto.getRandomValues(32)`).
+   - Stores `handoff:{nonce} → {tenantId, email}` in `RATE_LIMIT_KV` with **60-second TTL**.
+   - Rate-limited to 10 mints/min per tenant.
+   - Returns `{ handoff, expiresIn: 60 }`.
+3. Browser redirects to `https://contactreply.app/sso?h={nonce}`.
+4. Portal `/sso` page (new, `includes/pages/sso.php`, added to `$publicPages`) calls `workerRequest('/api/auth/consume-handoff', POST, {handoff})` — server-to-server, X-Portal-Auth signed. Worker:
+   - Reads KV, `delete`s the key (single-use is enforced by KV delete, not by DB).
+   - Mints a fresh 30-day Bearer via `generateToken()`.
+   - Returns `{ tenantId, email, bearer, expiresAt }`.
+5. Portal calls `createSession(tenantId, email, bearer)` — encrypts the bearer at rest, writes `portal_sessions` row, sets `__Host-CRAI_SESSID`, then `header('Location: /dashboard')` (or `/onboarding/step-1` if `onboarding_complete` flag is false).
+
+**Security properties:**
+- **Unguessability:** 32 bytes of random entropy (256 bits).
+- **TTL:** 60s — covers the redirect round-trip with margin, far shorter than the 30-day Bearer.
+- **Single-use:** KV `delete` is atomic; a replay returns 404.
+- **No credential on the wire:** the handoff does NOT contain a bearer — only an opaque reference. The real bearer is issued server-to-server during `consume-handoff`.
+- **Scope:** handoff is tied to one `tenantId` at mint time; portal can't forge identity.
+- **Fallback:** any failure redirects to `/login` (magic link). Never a 404, never a silent success.
+
+**Rejected alternatives:**
+- **Shared cookie:** impossible across apex domains (browser security model).
+- **Bearer JWT in URL:** exposes the 30-day token to logs, history, and `Referer` leakage. Handoff indirection keeps the long-lived token server-only.
+- **Fragment (`#h=...`) instead of query (`?h=...`):** cleaner re: Referer, but fragments aren't sent to the server, so the portal would need a JS bounce to POST the fragment back — adds a flash and another XSS surface. Query is acceptable given 60s TTL + single-use + single-purpose endpoint.
+- **Duplicate dashboard on both domains:** user rejected — "we don't need to duplicate it on both domains."
+
+**Status:** Accepted. Sales site + portal deployed via FTP; worker deploy pending host-side `npx wrangler deploy --env production`.
+
+**Impl:**
+- `workers/index.js` — `handleHandoffMint()` (Bearer-auth, `/api/handoff/mint`); `/api/auth/consume-handoff` branch inside `handlePortalAuthRoutes()` (X-Portal-Auth).
+- `public/onboarding.php` — `redirectToPortal()` replaces the old `dashboard/index.html?onboarded=1` redirect.
+- `public/includes/config.php` — new `CRAI_PORTAL_URL` constant (defaults to `https://contactreply.app`).
+- `portal/docroot/includes/pages/sso.php` — new page; consumes handoff, creates session, redirects.
+- `portal/docroot/index.php` — added `sso` to `$publicPages`, `$pageMap`, `$pageTitles`.
+- Removed orphaned `public/dashboard/` (duplicate dashboard on sales host) — local `rm` + remote FTP `removeDir`.
