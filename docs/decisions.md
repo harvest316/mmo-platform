@@ -3856,20 +3856,22 @@ Two repos (AdManager, AgentSystem) and auditandfix-website had no local hooksPat
 2. After `goLive()` success, browser calls `POST /api/handoff/mint` on the Worker with `Authorization: Bearer <crai_token>`. Worker:
    - Verifies Bearer, extracts `tenantId`.
    - Generates a 64-char hex nonce (`crypto.getRandomValues(32)`).
-   - Stores `handoff:{nonce} → {tenantId, email}` in `RATE_LIMIT_KV` with **60-second TTL**.
-   - Rate-limited to 10 mints/min per tenant.
+   - Inserts `(nonce, tenant_id, email, expires_at = NOW()+60s)` into `crai.sso_handoffs`.
+   - Rate-limited to 10 mints/min per tenant (KV — approximate counters tolerate eventual consistency).
    - Returns `{ handoff, expiresIn: 60 }`.
 3. Browser redirects to `https://contactreply.app/sso?h={nonce}`.
 4. Portal `/sso` page (new, `includes/pages/sso.php`, added to `$publicPages`) calls `workerRequest('/api/auth/consume-handoff', POST, {handoff})` — server-to-server, X-Portal-Auth signed. Worker:
-   - Reads KV, `delete`s the key (single-use is enforced by KV delete, not by DB).
+   - Atomically claims the nonce: `UPDATE crai.sso_handoffs SET used_at=NOW() WHERE nonce=$1 AND used_at IS NULL AND expires_at > NOW() RETURNING tenant_id, email`.
    - Mints a fresh 30-day Bearer via `generateToken()`.
    - Returns `{ tenantId, email, bearer, expiresAt }`.
+
+**Storage choice (updated):** First pass used Cloudflare KV for the handoff. That failed in practice: mint and consume frequently landed in different CF edge colos, and KV's up-to-60s propagation window meant the consume read often raced ahead of the mint write — producing bogus `"Handoff expired or already used"` on the very first attempt. Fixed by moving to Postgres (`crai.sso_handoffs`), which is strongly consistent and gives atomic single-use via `UPDATE ... RETURNING`. KV is retained only for the mint-side rate limiter (approximate counters are fine there).
 5. Portal calls `createSession(tenantId, email, bearer)` — encrypts the bearer at rest, writes `portal_sessions` row, sets `__Host-CRAI_SESSID`, then `header('Location: /dashboard')` (or `/onboarding/step-1` if `onboarding_complete` flag is false).
 
 **Security properties:**
 - **Unguessability:** 32 bytes of random entropy (256 bits).
 - **TTL:** 60s — covers the redirect round-trip with margin, far shorter than the 30-day Bearer.
-- **Single-use:** KV `delete` is atomic; a replay returns 404.
+- **Single-use:** `UPDATE ... RETURNING` on a row gated by `used_at IS NULL`. A replay sees zero rows and returns 404.
 - **No credential on the wire:** the handoff does NOT contain a bearer — only an opaque reference. The real bearer is issued server-to-server during `consume-handoff`.
 - **Scope:** handoff is tied to one `tenantId` at mint time; portal can't forge identity.
 - **Fallback:** any failure redirects to `/login` (magic link). Never a 404, never a silent success.
@@ -3883,7 +3885,8 @@ Two repos (AdManager, AgentSystem) and auditandfix-website had no local hooksPat
 **Status:** Accepted. Sales site + portal deployed via FTP; worker deploy pending host-side `npx wrangler deploy --env production`.
 
 **Impl:**
-- `workers/index.js` — `handleHandoffMint()` (Bearer-auth, `/api/handoff/mint`); `/api/auth/consume-handoff` branch inside `handlePortalAuthRoutes()` (X-Portal-Auth).
+- `workers/index.js` — `handleHandoffMint()` (Bearer-auth, `/api/handoff/mint`); `/api/auth/consume-handoff` branch inside `handlePortalAuthRoutes()` (X-Portal-Auth). Both back onto `crai.sso_handoffs`.
+- `migrations/017-sso-handoffs.sql` — creates `crai.sso_handoffs` (nonce PK, tenant FK, email, expires_at, used_at) + partial index on `expires_at WHERE used_at IS NULL` for GC.
 - `public/onboarding.php` — `redirectToPortal()` replaces the old `dashboard/index.html?onboarded=1` redirect.
 - `public/includes/config.php` — new `CRAI_PORTAL_URL` constant (defaults to `https://contactreply.app`).
 - `portal/docroot/includes/pages/sso.php` — new page; consumes handoff, creates session, redirects.
