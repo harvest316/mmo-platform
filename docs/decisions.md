@@ -3937,3 +3937,36 @@ Two repos (AdManager, AgentSystem) and auditandfix-website had no local hooksPat
 - `portal/docroot/includes/pages/sso.php` — new page; consumes handoff, creates session, redirects.
 - `portal/docroot/index.php` — added `sso` to `$publicPages`, `$pageMap`, `$pageTitles`.
 - Removed orphaned `public/dashboard/` (duplicate dashboard on sales host) — local `rm` + remote FTP `removeDir`.
+
+### DR-232: CRAI dogfood photo avatar — explicit MVP allowlist (2026-04-21)
+
+**Context.** DR-224 Phase 1.9 bans tenants from uploading human-face avatars
+for the MVP (policy + AUP reason: catfishing / impersonation risk). The
+internal dogfood tenant (`slug='contactreplyai'`, id=8) needs a real team
+photo on its own widget so the product self-tests with realistic content.
+
+**Decision.** Add a narrow allowlist, enforced server-side in the worker:
+1. `slug === 'contactreplyai'` — hardcoded for the canonical dogfood tenant.
+2. `settings.dogfood_allow_photo_avatar === true` — future dogfood tenants
+   can be flipped on via a one-line `psql` update without a code change.
+
+Anything not matching continues to receive 403 from `POST /api/avatar`. The
+`/settings` portal page hides the upload control for non-allowlisted
+tenants; the hiding is cosmetic, the worker gate is authoritative.
+
+**Storage.** Bytes go to `CRAI_MEDIA_KV` under key `avatar:<tenantId>` with
+`{mime}` metadata. `GET /api/avatar/:slug` (no auth) serves them with the
+stored mime pinned as `Content-Type` + `X-Content-Type-Options: nosniff`.
+Matches the pattern already used for ElevenLabs voicemail greetings.
+
+**Implementation.** `workers/index.js`:
+- `isDogfoodPhotoAvatarTenant()` + `sniffImageMime()` helpers.
+- `POST /api/avatar` (Bearer) and `GET /api/avatar/:slug` (public) routes.
+- `GET /api/settings` returns `dogfood_photo_avatar_allowed` flag.
+
+Portal: `portal/docroot/includes/pages/settings.php` +
+`assets/js/settings.js` + `assets/css/settings-pages.css` — conditional
+upload block, FileReader → base64 → POST.
+
+**Status.** Implemented. Portal deployed. Worker redeploy pending
+(`cd workers && npx wrangler deploy --env production` — host-side).
