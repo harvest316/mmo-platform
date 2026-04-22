@@ -4,6 +4,29 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-232: CRAI Twilio number pool reuse before purchase (2026-04-22)
+
+**Context:** `provisionSmsChannel()` previously had two modes: purchase a fresh AU Mobile number for real tenants, or reuse a single pooled `TWILIO_SANDBOX_NUMBER` (`+61468015592`) for any tenant whose `paypal_subscription_id` started with `SANDBOX-`. This produced two problems worth fixing together:
+
+1. After wiping the test tenants, a previously-purchased number sat in the Twilio account paid-for-but-unused. The code would still search for and buy a new number on the next onboarding rather than recycle the orphan.
+2. The sandbox/prod branch was an unnecessary special case: "prod tenants get new numbers, sandbox tenants share one pool number." In practice we always want *new tenant reuses orphan if one exists, else buys new* — same rule for both sides.
+
+**Decision:** Collapse the two branches into a single pool-first flow. Before calling `AvailablePhoneNumbers` + buy, `provisionSmsChannel()` lists every `IncomingPhoneNumber` on the master account, filters to those whose `friendly_name` starts with `crai-`, subtracts any SID already referenced by a row in `crai.channels.config->>'twilio_number_sid'`, and if an orphan remains, re-wires its FriendlyName (`crai-tenant-{id}`), SmsUrl, and VoiceUrl for the new tenant via `POST /Accounts/{acc}/IncomingPhoneNumbers/{sid}.json`. Messaging Service attach runs on both paths; 409 is treated as idempotent success (expected when reusing an already-attached orphan). Drop `TWILIO_SANDBOX_NUMBER` config var and the `paypal_subscription_id.startsWith('SANDBOX-')` branch.
+
+**Concurrency — known limitation:** Two simultaneous onboardings can both scan the pool, find the same orphan, and both succeed the Twilio rewire (last-write-wins on FriendlyName; the second tenant's `crai.channels` row ends up pointing at a SID whose `friendly_name` is stamped for the other tenant). Not mitigated yet — `@neondatabase/serverless` is HTTP-per-query, so Postgres session advisory locks have no effect across multiple `sql` calls + `fetch()` calls. Proper fix: add a unique partial index on `crai.channels(config->>'twilio_number_sid') WHERE IS NOT NULL` and `ON CONFLICT DO NOTHING RETURNING` the pre-claim row before the Twilio rewire; losers fall through to purchase. Deferred until we actually see concurrent onboarding load — single-digit onboardings/day makes the race vanishingly unlikely. Race documented inline in `provisionSmsChannel()` with the fix plan.
+
+**Why not keep a sandbox-specific pool:** The reuse-orphan logic subsumes it. The orphan pool is the sandbox pool — the only difference is now we don't hard-code a specific number; any unattached CRAI number qualifies.
+
+**Status:** Accepted. Deployed for DR-233 (Marcus dogfooding restart) — prior sandbox tenants 1,4,5,6,7 deleted from `crai.tenants` (CASCADE cleared channels + sso_handoffs), `+61 468 015 592` renamed to `crai-pool-unassigned` in Twilio with webhook URLs cleared.
+
+**Impl:**
+- `workers/index.js:2329` — `provisionSmsChannel()`: removes the `TWILIO_SANDBOX_NUMBER` branch; adds pool-scan-and-rewire step (2) before the search/buy path (step 2a/2b renumbered); `wasPurchased` flag gates MS attach; 409 on MS attach now treated as idempotent success rather than error.
+- `workers/wrangler.toml` — `TWILIO_SANDBOX_NUMBER` removed from all four env blocks (top-level, test, staging, production).
+
+**⚠️ Manual step:** Host-side deploy — `cd ~/code/ContactReplyAI/workers && npx wrangler deploy --env production`.
+
+---
+
 ### DR-230: CRAI tradie platform integration strategy — downstream-only (2026-04-17)
 
 **Context:** Investigated whether CRAI could integrate directly with AU tradie lead platforms (hipages, Airtasker, ServiceSeeking, Oneflare, Bark.com, Gumtree) to auto-respond to incoming job leads. Research covered API availability, ToS restrictions, email notification content, and post-lead communication flows across all major platforms.
