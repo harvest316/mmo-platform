@@ -4,6 +4,30 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-236: CRAI portal `/templates` page — tenant-facing template library management (2026-04-22)
+
+**Context:** The template-library schema (`crai.templates` + `crai.tenant_templates`) has been in prod Neon since migration 012 (Phase 1.5a, DR-224 work). Onboarding step 5b was speced to let the customer review canned replies, but the UI was deferred (TODO.md "Phase 1.5c — Onboarding template-review UI"). Meanwhile there was no post-onboarding surface where a tenant could see, edit, or approve new templates — the tables sit empty and unused, and Marcus keeps generating freeform replies against the Knowledge Base only. User asked for "a dedicated templates page in the dash."
+
+**Decision:** Ship a stand-alone `/templates` page now, before the onboarding integration, as the authoritative tenant surface for template library management. One page, two lists — "Approved" (tenant_templates × templates for this tenant) and "Available for your trade" (standard/candidate rows matching `tenants.vertical`, plus any tenant_private rows owned by this tenant). Each approved row is editable via a modal: tone radio (casual / warm_professional / brief) + textarea with 4000-char limit. If the tenant edits and the text still matches the default, we store `custom_body=null` so future upstream template edits still flow through. Empty state points to `/knowledge-base` so tenants understand why Marcus is still freeform.
+
+Four new Bearer endpoints (`GET /api/templates`, `POST /api/templates/:id/approve`, `DELETE /api/templates/:id/approve`, `PUT /api/templates/:id`). The generator (`src/services/llm.js`) is NOT wired to consume approved templates yet — that's a follow-up task (Phase 1.5c). Leaving the creator endpoint `POST /api/templates` for tenant_private templates deferred to v2 — no customer demand yet. Language hygiene (DR-224): all user copy says "Marcus", "templates", "replies", never "AI" / "automated" / "intelligent".
+
+**Status:** Accepted. Worker + portal shipped 2026-04-22.
+
+**Impl:**
+- `workers/index.js` — new template endpoints inserted between `/api/trust-stage` and `/api/avatar`. Uses the existing Bearer-auth context + Neon `sql` tag; scopes all rows with `WHERE tenant_id = ${tenantId}` and validates tier visibility (standard/candidate must match tenant.vertical; tenant_private must be owned).
+- `portal/docroot/portal-api.php` — three new allowlist entries (`/api/templates$`, `/api/templates/\d+$`, `/api/templates/\d+/approve$`).
+- `portal/docroot/index.php` — adds `templates` to `$pageMap` + `$pageTitles`.
+- `portal/docroot/includes/header.php` — new "Templates" nav item between Knowledge Base and Settings (desktop sidebar, mobile menu, bottom tab-bar).
+- `portal/docroot/includes/pages/templates.php` — page markup, edit modal.
+- `portal/docroot/assets/js/templates.js` — vanilla ES5 module (matches settings.js style); all event wiring via addEventListener (CSP strict-dynamic); all DOM content via textContent to avoid XSS on `custom_body`.
+- `portal/docroot/assets/css/templates-page.css` — scoped under `.templates-page`.
+- `portal/docroot/includes/asset-version.php` — bumped.
+
+**⚠️ Manual step:** Wrangler deploy is not in the container — user runs `cd ~/code/ContactReplyAI/workers && npx wrangler deploy` from the host.
+
+---
+
 ### DR-235: CRAI portal dashboard urgent-actions + conversation sentiment surfacing (2026-04-21)
 
 **Context:** The existing `/dashboard` showed generic stat-cards (inbound, replies, confidence, active convos) but nothing that told the tenant "these three things need action right now." Meanwhile `frustration_streak` (migration 015) and `messages.emergency_tier` (migration 002) were already being captured on ingest and reply, but neither was surfaced in the portal — tenants had no visual cue that a thread had gone sour or that a safety response had fired. `pending_replies` had its own page but no dashboard callout.
