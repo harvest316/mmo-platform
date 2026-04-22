@@ -4,6 +4,28 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-234: CRAI portal VAPID key — PHP-FPM env normalization + UX split (2026-04-21)
+
+**Context:** Portal settings page showed "push notifications are not supported" on Chromium (which fully supports Web Push), and clicking Enable errored "VAPID public key not configured". Worker had `VAPID_PUBLIC_KEY` set correctly in `workers/wrangler.toml`; the portal had never surfaced it. Two compounding bugs:
+
+1. `head-common.php` used `getenv('VAPID_PUBLIC_KEY')` to emit `<meta name="vapid-key">`. Under Apache `proxy_fcgi` + PHP-FPM, `.htaccess SetEnv` directives land in `$_SERVER` but NOT `getenv()`. `config.php` has an explicit normalization loop that copies `$_SERVER[X]` → `putenv()`, but `VAPID_PUBLIC_KEY` was not in the list — so even if the SetEnv were present, the meta tag would never render.
+2. `notifications-settings.php` conflated "browser doesn't support push" with "server hasn't published a VAPID key". Both fell through to `applyState('unsupported')`, producing wrong UX copy that blamed the browser.
+
+**Decision:** Ship the VAPID public key via a PHP constant (`CRAI_VAPID_PUBLIC_KEY`) defined in `config.php` from the (now-normalized) `VAPID_PUBLIC_KEY` env var. Head partial emits the meta tag only when the constant is non-empty. Add a distinct `isConfigured()` check and `'not-configured'` UI state so missing-key shows "Unavailable — contact support", not "Not supported". The public key is public by design (transmitted to every browser anyway via `applicationServerKey`), so surfacing it as a meta tag is not a secret-exposure concern. No worker-side endpoint (Option B) needed — a static meta tag is the minimum viable wiring.
+
+**Status:** Accepted. Deployed to `portal-prod` 2026-04-21. Requires host-side `.htaccess` update (`SetEnv VAPID_PUBLIC_KEY …`) to take effect in production.
+
+**Impl:**
+- `portal/docroot/includes/config.php` — adds `VAPID_PUBLIC_KEY` and `CRAI_API_URL` to the `$_SERVER → putenv` normalization loop; defines `CRAI_VAPID_PUBLIC_KEY` constant.
+- `portal/docroot/includes/head-common.php` — switches the `<meta name="vapid-key">` emitter from `getenv()` to the new constant.
+- `portal/docroot/assets/js/push-notifications.js` — adds `CRAI.push.isConfigured()`; user-facing error string reworded.
+- `portal/docroot/includes/pages/notifications-settings.php` — new `'not-configured'` state with dedicated copy; `resolveState()` and init both route through it.
+- `portal/docroot/.htaccess.example` — documents `SetEnv VAPID_PUBLIC_KEY`.
+
+**⚠️ Manual step:** On the portal host (`contactreply.app` docroot), add `SetEnv VAPID_PUBLIC_KEY BKYbXRlSgwsKXy3oBQV32I5wiYOd0FiO1QkgTP-wdhRqOPfuRXOtu0jLlreIDU7lgj1rGDMUE1tF312rstXm11w` to `.htaccess`. Value is the same one in `workers/wrangler.toml` — public by design.
+
+---
+
 ### DR-232: CRAI Twilio number pool reuse before purchase (2026-04-22)
 
 **Context:** `provisionSmsChannel()` previously had two modes: purchase a fresh AU Mobile number for real tenants, or reuse a single pooled `TWILIO_SANDBOX_NUMBER` (`+61468015592`) for any tenant whose `paypal_subscription_id` started with `SANDBOX-`. This produced two problems worth fixing together:
