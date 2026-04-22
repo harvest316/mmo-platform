@@ -4,6 +4,28 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-235: CRAI portal dashboard urgent-actions + conversation sentiment surfacing (2026-04-21)
+
+**Context:** The existing `/dashboard` showed generic stat-cards (inbound, replies, confidence, active convos) but nothing that told the tenant "these three things need action right now." Meanwhile `frustration_streak` (migration 015) and `messages.emergency_tier` (migration 002) were already being captured on ingest and reply, but neither was surfaced in the portal — tenants had no visual cue that a thread had gone sour or that a safety response had fired. `pending_replies` had its own page but no dashboard callout.
+
+**Decision:** Reuse the existing signals rather than add new scoring. Three buckets the tenant actually acts on:
+1. **Enquiries awaiting review** — `pending_replies` where `status IN ('pending','content_flagged')`, links to `/pending`.
+2. **Upset or frustrated customers** — `conversations.frustration_streak >= 2`, links to `/conversations?sentiment=negative`.
+3. **Emergency escalations** — distinct conversations with any `messages.emergency_tier IS NOT NULL` in the last 30 days, links to `/emergency`.
+
+Expose this through a single cheap aggregate endpoint `GET /api/dashboard-summary` (Bearer, tenant-scoped) returning `{ pendingReplies, frustrated, emergency }` each with `{ count, latestIds }`. The `/api/conversations` endpoint learns two filter query params (`?sentiment=negative`, `?status=emergency`) so the dashboard buckets can deep-link into a scoped list, and also returns `frustration_streak` + `emergency_any` per row so the list can show a tri-state sentiment badge (`Frustrated` / `Upset` / `Emergency`). The detail view gets a sentiment panel above the message log when streak ≥ 2 or an emergency message exists. We deliberately do **not** badge "happy" on every calm thread — noise.
+
+**Status:** Accepted. Worker + portal shipped 2026-04-21. Migration 015 (`frustration_streak`) applied to prod Neon as part of this change.
+
+**Impl:**
+- `workers/index.js` — new `GET /api/dashboard-summary` endpoint; `/api/conversations` learns `?sentiment=negative` + `?status=emergency` filters and now returns `frustration_streak` + `emergency_any`; detail endpoint derives `emergency_any` from message set.
+- `portal/docroot/portal-api.php` — allowlist entries for `/api/dashboard-summary` and the two new query strings on `/api/conversations`.
+- `portal/docroot/includes/pages/dashboard.php` — urgent-actions card with three buckets, colour only when count > 0.
+- `portal/docroot/assets/js/conversations.js` — sentiment badge on list cards, sentiment panel on detail view, URL-param filter wiring + filter banner with "clear" link.
+- `portal/docroot/assets/css/portal.css` — `.urgent-bucket*`, `.sentiment-badge*`, `.sentiment-panel*`.
+
+---
+
 ### DR-234: CRAI portal VAPID key — PHP-FPM env normalization + UX split (2026-04-21)
 
 **Context:** Portal settings page showed "push notifications are not supported" on Chromium (which fully supports Web Push), and clicking Enable errored "VAPID public key not configured". Worker had `VAPID_PUBLIC_KEY` set correctly in `workers/wrangler.toml`; the portal had never surfaced it. Two compounding bugs:
