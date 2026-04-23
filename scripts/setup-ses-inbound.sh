@@ -2,13 +2,16 @@
 # setup-ses-inbound.sh — Provision AWS infrastructure for E2E email receipt tests.
 #
 # Creates (all idempotent — safe to re-run):
-#   - S3 bucket  mmo-e2e-inbound-<account-id>  in us-west-2
-#   - Bucket policy allowing SES (us-west-2) to write raw emails
+#   - S3 bucket  mmo-e2e-inbound-<account-id>  in ap-southeast-2
+#   - Bucket policy allowing SES to write raw emails
 #   - IAM user   mmo-e2e-email-reader  with GetObject/ListBucket/DeleteObject
 #   - IAM access key for that user (only created once; printed once)
-#   - SES receipt rule set  e2e-inbound  (ap-southeast-2 — must match verified domain region)
+#   - SES receipt rule  accept-e2e-{domain}  inside rule set  mmo-inbound  (DR-240)
+#     (rule set mmo-inbound is the single active set — never activates a separate set)
 #   - SES receipt rule accepting *@e2e.{PARENT_DOMAIN} → S3 prefix incoming/
-#   - Sets the rule set as the active rule set in ap-southeast-2
+#
+# DR-240: All receipt rules must live in mmo-inbound. Never activate a separate
+# rule set — doing so would take down production inbound for all tenants.
 #
 # After running, add to your DNS provider (set PARENT_DOMAIN first):
 #   MX  e2e  10  inbound-smtp.ap-southeast-2.amazonaws.com
@@ -48,7 +51,7 @@ echo
 REGION="ap-southeast-2"  # Sydney — must match verified domain region (SES inbound regional requirement)
 BUCKET="mmo-e2e-inbound-${ACCOUNT_ID}"
 IAM_USER="mmo-e2e-email-reader"
-RULE_SET="e2e-inbound"
+RULE_SET="mmo-inbound"
 PARENT_DOMAIN="${PARENT_DOMAIN:?PARENT_DOMAIN must be set (e.g. export PARENT_DOMAIN=auditandfix.com)}"
 DOMAIN="${E2E_DOMAIN:-e2e.${PARENT_DOMAIN}}"
 RULE_NAME="${RULE_NAME:-accept-e2e-${PARENT_DOMAIN%%.*}}"
@@ -241,21 +244,18 @@ echo
 
 # ── SES receipt rule set ─────────────────────────────────────────────────────
 
-echo "── SES receipt rule set: $RULE_SET (region: $REGION)"
+echo "── SES receipt rule in rule set: $RULE_SET (region: $REGION)"
 
+# mmo-inbound is the active rule set (managed by setup-ses.mjs). Verify it exists.
 RULE_SET_EXISTS=0
 aws ses describe-receipt-rule-set --rule-set-name "$RULE_SET" --region "$REGION" 2>/dev/null \
   && RULE_SET_EXISTS=1 || true
 
 if [[ $RULE_SET_EXISTS == 0 ]]; then
-  if [[ $DRY_RUN == 0 ]]; then
-    aws ses create-receipt-rule-set --rule-set-name "$RULE_SET" --region "$REGION"
-    echo "   Rule set created"
-  else
-    echo "   [dry-run] Would create rule set"
-  fi
+  echo "   ✗ Rule set '$RULE_SET' not found — run setup-ses.mjs first" >&2
+  exit 1
 else
-  echo "   Already exists"
+  echo "   ✓ Rule set exists"
 fi
 
 # Receipt rule: capture *@${DOMAIN} → S3
@@ -300,11 +300,8 @@ if [[ $DRY_RUN == 0 ]]; then
   fi
 fi
 
-# Activate the rule set
-if [[ $DRY_RUN == 0 ]]; then
-  aws ses set-active-receipt-rule-set --rule-set-name "$RULE_SET" --region "$REGION"
-  echo "   Rule set set as active in $REGION"
-fi
+# mmo-inbound is the single active rule set (DR-240). Never activate a separate
+# rule set here — doing so would clobber production inbound for all tenants.
 
 echo
 

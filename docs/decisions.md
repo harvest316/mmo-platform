@@ -4205,3 +4205,26 @@ The portal UI is read-only: it displays the server state without offering a "mar
 **Impl:**
 - `workers/index.js` — `GET /api/setup-progress` handler; computes checklist state from `settings` + `push_subscriptions` count
 - Portal: `portal/docroot/includes/pages/onboarding-checklist.php` + `assets/js/setup-checklist.js` — read-only display for verified items; manual checkbox only for theme_customized
+
+---
+
+### DR-240: SES receipt rules — single active rule set (mmo-inbound), retire e2e-inbound (2026-04-23)
+
+**Context:** AWS SES allows only one active receipt rule set per region. The platform had two rule sets: `mmo-inbound` (production CRAI inbound + 333Method) and `e2e-inbound` (E2E test infrastructure). `setup-ses-inbound.sh` unconditionally called `set-active-receipt-rule-set --rule-set-name e2e-inbound` at the end of every run, silently deactivating `mmo-inbound` and causing all production inbound email to stop being delivered. This was the root cause of the CRAI dogfood loop failure — SES accepted SMTP connections and returned `250 OK` but discarded emails because no active rule matched.
+
+**Decision:** All receipt rules (production and E2E) must live inside the single active rule set `mmo-inbound`. The `e2e-inbound` rule set is retired. `setup-ses-inbound.sh` migrated to insert its E2E rule directly into `mmo-inbound` and no longer calls `set-active-receipt-rule-set`.
+
+**Why:**
+- **One active rule set:** AWS only honours rules in the active set. Having a second set that any script can activate is an undetected outage waiting to happen.
+- **Root cause fix, not symptom fix:** Switching back to `mmo-inbound` each time is a recurring manual step. The structural fix is to make the E2E script incapable of clobbering the active set.
+- **E2E tests unaffected:** The E2E rule (`accept-e2e-auditandfix`) still matches `*@e2e.auditandfix.com` → S3 `incoming/`; moving it into `mmo-inbound` has no functional impact.
+
+**Implementation:**
+- `scripts/setup-ses-inbound.sh`: changed `RULE_SET="e2e-inbound"` → `RULE_SET="mmo-inbound"`; removed `set-active-receipt-rule-set` call; added guard that fails if `mmo-inbound` doesn't exist (must run `setup-ses.mjs` first)
+- Host-side cleanup (one-time): delete the now-empty `e2e-inbound` rule set:
+  ```bash
+  aws --profile mmo-admin ses delete-receipt-rule-set --rule-set-name e2e-inbound --region ap-southeast-2
+  ```
+- `tmp/diagnose-crai-ses.sh` — diagnostic script to check active rule set, CRAI rule config, SNS subscriptions, S3 objects, and DNS MX records
+
+**Status:** Implemented (script changes committed). Host-side `e2e-inbound` deletion is a pending one-time cleanup.
