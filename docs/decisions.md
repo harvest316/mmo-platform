@@ -4056,3 +4056,119 @@ upload block, FileReader → base64 → POST.
 
 **Status.** Implemented. Portal deployed. Worker redeploy pending
 (`cd workers && npx wrangler deploy --env production` — host-side).
+
+---
+
+### DR-237: CRAI widget loader — standalone ES5 bootstrap with data-token attribute (2026-04-23)
+
+**Context:** ContactReplyAI customers need to embed the chat widget on their websites. The widget must be installable by non-developers via Google Tag Manager, WordPress plugins, CMS custom-code panels, and other platforms that do not support modern JavaScript tooling.
+
+**Decision:** The chat widget is implemented as a single self-contained `public/widget.js` file (strict ES5, no build step). Installation:
+1. Customer obtains their PayPal subscription ID (used as a public customer identifier).
+2. Customer adds a single `<script>` tag anywhere on their website:
+   ```html
+   <script src="https://contactreplyai.com/public/widget.js" data-token="<subscription-id>"></script>
+   ```
+3. The widget script automatically:
+   - Reads the `data-token` attribute from its own `<script>` tag.
+   - Self-injects the chat UI div and stylesheet into the page DOM.
+   - Calls the Worker's `GET /widget-config` endpoint with the token to fetch tenant config (colors, name, avatar, greeting).
+   - Routes inbound messages via `POST /widget-message` to the Worker.
+
+**Why:** 
+- **No version coupling:** Customers don't manage a separate portal.js file. Widget updates roll out automatically.
+- **CMS/GTM compatible:** ES5 with zero build dependencies runs in any environment without npm, webpack, or build tools.
+- **No portal dependency:** The widget is independent of the onboarding portal; failures in the portal don't break customer chat.
+
+**Storage choice:** The token is the customer's PayPal subscription ID, which is public (it identifies the tenant to the system). It is not a secret — customers see it in their subscription details.
+
+**Status:** Implemented.
+
+**Impl:** 
+- `public/widget.js` — ES5 widget loader that reads `data-token`, injects UI, calls Worker endpoints
+- `workers/index.js` — `GET /widget-config` (public, token-authenticated) and `POST /widget-message` (public, token-authenticated) routes
+
+---
+
+### DR-238: CRAI widget verification via Cloudflare Browser Rendering (2026-04-23)
+
+**Context:** To verify that a customer has correctly installed the widget on their website, we need to confirm the presence of the chat widget DOM element with the correct `data-token` attribute on the customer's website. The widget is often injected via Google Tag Manager or other dynamic loading — a simple curl/fetch of the page HTML would miss it. Additionally, a customer may paste the script tag but have it fail to execute due to CSP, network errors, or typos in the data-token.
+
+**Decision:** Use Cloudflare Browser Rendering (puppeteer via `env.BROWSER` inside a Cloudflare Worker) to:
+1. Navigate to the customer's configured `website_url`.
+2. Wait for the page to reach network idle.
+3. Query the DOM for an element matching `[data-token="{tenantToken}"]` (case-sensitive).
+4. If found, mark the widget as verified.
+
+**Triggers:**
+- **On-demand:** `GET /api/widget-check` (Bearer-authenticated) — rate-limited to 1 check per 5 minutes per tenant (KV approximate counters).
+- **Weekly cron:** Scheduled re-verify runs automatically. After 2 consecutive cron failures, clear `settings.webchat_verified_at` to prompt the customer to check the installation.
+
+**Why:**
+- **Headless browser inside the Worker:** No external infrastructure needed. CF Browser Rendering is a Worker primitive.
+- **Captures dynamic injection:** GTM, async scripts, and other late-loading mechanisms are fully executed by the browser.
+- **Handles failures gracefully:** Network errors, timeouts, and missing tokens are logged; verification is optional (customers can still use the widget without verification).
+
+**SSR/SPA caveats:** If the customer's website is a pure SPA with no initial HTML render, the widget element may not exist until JS runs. Browser Rendering waits for network idle, which works for most modern SPAs.
+
+**Status:** Implemented.
+
+**Impl:**
+- `workers/index.js` — `GET /api/widget-check` route (Bearer-authenticated), `verifyWidgetInstallation()` helper using `env.BROWSER`, scheduled handler for weekly re-verify
+- `workers/wrangler.toml` — `[browser]` binding (cloudflare:browser service)
+- `migrations/016-*.sql` — schema already supports `settings.webchat_verified_at` (timestamp or null)
+
+---
+
+### DR-239: CRAI setup checklist — verified state derived from server evidence, not self-declaration (2026-04-23)
+
+**Context:** The setup checklist guides customers through initial configuration (widget installation, push notifications, PWA setup, theme colors). Originally, items were marked done via self-declared boolean flags (`settings.webchat_installed`, `settings.push_enabled`, etc.). This created false confidence — customers could click "mark done" without actually completing the task, leading to broken setups discovered later during sales calls.
+
+**Decision:** Checklist items must derive their done-state from server-side evidence, not a self-declared boolean. Three categories:
+
+1. **Automatically verified (read-only):**
+   - `webchat_installed`: done if `settings.webchat_verified_at IS NOT NULL` (evidence: successful Browser Rendering check per DR-238)
+   - `push_enabled`: done if `SELECT COUNT(*) > 0 FROM push_subscriptions WHERE tenant_id = ?` (evidence: at least one push subscription exists)
+   - `pwa_installed`: done if `settings.pwa_installed_at IS NOT NULL` (evidence: signal sent by pwa-install.js when PWA is added to home screen)
+
+2. **Manual, not auto-verified:**
+   - `theme_customized`: customer can click "Done" but verification is UX-only; no server check (they've viewed the theme page)
+
+3. **Removed (low-value):**
+   - `widget_colours` — collapsed into `theme_customized`; no separate step needed.
+
+**Why:**
+- **Eliminates false confidence:** Customers can't "mark done" without actually doing it.
+- **Catches silent failures:** If the widget breaks after installation (due to site updates, CSP changes, etc.), the next cron cycle will clear the verification and re-prompt.
+- **Single source of truth:** The server controls the state; the UI reads it. No conflict between client-side and server-side flags.
+
+**Flow:**
+When the portal calls `GET /api/setup-progress`, the Worker computes and returns the checklist:
+```json
+{
+  "webchat_installed": {
+    "done": <bool: webchat_verified_at IS NOT NULL>,
+    "actionUrl": "/dashboard/widget"
+  },
+  "push_enabled": {
+    "done": <bool: count > 0>,
+    "actionUrl": "/dashboard/push-notifications"
+  },
+  "pwa_installed": {
+    "done": <bool: pwa_installed_at IS NOT NULL>,
+    "actionUrl": null
+  },
+  "theme_customized": {
+    "done": <bool: customer clicked; no auto-verify>,
+    "actionUrl": "/dashboard/theme"
+  }
+}
+```
+
+The portal UI is read-only: it displays the server state without offering a "mark done" button for verified items.
+
+**Status:** Implemented.
+
+**Impl:**
+- `workers/index.js` — `GET /api/setup-progress` handler; computes checklist state from `settings` + `push_subscriptions` count
+- Portal: `portal/docroot/includes/pages/onboarding-checklist.php` + `assets/js/setup-checklist.js` — read-only display for verified items; manual checkbox only for theme_customized
