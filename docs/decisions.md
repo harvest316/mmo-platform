@@ -4,6 +4,20 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-243: CRAI /channels page missing settings-pages.css stylesheet (2026-04-24)
+
+**Context:** User reported CSS visibly broken on https://contactreply.app/channels. Page rendered as unstyled DOM — no card backgrounds, no row borders, labels stacked without flex layout.
+
+**Root cause:** `portal/docroot/includes/pages/channels.php` (added in commit `57a9e73`, DR-239) uses `.sp-sections`, `.sp-section`, `.sp-section__row`, `.sp-section__label`, `.sp-section__value`, `.sp-section__hint` classes — all defined in `portal/docroot/assets/css/settings-pages.css`. Every other page using these classes (`settings.php`, `templates.php`, `billing.php`, `stats.php`, `emergency.php`) links that stylesheet explicitly; `channels.php` never did. Globally included stylesheets (`portal.css`, `push-pwa.css`) do not contain `.sp-*` rules.
+
+**Decision:** Add `<link rel="stylesheet" href="/assets/css/settings-pages.css?v=<?= CRAI_ASSET_VERSION ?>">` at the top of `channels.php`, matching the pattern used by sibling pages. Minimal one-line fix — no CSS refactor needed.
+
+The `.page-header` / `.page-header__title` / `.page-header__desc` classes used on this page are also not currently defined in any stylesheet; the h1/p fall back to browser defaults and look acceptable. Leaving those unstyled for now — low priority, can be added later if design wants a distinct page-header treatment.
+
+**Status:** Accepted — shipped 2026-04-24.
+
+**Impl:** `portal/docroot/includes/pages/channels.php` line 11 (added stylesheet link). Deployed via `node scripts/deploy.js --env portal-prod`.
+
 ### DR-242: CRAI replyService → dispatchReply cutover (DR-237 Phase 237a runtime wire) (2026-04-24)
 
 **Context:** `replyDispatcher.dispatchReply()` had been implemented (DR-237) with full template-first logic — selector, proposer, universal fallback — but had zero callers. `replyService.js` was still calling `generateReply()` from `llm.js` directly, bypassing the template path entirely. `crai.template_proposals` had 0 rows because the proposer never fired.
