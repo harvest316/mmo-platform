@@ -4,6 +4,27 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-241: CRAI voicemail greeting generator and upload editor (2026-04-24)
+
+**Context:** Tenants need a custom voicemail greeting that Twilio plays before recording a message from missed callers. The existing KV-based greeting stub (DR-213) had no tenant-facing UI or upload path — greetings had to be seeded manually. Tradies want to either (a) generate a professional greeting using ElevenLabs TTS (choosing a voice and writing a script), or (b) upload their own audio file.
+
+**Decision:** Four tenant-facing API endpoints added to the CF Worker under `/api/tenant/voicemail/`:
+
+- `GET /api/tenant/voicemail` — list all greetings, ordered by `created_at DESC`
+- `POST /api/tenant/voicemail/generate` — ElevenLabs TTS: accepts `{ voice_id, script }`, calls ElevenLabs v1 TTS endpoint, inserts row with `generated_at`. Returns 503 if `ELEVENLABS_API_KEY` not set; returns 502 on ElevenLabs API failure.
+- `POST /api/tenant/voicemail/upload` — multipart/form-data; `audio` field (mp3/wav/ogg/webm, max 10 MB) + optional `label`. Must be intercepted before `request.text()` consumes the body stream (early-exit before body-parsing block in the main fetch handler). Storage key set to `null` — R2/S3 wiring deferred. Returns `{ id, label, uploaded_at }`.
+- `PATCH /api/tenant/voicemail/:id/activate` — atomically deactivates all other greetings for the tenant then activates the target. Ownership check before any mutation. Returns updated row.
+
+All endpoints require Bearer auth (DASHBOARD_API_SECRET). `voice_id` validated to alphanumeric-only to prevent injection. Label truncated to 200 chars. Only one greeting per tenant is `active=true` at a time — enforced at API layer, not DB constraint, to allow safe atomic flips.
+
+DB: `crai.voicemail_greetings` (migration `020-crai-voicemail.sql`, applied to Neon 2026-04-24). FK to `crai.tenants` with CASCADE delete. Partial index on `(tenant_id, active) WHERE active=true` for fast active-greeting lookup.
+
+**Status:** Accepted — shipped 2026-04-24. 546 vitest unit tests pass. ElevenLabs key not yet provisioned; generate returns 503 cleanly until set.
+
+**Impl:** `migrations/020-crai-voicemail.sql`, routes in `workers/index.js`, tests in `tests/unit/voicemail.test.js`.
+
+**Deferred:** R2/S3 storage wiring for upload (storage_key left null); ElevenLabs audio bytes not yet persisted to KV (returned in response but need to be stored for Twilio to serve). Tenant-facing UI (portal page) is a separate task.
+
 ### DR-238: CRAI unified inbox — merge /pending + /emergency into /conversations (2026-04-23)
 
 **Context:** The portal had three separate inboxes — `/conversations` (all threads, single-value filter), `/pending` (AI-drafted replies awaiting approval, standalone card UI), `/emergency` (safety-tier escalations by time range). Tradies were context-switching between three views that each held slivers of their day. The pending-reply countdown-timer + approve/edit/cancel mechanic lived in `pending.js` and was unreachable from the conversation detail view, so the natural workflow ("I'm looking at the thread, there's a draft ready — just let me approve it") required a mode switch to `/pending`.
