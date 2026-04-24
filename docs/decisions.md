@@ -4,6 +4,29 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-242: CRAI replyService → dispatchReply cutover (DR-237 Phase 237a runtime wire) (2026-04-24)
+
+**Context:** `replyDispatcher.dispatchReply()` had been implemented (DR-237) with full template-first logic — selector, proposer, universal fallback — but had zero callers. `replyService.js` was still calling `generateReply()` from `llm.js` directly, bypassing the template path entirely. `crai.template_proposals` had 0 rows because the proposer never fired.
+
+**Decision:** Replace the `generateReply()` call in `processMessage()` with `dispatchReply()`, injecting all required collaborators from the Node.js service context:
+
+- `runSelector`: wraps `selectTemplate()` from `templateSelector.js`, calls `callLlm()` from `llm.js` (Haiku model), and fire-and-forget logs usage via `logUsage()`.
+- `runProposer`: wraps `proposeTemplateFromConversation()` from `templateProposer.js`, using Opus model and a `makeSqlAdapter(client)` shim (see below).
+- `loadUniversalFallback`: queries `crai.templates` directly via `client.query()`.
+- `loadApprovedTemplates(client, tenantId)`: new helper that runs the `tenant_templates JOIN templates` query used by the worker, translated to `pg.Pool` style.
+
+The key engineering challenge: `proposeTemplateFromConversation` expects a postgres.js tagged-template `sql\`...\`` function. The Node service uses `pg.Pool`. A `makeSqlAdapter(client)` function was added that converts tagged-template calls to `client.query()` with positional parameters — covers all scalar parameter cases needed here.
+
+The `hold_for_approval` no_match path returns `{ reply: null, hold: true }` from `dispatchReply`. `replyService` now handles `reply === null` explicitly: stages a pending reply for owner review (stage 1) without calling `sendReply`. All other reply shapes (template match, hardcoded last-resort) continue into the existing content filter → trust stage routing unchanged.
+
+`frustrationStreak` is still loaded (it was used by `generateReply` for model selection — now unused on this path but harmless to keep for future use).
+
+Test suite: replaced 5 frustration-escalation tests that tested `generateReply` internals (model selection, marker stripping, streak updates) — those behaviors are now tested only in `llm-generateReply.test.js`. Added 3 DR-237 dispatcher integration tests: template match auto-send, no_match hardcoded fallback, hold_for_approval staging.
+
+**Status:** Accepted — shipped 2026-04-24. 544 vitest unit tests pass.
+
+**Impl:** `src/services/replyService.js` (makeSqlAdapter, loadApprovedTemplates, loadUniversalFallbackBody, runSelector/runProposer/loadFallback builders, dispatchReply call, hold handling), `tests/unit/replyService.test.js`. Commit: `d269f55`.
+
 ### DR-241: CRAI voicemail greeting generator and upload editor (2026-04-24)
 
 **Context:** Tenants need a custom voicemail greeting that Twilio plays before recording a message from missed callers. The existing KV-based greeting stub (DR-213) had no tenant-facing UI or upload path — greetings had to be seeded manually. Tradies want to either (a) generate a professional greeting using ElevenLabs TTS (choosing a voice and writing a script), or (b) upload their own audio file.
