@@ -4,6 +4,39 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-245: CRAI autofill inbound_email + SES inbound.contactreplyai.com gaps (2026-04-24)
+
+**Context:** New CRAI tenants got a NULL `config->>'inbound_email'` on their email channel (or no email channel row at all), so `/channels` showed "No VA email configured." The intended slug-based pattern `{slug}@inbound.contactreplyai.com` was referenced in `workers/index.js:676` (slug routing) but never stamped at tenant creation.
+
+**Decision:**
+1. **Backfill migration** (`migrations/023-backfill-inbound-email.sql`): Phase 1 UPDATEs existing email channel rows with NULL inbound_email; Phase 2 INSERTs missing email channel rows. Dogfood tenant (slug='contactreplyai') excluded; its hand-set `hello@contactreplyai.com` is preserved. Slug guard: `^[a-z0-9-]+$` — invalid slugs skipped, not coerced. Applied 2026-04-24: 1 row inserted (sandbox tenant).
+2. **Write-path fix** (`workers/index.js`): Both the PayPal webhook tenant-creation path and the sandbox onboarding path now INSERT an email channel row (`inbound_email = {slug}@inbound.contactreplyai.com`) immediately after tenant INSERT. ON CONFLICT preserves any hand-set value.
+3. **SES gaps (host-side action required):** `inbound.contactreplyai.com` has no MX record, no SES domain identity, and no receipt rule matching `*@inbound.contactreplyai.com`. The existing `crai-inbound-rule` matches `contactreplyai.com` (bare domain) but not the `inbound.` subdomain. Three host-side steps needed: (a) add MX record `inbound.contactreplyai.com → inbound-smtp.ap-southeast-2.amazonaws.com` in DNS; (b) add `inbound.contactreplyai.com` to the `crai-inbound-rule` Recipients list (or create a new rule); (c) optionally add SES identity for `inbound.contactreplyai.com` (not strictly required for receipt — SES inbound works at the rule level, not identity level, but DMARC/DKIM for replies benefits from it).
+
+**Status:** Accepted — DB backfill and write-path shipped 2026-04-24. SES DNS/rule gaps are open host-side tasks.
+
+**Impl:** `migrations/023-backfill-inbound-email.sql`, `workers/index.js` (PayPal + sandbox paths). Tests: `tests/unit/inbound-email.test.js` (17 tests).
+
+### DR-244: CRAI PWA install — three-path mobile/iOS/desktop install section (2026-04-24)
+
+**Context:** The `/channels#install-app` section showed a single text instruction ("tap the share icon, then choose Add to Home Screen") which tradies unfamiliar with PWAs ignored. Desktop users had no path at all. Result: low app installs, weaker push notification reliability.
+
+**Decision:** Replace the single-instruction block with three device paths:
+
+- **Path A1 — Android Chrome:** `beforeinstallprompt` fires → show a prominent "Add ContactReply to your home screen" button. Same native install behaviour as before, just more prominent.
+- **Path A2 — iOS Safari:** `beforeinstallprompt` never fires → show a 3-step illustrated walkthrough (Share → Add to Home Screen → Add) with inline SVG icons. Mobile detected via `isTouch || isIOS` UA check.
+- **Path B — Desktop:** Show a "Send install link" card. Prefills `owner_phone` from `/api/settings`. POSTs to new Worker endpoint `POST /api/tenant/send-install-link` which generates a one-time 30-min install token (stored in `crai.install_tokens` Postgres table), sends an SMS, and archives to `crai.messages`. SMS contains a link to `https://portal/install-from-sms?token=<64hex>`.
+
+**Install-from-sms flow:** New portal PHP page `/install-from-sms` (public route, like `/sso`) calls `POST /api/auth/consume-install-token` (X-Portal-Auth) to atomically consume the token, mints a bearer via the existing `generateToken()`, creates a portal session, and redirects to `/channels#install-app`. The tradie lands on the install section already logged in on their phone.
+
+**Why not reuse sso_handoffs?** `sso_handoffs` has a 60-second TTL and no phone column — semantically different. A separate `crai.install_tokens` table with 30-minute TTL and phone audit column is cleaner.
+
+**Rate limit:** 1 SMS per tenant per 60 seconds via `RATE_LIMIT_KV`.
+
+**Status:** Accepted — shipped 2026-04-24 (commit 2561188).
+
+**Impl:** `portal/docroot/includes/pages/channels.php`, `portal/docroot/includes/pages/install-from-sms.php`, `portal/docroot/index.php`, `workers/index.js` (+`POST /api/tenant/send-install-link`, `POST /api/auth/consume-install-token`), `migrations/022-install-tokens.sql`. Tests: `tests/unit/install-link.test.js` (+34 tests, 583 total).
+
 ### DR-243: CRAI /channels page missing settings-pages.css stylesheet (2026-04-24)
 
 **Context:** User reported CSS visibly broken on https://contactreply.app/channels. Page rendered as unstyled DOM — no card backgrounds, no row borders, labels stacked without flex layout.
@@ -4286,3 +4319,38 @@ The portal UI is read-only: it displays the server state without offering a "mar
 - `tmp/diagnose-crai-ses.sh` — diagnostic script to check active rule set, CRAI rule config, SNS subscriptions, S3 objects, and DNS MX records
 
 **Status:** Implemented (script changes committed). Host-side `e2e-inbound` deletion is a pending one-time cleanup.
+
+---
+
+### DR-241: CRAI inbound sender derivation — prefer From header over envelope MAIL FROM (2026-04-24)
+
+**Context:** CRAI dogfood replies appeared to send (DB row `delivery_status=sent`, LLM call succeeded, `[loop] processed 1 messages` logged) but never arrived at the test recipient. AWS SES was BOTH delivering and bouncing each send in CloudWatch (`Delivery` and `Bounce` metrics both incrementing in the same 5-minute bucket). The "bounce" notifications were then re-ingested as NEW inbound messages from `0108019d...@bounce.contactreply.app`, creating fresh conversations — an infinite dogfood loop.
+
+**Root cause:** `workers/index.js:5084` and `src/channels/ingest.js` `parseSesPayload()` both derived the customer's email address from `sesNotification.mail.source`. That field is the SMTP envelope MAIL FROM (Return-Path), NOT the user-facing `From:` header. Because the `contactreply.app` SES identity has a custom MAIL FROM domain configured (`MailFromDomain: bounce.contactreply.app`), every outbound from the contact form was stamped with a VERP envelope like `<random>@bounce.contactreply.app`. When that email arrived at `hello@contactreplyai.com` via the SES inbound rule, the ingest pipeline stored the VERP address as `customer_identifier` instead of the submitter's real email. Every subsequent reply was sent TO the VERP address, bounced, and the bounce was then ingested as another inbound message.
+
+A secondary bug: `src/api/webhooks.js:155` called `parseSesPayload(parsed)` with one argument, but the function signature expected `(sesNotification, parsedEmail)`. That path never produced correct output either — it got lucky that the Worker path was handling live traffic.
+
+**Decision:** Sender precedence for SES inbound is:
+1. `parsedEmail.from` (mailparser / postal-mime From header — what the user typed)
+2. `parsedEmail.replyTo` (explicit reply target)
+3. `sesNotification.mail.commonHeaders.from[0]` (SES's header copy)
+4. `sesNotification.mail.source` (envelope MAIL FROM) — last-resort only
+
+Additionally, any sender matching `*@bounce.*` is refused at ingest (skip, return 200 to SNS). That breaks the feedback loop regardless of which bounce-VERP leaks through — bounce inboxes are never real customers.
+
+Additionally, the public contact form now sets `Reply-To: <submitter>` so manual replies from the `hello@` inbox route to the user, and the SES-header path surfaces the real address even when `From:` is rewritten.
+
+**Why:**
+- **Envelope sender ≠ customer:** any mail that traverses a system with VERP/SRS/custom MAIL FROM (SES, Mailgun, SendGrid, mailing lists) rewrites the envelope. Using it for reply addressing is universally wrong.
+- **Bounce-domain guard is belt-and-braces:** even if the precedence logic is ever bypassed (e.g. a legacy caller passing only `sesNotification`), we still refuse to reply to our own bounce infrastructure.
+- **Reply-To on contact form** is the minimum bar for any transactional form — it's what every helpdesk does and preserves the submitter's identity across the SES relay hop.
+
+**Implementation:**
+- `workers/index.js` (CF Worker SES webhook): hoisted `parsedEmail` out of the inline-content block, added sender-precedence resolution with `pickAddress()` helper, added `@bounce.*` guard that returns `{ skipped: 'bounce_verp_sender' }`
+- `src/channels/ingest.js` (`parseSesPayload`): same precedence logic and bounce guard; now safely handles `parsedEmail` being undefined
+- `src/api/webhooks.js`: fixed call site `parseSesPayload(parsed)` → `parseSesPayload(message, parsed)`
+- `workers/index.js` `sendEmailViaSES`: added optional `config.reply_to` → `ReplyToAddresses`
+- `workers/index.js` `handleContactForm`: passes `reply_to: email` so the submitter's address survives the SES relay
+- `tests/unit/ingest.test.js`: 5 new tests covering precedence, Reply-To fallback, commonHeaders fallback, and bounce-VERP rejection (ours and third-party). 549/549 CRAI unit tests green.
+
+**Status:** Implemented. Host-side deploy pending: `cd ~/code/ContactReplyAI/workers && npm run deploy:prod` (plus a Node restart for the webhook service if it runs separately). Existing malformed conversations (Neon rows 11, 12, 13 with `@bounce.contactreply.app` customer_identifiers) are pure loop artifacts and can be deleted.
