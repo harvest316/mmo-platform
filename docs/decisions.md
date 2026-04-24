@@ -4366,3 +4366,55 @@ Additionally, the public contact form now sets `Reply-To: <submitter>` so manual
 - `tests/unit/ingest.test.js`: 5 new tests covering precedence, Reply-To fallback, commonHeaders fallback, and bounce-VERP rejection (ours and third-party). 549/549 CRAI unit tests green.
 
 **Status:** Implemented. Host-side deploy pending: `cd ~/code/ContactReplyAI/workers && npm run deploy:prod` (plus a Node restart for the webhook service if it runs separately). Existing malformed conversations (Neon rows 11, 12, 13 with `@bounce.contactreply.app` customer_identifiers) are pure loop artifacts and can be deleted.
+
+---
+
+### DR-248: CRAI multi-email login via crai.login_emails table (2026-04-24)
+
+**Context:** Tradies often maintain multiple work email addresses (personal Gmail, business Outlook, admin@ catchall). Current auth binds magic-link login strictly to `tenants.owner_email` — a single field. If a tradie forgets which address they signed up with, they cannot log in. A secondary footgun was that the Human escalation form on `/channels` wrote directly to `owner_email`, silently changing the login address when a tradie updated where escalation notifications go. Task 1 of DR-248 decouples escalation contact (migration 024, new `escalation_email`/`escalation_phone` columns). Task 2 (this entry) designs the multi-email login capability so any verified address on the account can request a magic link.
+
+**Decision:** Introduce a `crai.login_emails` table. Any verified email associated with a tenant can be used to request a magic link.
+
+Schema:
+```sql
+CREATE TABLE crai.login_emails (
+  email       text        PRIMARY KEY,
+  tenant_id   integer     NOT NULL REFERENCES crai.tenants(id) ON DELETE CASCADE,
+  verified_at timestamptz,
+  is_primary  boolean     NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX ON crai.login_emails (tenant_id) WHERE is_primary;
+CREATE INDEX ON crai.login_emails (tenant_id);
+CREATE INDEX ON crai.login_emails (lower(email));
+```
+
+Auth flow changes:
+- Magic-link lookup changes from `WHERE lower(owner_email) = lower($1)` to `JOIN crai.login_emails ON lower(email) = lower($1) AND verified_at IS NOT NULL`.
+- Unverified rows cannot be used to authenticate.
+
+Backfill: for every existing tenant, insert `owner_email` as `is_primary=true, verified_at=now()`. Tenants with NULL `owner_email` (sandbox) are skipped.
+
+Add-email flow:
+1. Tradie enters a new email in the "Email addresses" section of /settings.
+2. Row inserted with `verified_at = NULL`.
+3. System sends a verification magic link to that address.
+4. Clicking the link sets `verified_at = now()`.
+5. Email is now usable for login.
+
+Primary email management:
+- Exactly one `is_primary=true` row per tenant (enforced by the partial unique index).
+- Changing primary is an atomic transaction: clear old `is_primary`, set new.
+
+UI: new "Email addresses" section on /settings. Shows each address with a "Verified" / "Pending" badge. Actions: Add, Remove (non-primary only), Make Primary.
+
+`owner_email` column: retained for backwards compatibility. Acts as a convenience mirror of the primary `login_email`, kept in sync by application code whenever the primary changes. The column is not dropped — too many code paths reference it (auth, onboarding, welcome SMS, PayPal webhook, billing events).
+
+**Alternatives considered:**
+1. Single login email + separate escalation only (Task 1 / migration 024) — fixes the footgun but does not help tradies who forget which email they registered with.
+2. Merge login + escalation into a "contact emails" list — simpler model but muddies the UX ("which email gets escalation alerts vs login links?").
+3. OAuth federated login (Google/Microsoft SSO) — larger scope; deferred to a later phase. Does not help tradies with generic ISP email addresses.
+
+**Implementation reference:** None yet. Task 1 (escalation decoupling, migration 024) lands first as a prerequisite. Estimated effort: 1 day including migration, tests, and UI.
+
+**Status:** PROPOSED — not implemented.
