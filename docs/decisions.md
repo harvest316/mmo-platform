@@ -4417,4 +4417,41 @@ UI: new "Email addresses" section on /settings. Shows each address with a "Verif
 
 **Implementation reference:** None yet. Task 1 (escalation decoupling, migration 024) lands first as a prerequisite. Estimated effort: 1 day including migration, tests, and UI.
 
+---
+
+### DR-249: CRAI /channels "Switch your number over" assistant (2026-04-24)
+
+**Context:** After provisioning a new Twilio number, tradies need to: (a) understand what the new number is for, (b) forward calls from their old number, and (c) update their directory listings (hipages, Oneflare, etc.) to show the new number so enquiries flow through the AI. Without guidance, tradies keep using the old number and the AI never sees incoming calls. We needed a self-serve assistant on /channels that walks them through the full switchover.
+
+**Decision:** Build a four-part switchover assistant on /channels:
+
+1. **"Your number" explanation copy** — a helper paragraph under the SMS number explaining the new AI number, where to update it (website, GBP, directories, email sig, printed marketing), and pointing to call forwarding.
+
+2. **Call forwarding dial codes section** — a collapsible `<details>` block showing carrier-specific forwarding codes for AU/UK/US/NZ. XXXX is replaced with the tenant's actual Twilio number as a clickable `tel:` link. Default-open country block is driven by `settings.locale?.country` (fallback: AU).
+
+3. **Directory listings checklist** — a new `sp-section` below the SMS section. Fetches `GET /api/directory/listings` and renders each row with: directory name, last-checked timestamp, currently listed phone number with red/green match indicator, "Open listing" button (uses `listing_url` or the recovery URL from `docs/directory-recovery.md`), and "Mark as updated" button (PATCH `user_marked_done_at = NOW()`). New endpoint: `PATCH /api/directory/listings/:directory/mark-updated`.
+
+4. **Auto re-verification cron** — a Cloudflare Worker scheduled trigger every 12 h. Picks up to 10 tenants whose `user_marked_done_at IS NOT NULL AND listed_phone != sms_number AND checked_at < NOW() - interval '72 hours'`. Calls the existing `runDirectoryScan` logic (extracted to `reverifyListingForTenant`) for each due row. Rate-limited to 10 tenants per tick to stay within Worker CPU budget.
+
+**Schema change:** `migrations/025-directory-listings-user-marked.sql` — adds `user_marked_done_at timestamptz` and a partial index `idx_directory_listings_due_reverify`.
+
+**Cron schedule:** `wrangler.toml` crons updated to `["0 2 * * 1", "0 */12 * * *"]` — the existing Monday 02:00 UTC widget re-verify sweep plus a new every-12h directory re-verify batch.
+
+**What we explicitly did NOT build:**
+- Automated directory login/edit via scraping — scraping hipages, Oneflare, and ServiceSeeking to update listings on the tradie's behalf would require storing credentials, is fragile against UI changes, likely violates each platform's ToS, and introduces significant legal risk. The assistant instead guides the tradie to do it themselves with a one-click "Open listing" link and a manual "Mark as updated" tick-off.
+- BrightLocal API integration — the citation-builder add-on (create new listings on 40+ AU directories) is a separate revenue feature deferred to a later phase.
+- Real-time phone number detection — the re-verify cron re-runs `checkPhoneOnPage` (existing) which fetches the live listing page. No additional scraping infrastructure was introduced.
+
+**User flow:**
+1. Tradie lands on /channels after provisioning.
+2. Sees new AI number with explanation of what to do with it.
+3. Expands "How to forward calls" — sees their carrier codes with the actual number pre-filled as a tel: link.
+4. Scrolls to "Update your directory listings" — sees all their directories with traffic-light phone match status.
+5. Opens each listing, updates the number, taps "Mark as updated".
+6. 72 h later the cron re-checks; if the number is live the row stays green.
+
+**Implementation reference:** `portal/docroot/includes/pages/channels.php`, `portal/docroot/assets/js/channels.js`, `workers/index.js` (PATCH endpoint + cron handler), `migrations/025-directory-listings-user-marked.sql`, `workers/wrangler.toml`.
+
+**Status:** SHIPPED 2026-04-24.
+
 **Status:** PROPOSED — not implemented.
