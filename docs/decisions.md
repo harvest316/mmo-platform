@@ -4,6 +4,18 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-246: CRAI voicemail record tab + default greeting auto-gen on onboarding (2026-04-24)
+
+**Context:** Three gaps in the voicemail greeting UX: (1) no way to record a greeting in the browser's own voice; (2) Generate-with-AI tab hidden because ELEVENLABS_API_KEY not set as a wrangler secret in prod; (3) new tenants land on /channels with a 0:00 audio player because no greeting was seeded at onboarding.
+
+**Decisions:**
+1. **Record tab** — third tab alongside Upload and Generate using MediaRecorder API. 60 s max. Saves via existing `POST /portal-api.php?action=voicemail-upload` multipart endpoint — no backend change needed. Browser picks format (webm/opus preferred). Permission denial shows a clear fallback message.
+2. **Generate tab probe** — probe logic is correct: sends `voice_id:'probe'` (alphanumeric, passes regex), gets 503 if key absent, 400 if key present. The 503 in prod means ELEVENLABS_API_KEY is genuinely not set as a wrangler secret. Host-side action required: `npx wrangler secret put ELEVENLABS_API_KEY --env production`. No code fix needed.
+3. **Default greeting on onboarding** — `ensureDefaultGreeting()` fires from `PUT /api/onboarding/complete` via `ctx.waitUntil()` (non-blocking). Uses Adam voice (`pNInz6obpgDQGcFmaJgB`) as AU/US-neutral default; overridable via `ELEVENLABS_VOICE_ID` env. Script: "Hi, you've reached {business_name}. We can't get to the phone right now…". Idempotent — skips if active greeting already exists.
+4. **Backfill script** — `scripts/backfill-default-greetings.js` generates default greetings for existing tenants with no active greeting. Skips dogfood tenant (slug=contactreplyai) if it has any greeting. Writes DB row; actual KV bytes must be pushed via Worker (wrangler secret + re-generation from portal).
+
+**Status:** Shipped. Worker not yet deployed (wrangler blocked in container — user deploys from host).
+
 ### DR-245: CRAI autofill inbound_email + SES inbound.contactreplyai.com gaps (2026-04-24)
 
 **Context:** New CRAI tenants got a NULL `config->>'inbound_email'` on their email channel (or no email channel row at all), so `/channels` showed "No VA email configured." The intended slug-based pattern `{slug}@inbound.contactreplyai.com` was referenced in `workers/index.js:676` (slug routing) but never stamped at tenant creation.
