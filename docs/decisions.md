@@ -4455,3 +4455,27 @@ UI: new "Email addresses" section on /settings. Shows each address with a "Verif
 **Status:** SHIPPED 2026-04-24.
 
 **Status:** PROPOSED — not implemented.
+
+### DR-252: CRAI number-porting intake on /channels (2026-04-24)
+
+**Context:** Tradies on Mode B (CRAI-provided number) often want the number they already advertise to become their AI number so customers hit the AI without changing any printed marketing. There was no self-serve way to kick this off. DR-201 flags a CSP/Telecommunications-Act review before we can auto-initiate Twilio HostedNumberOrders, so direct API wiring is premature.
+
+**Decision:**
+1. **Intake, not automation.** Tenants submit a port request via a new form on `/channels` ("Port your existing number" section). The request lands in a new `crai.port_orders` row with `status='requested'`. Ops drives the actual Twilio HostedNumberOrder + LOA flow manually until the CSP review completes and we flip on auto-initiation.
+2. **Status timeline.** The UI renders a six-stage timeline (requested → LOA emailed → LOA signed → submitted → in progress → completed) with the current stage highlighted and an animated dot. Stage timestamps come from ops updates to the DB row. Poll every 60 s so updates surface without reload.
+3. **One active port per tenant.** Enforced by a partial unique index on `crai.port_orders(tenant_id) WHERE status NOT IN ('completed','failed','cancelled')`. Conflict → friendly 409 "A port is already in progress."
+4. **Cancel-before-submitted.** Tenants can cancel their own request while still in `requested`/`loa_sent`/`loa_signed`. Post-submission is with the carrier and can't be yanked back without ops.
+
+**Endpoints (workers/index.js):**
+- `GET  /api/porting/status` — returns most-recent order (active preferred), or `null`.
+- `POST /api/porting/request` — creates a new `requested` row. Validates E.164 / AU national / `+61…` formats. Accepts optional carrier + account-holder + account-number metadata.
+- `POST /api/porting/cancel` — tenant-side cancel, pre-submitted states only.
+
+**Explicitly NOT built:**
+- Twilio `POST /HostedNumberOrders` auto-call (awaits CSP review per DR-201).
+- HelloSign/eSign integration for LOA signing (ops handles LOA out-of-band for now).
+- Downstream "re-update directory listings to the ported number" flow (deferred to the Next Steps widget; DR-250).
+
+**Implementation reference:** `migrations/026-port-orders.sql`, `workers/index.js` (three new endpoints), `portal/docroot/includes/pages/channels.php` (Port section), `portal/docroot/assets/js/channels.js` (`initPorting`), `portal/docroot/assets/css/settings-pages.css` (timeline styles), `portal/docroot/portal-api.php` (allowlist).
+
+**Status:** SHIPPED 2026-04-24.
