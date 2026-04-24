@@ -1,5 +1,27 @@
 # TODO
 
+## Cycle Neon + DASHBOARD_API_SECRET after CRAI cron smoke test (by 2026-04-28)
+
+Credentials were embedded in the CRAI widget cron post-verify routine
+(trig_01WykbS57aB7ar1pw59hhiXb) created 2026-04-24. After the routine fires
+Monday 2026-04-27 02:15 UTC and you've confirmed it ran, rotate both:
+
+1. **Neon password** — Neon Console → Project → Settings → Reset password.
+   Update `NEON_DATABASE_URL` in `~/code/ContactReplyAI/.env` and in:
+   - Wrangler secret: `cd ~/code/ContactReplyAI/workers && HOME=~/.cache/wrangler-home npx wrangler secret put DATABASE_URL --env production`
+   - Any other scripts that read `NEON_DATABASE_URL` from .env
+
+2. **DASHBOARD_API_SECRET** — generate a new 64-char hex secret:
+   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+   Update in `~/code/ContactReplyAI/.env` AND:
+   - Wrangler secret: `npx wrangler secret put DASHBOARD_API_SECRET --env production`
+   - All active portal sessions will be invalidated (users re-login automatically).
+
+3. **Disable the routine** after cleanup to prevent re-use of embedded creds:
+   https://claude.ai/code/routines/trig_01WykbS57aB7ar1pw59hhiXb
+
+---
+
 ## CRAI: Platform Lead Email Forwarding Ingest (DR-230)
 
 Tradies get job leads from platforms (hipages, ServiceSeeking, Gumtree, Bark,

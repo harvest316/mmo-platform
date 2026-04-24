@@ -172,6 +172,66 @@ Both a pre-commit hook (`.githooks/pre-commit-archive-check.sh`) and a CI gate (
 
 The brand website and CF Worker have been moved to a **private repo**: `~/code/auditandfix-website/` (harvest316/auditandfix-website). See that repo's CLAUDE.md for deploy instructions.
 
+## Plugin Routing (installed 2026-04-21)
+
+10 plugins active in `~/.claude/settings.json` → `enabledPlugins`. Rules for when to use each:
+
+### context7 — live library/framework docs
+**Always use first** when looking up any library, SDK, API, or CLI tool syntax — even well-known ones (Anthropic SDK, Playwright, pg, Pydantic, Wrangler, etc.). Training data is stale; context7 pulls current docs.
+- Workflow: `resolve-library-id` → `query-docs` (two-step, automatic)
+- Prefer over WebFetch/WebSearch for library docs
+- Skip for: business logic, code review, general programming concepts
+
+### Playwright MCP — interactive browser automation
+Use for: prod-site spot-checks (auditandfix.com, colormora.com, CRAI widget), UX verification, network inspection, scraping pages I can't curl.
+- Tools: `browser_navigate`, `browser_snapshot`, `browser_take_screenshot`, `browser_network_requests`, `browser_evaluate`
+- **Needs Chrome** — currently broken in container (requires root to install system deps). Fix: rebuild the container with Chrome pre-installed (see below).
+- Do NOT use for CI/E2E regression tests — those stay in the containerised Playwright test suite
+
+### LSP — TS/Python diagnostics
+Run after editing `.ts`, `.js`, or `.py` files in any project to catch type and syntax errors before committing. Replaces ad-hoc `tsc --noEmit` Bash calls.
+- Triggers automatically when available; I should check LSP diagnostics before marking an edit task complete
+
+### commit-commands — conventional commit helpers
+Use `/commit` skill for conventional commit formatting. Fall back to manual `git commit` only if the skill is unavailable (e.g., VSCode extension session where skills don't surface).
+
+### github MCP — GitHub context
+Use when I need PR status, issue context, or branch info without leaving the session. Prefer `gh` CLI for write operations (create PR, comment) — it's already on the allowlist and easier to audit.
+
+### claude-md-management — CLAUDE.md quality audits
+Two skills:
+1. **`claude-md-improver`** — audits all CLAUDE.md files (project + global), scores against 6 criteria, proposes targeted edits. Run quarterly or after any major project restructure.
+2. **`/revise-claude-md`** — end-of-session learnings capture: bash commands discovered, env quirks, patterns followed → suggests updates to the right CLAUDE.md or `.claude.local.md`.
+
+### security-guidance — security advice
+Surfaces security recommendations proactively when touching payment, auth, webhook, PII-handling code. Complements the Security Engineer subagent (which does deep audits) — security-guidance is lightweight real-time hints.
+
+### session-report — session summaries
+Generates structured session summaries. Use at natural stopping points instead of writing manual summaries. Aligns with "pending?" shorthand workflow.
+
+### frontend-design — UI/design help
+Use when working on auditandfix-website PHP templates, CRAI chat widget, colormora UI, or any frontend component. Skip for pure backend/pipeline work.
+
+### Playwright Container Fix (host-side action required)
+
+The Playwright MCP plugin expects Google Chrome at `/opt/google/chrome/chrome`. Chromium is installed at `~/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome` but the plugin won't use it without reconfiguration. Two options:
+
+**Option A — Rebuild container with Chrome** (recommended):
+Add to `Containerfile` before the final USER line:
+```dockerfile
+RUN curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb \
+    && apt-get install -y /tmp/chrome.deb \
+    && rm /tmp/chrome.deb
+```
+Then from host: `docker rmi codium-sandbox` → restart VSCodium.
+
+**Option B — Override MCP args via project `.mcp.json`** (no rebuild needed):
+Create `/home/jason/code/mmo-platform/.mcp.json`:
+```json
+{ "playwright": { "command": "npx", "args": ["@playwright/mcp@latest", "--browser", "chromium"] } }
+```
+Then approve `playwright` in the Claude Code `.mcp.json` prompt on next session start. This may conflict with the plugin's own playwright registration — test it first.
+
 ## VSCode Tips
 
 - Open workspace: `File → Open Workspace from File → ~/code/mmo.code-workspace`
