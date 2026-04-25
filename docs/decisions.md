@@ -4,6 +4,22 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-266: CRAI — favicon avatar type + CMS auto-detect pre-fill on widget install page (2026-04-25)
+
+**Context:** Two UX improvements that share a common theme — use what we already know about the tenant's website instead of asking them to enter it again.
+
+1. **Favicon avatar**: DR-265 removed logo upload; a zero-friction alternative avatar was needed. Google's S2 favicon API (`https://www.google.com/s2/favicons?domain=<hostname>&sz=64`) returns a business logo for most tradie websites. No file upload, no hosting, brand-appropriate by default. The `website_url` is already stored in `tenants.settings` from onboarding.
+
+2. **CMS auto-detect pre-fill**: The widget-check scan (DR-249) already detects the tenant's CMS and stores `cms_type` + `cms_login_url` in `tenants.settings`. The `/api/onboarding/cms` endpoint existed but the portal's widget install tab never called it. Tenants had to manually pick WordPress/Wix/etc. from a dropdown when the system already knew.
+
+**Decision:**
+1. New `chat_avatar_type = 'favicon'` with `chat_avatar_value = hostname`. Widget config resolves it to the S2 URL directly (no `/api/avatar` proxy needed). Portal JS appends a favicon tile to the avatar grid dynamically after settings load (only when `website_url` is non-empty). Favicon saves via `PUT /api/settings` with `{ chat_avatar_type: 'favicon', chat_avatar_value: hostname }`.
+2. `loadDetectedCms()` called on widget-install page boot — fetches `GET /api/onboarding/cms`, pre-selects the CMS dropdown, renders instructions with a deep-link to the CMS admin (built via DOM to avoid XSS), and injects a "We detected WordPress on your site — instructions pre-filled" note. Note is removed when the user manually switches CMS type.
+
+**Status:** Shipped 2026-04-25.
+
+**Impl:** `portal/docroot/assets/js/assistant.js` (`addFaviconTile()`, favicon save path in avatar save handler); `portal/docroot/assets/js/settings-channels.js` (`loadDetectedCms()`, `applyDetectedCms()`, `renderCmsInstructions()` with login deep-link); `workers/index.js` (widget config `avatarUrl` for `favicon` type, avatar type validation extended to include `'favicon'`).
+
 ### DR-265: CRAI assistant page — unified attestation for all display name types (2026-04-25)
 
 **Context:** The `/assistant` page had two distinct attestation blurbs: one for "real staff member" names (consent required) and one for "made-up" names (non-misleading acknowledgement). The confirm section was conditionally shown only for `staff`/`custom` name types and hidden for `business`/`own`. This caused a UX bug (confirm row not hiding reliably) and added unnecessary complexity — the backend stores `sender_name_type` for rendering purposes already, so the conditional confirmation UX bought nothing legally.
