@@ -4,6 +4,22 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-253: CRAI — move directory listings to dedicated /listings page (2026-04-24)
+
+**Context:** The Channels page was growing into an overloaded catch-all (VA details, escalation contacts, SMS/call-forwarding, voicemail, number porting, directory listings, email forwarding, push notifications, PWA install). Directory listings have distinct UX and will grow (more directories, status history) — making them a first-class nav destination improves discoverability and keeps Channels focused on contact-detail configuration.
+
+**Decision:**
+1. **New `/listings` route** — dedicated `listings.php` page with the Directories section (header, `#dir-listings-list`, rescan button, loading/empty/scanning states).
+2. **New `listings.js`** — extracted from `channels.js`; all directory-related code (DIR_RECOVERY_URLS, DIR_LABELS, fmtTimeAgo, renderDirectoryListings, loadDirectoryListings, autoTriggerScan, initDirectoryRescan). On boot, fetches SMS number from `/api/settings` independently (no dependency on channels.js or `window.CRAI_CHANNELS_SMS`). Uses `window.CRAI_LISTINGS_SMS` for the rescan polling scope.
+3. **channels.php + channels.js** — directory listings HTML block and all listing JS functions removed. `loadChannels()` no longer calls `loadDirectoryListings` or sets `window.CRAI_CHANNELS_SMS`.
+4. **Sidebar nav** — `['listings', 'Listings', <search-plus icon>]` added after Channels in `header.php $navItems`. Both desktop sidebar and mobile slide-out/tab bar pick it up automatically (loop-based render).
+5. **Onboarding copy** — `public/onboarding.php` line ~357: updated "head to the Channels page" → "head to the Listings page".
+6. **No API changes** — `/api/directory/*` routes already exist; no portal-api allowlist changes needed.
+
+**Status:** Shipped 2026-04-24.
+
+**Impl:** `portal/docroot/includes/pages/listings.php` (new), `portal/docroot/assets/js/listings.js` (new), `portal/docroot/includes/pages/channels.php` (listings section removed), `portal/docroot/assets/js/channels.js` (listings code removed), `portal/docroot/index.php` (route + title added), `portal/docroot/includes/header.php` (nav item added), `public/onboarding.php` (copy updated).
+
 ### DR-246: CRAI voicemail record tab + default greeting auto-gen on onboarding (2026-04-24)
 
 **Context:** Three gaps in the voicemail greeting UX: (1) no way to record a greeting in the browser's own voice; (2) Generate-with-AI tab hidden because ELEVENLABS_API_KEY not set as a wrangler secret in prod; (3) new tenants land on /channels with a 0:00 audio player because no greeting was seeded at onboarding.
