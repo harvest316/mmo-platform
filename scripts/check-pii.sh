@@ -80,8 +80,10 @@ check_pattern 'SetEnv\s+\S*(SECRET|PASSWORD|TOKEN|KEY)\s+["'\''"][^<][^"'\'']{8,
 # ── High-entropy strings (catch-all for unknown secrets) ──
 # Flags quoted strings ≥32 chars that look random (hex, base64, mixed alnum).
 # Intentionally noisy — a few false flags are better than a leaked secret.
-# Exclusions: URLs, file paths, CSS classes, HTML, placeholders, hashes in lockfiles.
-HIGH_ENTROPY=$(echo "$DIFF" | grep -nE '^\+' | grep -v '^+++' \
+# Exclusions: URLs, file paths, CSS classes, HTML, placeholders, hashes in lockfiles,
+# and auto-generated schema files (Room identityHash, index names).
+DIFF_NO_SCHEMA=$(git diff --cached --diff-filter=ACM -U0 -- ':!*/schemas/*.json' ':!*/schemas/**/*.json')
+HIGH_ENTROPY=$(echo "$DIFF_NO_SCHEMA" | grep -nE '^\+' | grep -v '^+++' \
   | grep -v 'package-lock\.json\|yarn\.lock\|composer\.lock\|pnpm-lock' \
   | grep -v 'integrity.*sha[0-9]' \
   | grep -v 'pii-ok\|check-pii' \
