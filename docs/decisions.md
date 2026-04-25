@@ -4495,3 +4495,63 @@ UI: new "Email addresses" section on /settings. Shows each address with a "Verif
 **Implementation reference:** `migrations/026-port-orders.sql`, `workers/index.js` (three new endpoints), `portal/docroot/includes/pages/channels.php` (Port section), `portal/docroot/assets/js/channels.js` (`initPorting`), `portal/docroot/assets/css/settings-pages.css` (timeline styles), `portal/docroot/portal-api.php` (allowlist).
 
 **Status:** SHIPPED 2026-04-24.
+
+---
+
+### DR-254: CRAI — defer all number porting until Pty Ltd + PI insurance bound (2026-04-25)
+
+**Context:** DR-252 shipped a porting intake form on `/channels` with an ops-driven manual workflow. DR-201 flagged that CSP status under the Telecommunications Act 1997 needs a telco-lawyer review before any port goes live. DR-203 requires PI insurance covering AI-generated communications before live tenants. As a sole trader, a botched port — customer can't make/receive calls for days, loses jobs — exposes personal assets directly with no entity ringfence. Pty Ltd formation (~$500 ASIC + a week of paperwork) is cheap relative to that exposure.
+
+**Decision:**
+1. **No port orders processed under sole-trader entity.** The intake form (DR-252) accepts requests but ops will not action any of them until: (a) Pty Ltd formed; (b) PI insurance bound covering AI-generated communications + telco activities; (c) Twilio reseller/MSA position confirmed (TODO.md HIGH "Twilio reseller agreement + AU porting legal research"); (d) telco-lawyer CSP opinion received (DR-201).
+2. **Path 2 (Mode B — CRAI-provided number) is the only onboarding path until then.** Tradies keep their existing number; CRAI provides a new AU mobile and the tradie updates directory listings + marketing to point at it. No porting promised in marketing copy or onboarding.
+3. **Intake-form behaviour during the gate — TBD.** Either (a) hide the entire "Port your existing number" section on `/channels` until ready, or (b) keep it visible as a waitlist with a clear "Number porting will be available once our licensing and insurance are finalised" banner. Question outstanding for the user; both DR-252 endpoints remain wired in the meantime so the only change required is UI copy/visibility.
+4. **Cross-references:** DR-201 (CSP review), DR-203 (PI insurance), DR-211 (PI runbook), DR-252 (intake form already shipped).
+
+**Status:** Accepted (operational gate)
+**Impl:** No code change required to enforce — ops simply doesn't process `crai.port_orders` rows. UI gating decision pending. Tracked via TODO.md HIGH "Twilio reseller agreement + AU porting legal research" (2026-04-25).
+
+---
+
+### DR-255: CRAI web push notification UX — mobile-only, iOS PWA-aware, SMS fallback ladder (2026-04-25)
+
+**Context:** Tradies need real-time alerts when an inbound conversation requires their attention (emergency, pending approval, voicemail). SMS-per-event is operationally expensive and erodes margin at scale. Web push is free at the wire but reliability depends on device, browser, and (on iOS) whether the web app has been installed to the home screen as a PWA — push only fires on iOS 16.4+ for installed PWAs. Path 2 onboarding (DR-254) produces a number-mismatch UX where customers texting an old number get replies from CRAI's number, so fast tradie response is the main mitigation — notification reliability matters.
+
+**Decision:**
+1. **Reliability ladder by urgency.** Push fires immediately for every event. SMS fallback delays: emergency (Tier 1) → 2 min, standard pending-approval → 15 min, FYI/auto-reply-already-sent → never. SMS only fires if a confirmed-click hasn't been received in the window AND the conversation requires owner action.
+2. **iOS-only "Add to Home Screen" prompt.** UA-detect iOS Safari (incl. iPad masquerading as desktop Safari); only iOS visitors see PWA install instructions. Android (and Chrome/Firefox on iOS, which can't install PWAs anyway) skip the section entirely. KISS: no install steps for users who don't need them.
+3. **Hide the entire web-push section on desktop.** Desktop push is a corner case for tradies in vans. Detect via `matchMedia('(pointer: coarse)')` + viewport width; show the push UX only on mobile-portal sessions. Desktop sessions see no notification setup at all.
+4. **Confirm-click as health signal.** Notifications include a `notificationclick` handler that POSTs to `/api/notifications/confirmed` with `clickedAt`, `userAgent`, `endpoint`, and platform. Dashboard shows a green "Notifications working on iPhone Safari (PWA)" banner once the first confirmed click lands; details remain visible in a per-device settings card.
+5. **Daily heartbeat + unreliable-device flag.** Server sends a 9 AM heartbeat push. If no confirmed-click is received for 24 h, flip the device to `unreliable=true` and revert that tenant to SMS-for-everything until they re-test.
+6. **Unreliable device → top-priority task surface.** When `unreliable=true`, render as the top item in the dashboard sidebar task list (above onboarding tasks, above directory-listing tasks) AND as a banner on the dashboard root. Resolves automatically when the next confirmed-click is received.
+
+**Explicitly NOT built (yet):**
+- VAPID key generation (Phase 2 TODO already lists this).
+- Service worker registration in the portal (no service worker shipped yet).
+- Per-tenant override for "always SMS, never push" (Phase 2 if requested).
+
+**Status:** Accepted (design); not yet implemented.
+**Impl:** Awaits voicemail ingest work (separate DR for voicemail playback + transcript in conversations tab) + Phase 2 push setup (TODO.md "Generate VAPID keys", "CF Worker deploy").
+
+---
+
+### DR-256: CRAI portal session — 365-day hard cap with 30-day idle window, persistent rolling cookie, sign-out-everywhere (2026-04-24)
+
+**Context:** Tradies report being "constantly logged back in" when checking conversations, contradicting the documented 90-day server-side session in `portal_sessions`. Investigation: `session_set_cookie_params()` in `portal/docroot/includes/config.php` set no `lifetime`, defaulting the `__Host-CRAI_SESSID` cookie to a "session cookie" — i.e. dies on browser close. PHP's `session.gc_maxlifetime` was also at the default 1440s (24 min), so even an open browser would lose the PHP session-data file before the user came back. The 90-day DB row was never the binding constraint; the cookie always was. Tradie expectation is "app stays logged in like Gmail/Slack mobile" — open it weekly, no friction. Magic-link as the only re-auth path makes any forced re-login a 60-second inbox round-trip on a phone, which is the worst friction point in the entire onboarding-to-active-use funnel.
+
+**Decision:**
+1. **Persistent cookie.** `session_set_cookie_params(['lifetime' => 365 * 86400, ...])` so the browser keeps the session cookie across restarts. Match `session.gc_maxlifetime` so the PHP session-data file isn't GC'd before the cookie. `__Host-` prefix preserved (Path=/, Secure, no Domain).
+2. **Rolling idle window inside a hard cap.** Server-side: 365-day hard cap from `createSession()` (DB `expires_at`), 30-day idle window enforced via `last_seen_at` in the `isLoggedIn()` SELECT. Active users (open the app at least once a month) stay logged in up to a year; idle users get expired at 30 days even though their cookie is still alive.
+3. **Cookie expiry tracks DB hard cap.** On each successful `isLoggedIn()` call (throttled to once per day), `refreshSessionCookie()` re-emits Set-Cookie with `expires` set to the DB row's `expires_at`. The cookie can never outlive the DB session. `__Host-` cookie attributes (Secure, Path=/, no Domain) hard-coded — never use `??` fallbacks, because the operator only triggers on null and would mask a literal `false`, silently producing a non-Secure cookie that the browser drops.
+4. **Sign-out-everywhere via POST + CSRF.** `signOutAllDevicesForTenant(int $tenantId)` deletes every `portal_sessions` row for the tenant (which kills the encrypted Worker bearer tokens stored in those rows). Exposed at `POST /logout` with `all=1` and a `_csrf` field, NOT a GET-with-querystring — a top-level cross-site link click would otherwise let an attacker nuke a victim's sessions on every device, since SameSite=Lax sends cookies on cross-site GET navigations. Plain `/logout` (this device) stays GET to match existing behaviour; blast radius is one re-login.
+5. **Discreet UI affordance.** Small "Sign out everywhere" button under the existing "Log out" link in both the desktop sidebar and mobile menu, styled as a subdued secondary link. Renders as a `<form>` posting `_csrf` + `all=1`. JS `confirm()` for accidental-click protection.
+6. **No data migration.** Existing `portal_sessions` rows keep their original 90-day `expires_at`; once a user re-logs (their cookie's already dead), the new policy applies. Worker bearer tokens are unaffected.
+
+**Explicitly NOT built (would be DR-257+):**
+- WebAuthn / passkey enrolment for fast re-auth instead of magic-link round-trip when the 365-day hard cap eventually fires.
+- "Active sessions" listing UI (device, last seen, IP) — would let users selectively revoke, not just nuke-all.
+- Per-IP-ASN-change forced re-auth (anomaly-based session revocation).
+- Re-auth gating on sensitive actions (billing change, data export, account delete) — currently any active session can do anything.
+
+**Status:** Accepted; implemented.
+**Impl:** `portal/docroot/includes/config.php` (cookie lifetime, gc_maxlifetime, SESSION_HARD_DAYS=365, SESSION_IDLE_DAYS=30); `portal/docroot/includes/auth/auth.php` (idle SQL clause in `isLoggedIn()`, `refreshSessionCookie()`, `signOutAllDevicesForTenant()`); `portal/docroot/includes/pages/logout.php` (POST+CSRF gate for `all=1`); `portal/docroot/includes/header.php` + `assets/css/portal.css` (sign-out-everywhere form button in sidebar + mobile menu). Pending host-side: FTP deploy (`npm run deploy:prod`) — portal PHP files don't need a Worker redeploy.
