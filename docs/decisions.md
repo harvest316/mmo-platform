@@ -4,6 +4,25 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-264: CRAI voicemail generate tab — replace hard-coded Charlie voice with AU voice picker (2026-04-25)
+
+**Context:** The Generate tab on `/channels` hard-coded ElevenLabs voice "Charlie" (`IKne3meq5aSn9XLyUdCD`) — a premade voice with a guaranteed AU accent that was available at the time. Charlie was never confirmed to sound right to AU tradies; it was a safe default while we evaluated options. JS + CSS scaffolding for a voice picker was already in place from DR-250; only the PHP was missing (hidden input instead of radio group).
+
+**Decision:** Replace the hidden `<input type="hidden" id="vmg-voice-fixed" value="IKne3meq5aSn9XLyUdCD">` with a four-option radio group. Voices selected after A/B MP3 testing against the ElevenLabs shared library and Voice Design catalogue:
+
+| Name | ID | Gender | Accent |
+|------|----|--------|--------|
+| Alex | `xZhTmJnxrn4YyTmPDrfZ` | Male | AU |
+| Jess | `ys3XeJJA4ArWMhRpcX1D` | Female | AU |
+| Ian  | `v7AjIzCg6vdhCmXwBrb1` | Male | AU |
+| Emma | `56bWURjYFHyYyVf490Dp` | Female | AU |
+
+Alex is the default (checked). Each option includes a preview button backed by a stored ElevenLabs MP3 sample. The selected voice ID is read by `channels.js` on generate (`voice_id: voiceId`) — no JS or worker changes needed.
+
+**Status:** Shipped 2026-04-25.
+
+**Impl:** `portal/docroot/includes/pages/channels.php` — replaced hidden Charlie input with `.vmg-voice-list` radio group. JS already handled the picker via `input[name="vmg-voice"]:checked`; worker already accepted and stored `elevenlabs_voice_id`.
+
 ### DR-263: CRAI voicemail record tab — switch from WebM/MediaRecorder to client-side WAV encoder (2026-04-25)
 
 **Context:** DR-246 shipped a third "Record" tab on `/channels` using `MediaRecorder` with `audio/webm;codecs=opus`. Two compounding bugs surfaced in dogfooding:
