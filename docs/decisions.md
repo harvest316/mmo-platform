@@ -4555,3 +4555,49 @@ UI: new "Email addresses" section on /settings. Shows each address with a "Verif
 
 **Status:** Accepted; implemented.
 **Impl:** `portal/docroot/includes/config.php` (cookie lifetime, gc_maxlifetime, SESSION_HARD_DAYS=365, SESSION_IDLE_DAYS=30); `portal/docroot/includes/auth/auth.php` (idle SQL clause in `isLoggedIn()`, `refreshSessionCookie()`, `signOutAllDevicesForTenant()`); `portal/docroot/includes/pages/logout.php` (POST+CSRF gate for `all=1`); `portal/docroot/includes/header.php` + `assets/css/portal.css` (sign-out-everywhere form button in sidebar + mobile menu). Pending host-side: FTP deploy (`npm run deploy:prod`) — portal PHP files don't need a Worker redeploy.
+
+---
+
+### DR-257: CRAI portal — fix latent `expires_at` format mismatch (lex-compare bug) (2026-04-25)
+
+**Context:** Code review of DR-256 flagged that `portal_sessions.expires_at` was stored in ISO-8601 with explicit `T...Z` (`gmdate('Y-m-d\TH:i:s\Z', ...)`), while SQLite's `datetime('now')` returns space-separated `YYYY-MM-DD HH:MM:SS` and `last_seen_at` was stored that way too. The `expires_at > datetime('now')` check is a lex compare, and `'T'` (0x54) is greater than `' '` (0x20), so a session expired by ≤1 second still validated for up to ~1 day. Mostly harmless at the 365-day cap (the boundary case is essentially never hit) but it's the kind of latent bug that silently breaks any future "short-lived session" feature, including DR-258's fresh-auth window.
+
+**Decision:** Normalise to space-separated UTC: `gmdate('Y-m-d H:i:s', ...)` on insert. PHP's `strtotime()` parses both formats correctly, the cookie-refresh path (`refreshSessionCookie()`) keeps working, and existing rows with the old format continue to validate fine (they sort as ≥ same-second `datetime('now')`, so the worst case is a row living ~24 h past its true expiry — irrelevant given a 90-day pre-existing cap).
+
+**Explicitly NOT done:** Backfilling existing `expires_at` values, normalising other timestamp columns (`created_at` defaults still use `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')` from migration v1) — those are never lex-compared against `datetime('now')`. Could be unified in a future tidy-up DR; not required for correctness.
+
+**Status:** Accepted; implemented.
+**Impl:** Single-line change in `portal/docroot/includes/auth/auth.php::createSession()` with an inline comment explaining the lex-compare fix. No migration required.
+
+---
+
+### DR-258: CRAI portal — active sessions UI, ASN-anomaly observation, fresh-auth gating (2026-04-25)
+
+**Context:** DR-256 left four follow-ups explicitly out of scope. User asked for three of them in one bundle plus a latent-bug fix:
+- An active sessions UI (replace nuke-all "sign out everywhere" with selective per-device revoke);
+- IP/ASN-anomaly observation (collect data on how often the IP-hash changes within an active session, so we can decide later whether to enforce);
+- Re-auth gating ("sudo mode") on sensitive actions like sign-out-everywhere, revoke-other-devices, and billing cancellation;
+- The DR-257 latent bug fix.
+
+WebAuthn / passkey re-auth was deferred to LOW PRIORITY (TODO.md, ContactReplyAI repo) — wait until DR-256 has been live long enough to know whether users hit the 365-day boundary.
+
+**Decisions:**
+
+1. **`/sessions` page** lists every active `portal_sessions` row for the current tenant with last-seen, first-seen, and a parsed device label (e.g. "iPhone · Safari"). Each non-current row gets a Revoke button. A toolbar adds "Sign out other devices" (revokes everything except the current row, leaving the user logged in). Backend at `portal-api.php?action={list-sessions, revoke-session, revoke-other-sessions}`. CSRF on mutating actions; tenant-scoped DELETE with an extra `session_token_hash <> ?` clause so the user can never accidentally revoke their own session via the per-device button (use `/logout` for that).
+2. **Sidebar link** "Active sessions" added between "Log out" and "Sign out everywhere", styled as a subdued tertiary link in both desktop sidebar and mobile menu. The granular page is the primary security affordance; "Sign out everywhere" is the nuclear option.
+3. **DOM-builder rendering** (no `innerHTML` on user-controlled content) — `sessions.js` constructs every row via `createElement` + `textContent`. Caught by the security pre-check hook on the first attempt; rewriting was the correct call.
+4. **ASN/IP-hash anomaly logging is observe-only.** Migration v2 adds `portal_sessions.last_ip_hash` (current IP, distinct from the creation-time `ip_hash`) and a new `session_anomalies` table with `kind='ip_hash_change'`. `recordIpHashIfChanged()` runs inside `isLoggedIn()` after the session is validated — on transition, it inserts a row and updates `last_ip_hash`. Errors are swallowed so anomaly logging can never block a valid session. Seeding `last_ip_hash = ip_hash` at `createSession()` time prevents the first post-creation request from logging a false positive against a NULL prior; legacy rows fall back to `ip_hash` (creation-time IP) on first transition. **No enforcement.** Mobile carrier NAT churn would make naive enforcement a usability disaster; we collect data first. Re-evaluate after 4 weeks via the LOW-PRIORITY TODO entry.
+5. **Fresh-auth gating uses re-login as the step-up.** New `FRESH_AUTH_WINDOW_SECONDS=600` (10 min). Helpers: `markFreshAuthed()`, `isFreshAuth()`, `requireFreshAuth($returnTo)`, `requireFreshAuthOrJsonError($returnTo)`. `createSession()` calls `markFreshAuthed()` automatically (user just authed via magic link → fresh by definition). When fresh-auth is required and the window has lapsed:
+   - **Browser flow** (POST /logout?all=1): destroy session, redirect to `/login?return=<path>&reason=reauth`. Login page renders a "Confirm it's you" copy variant when `reason=reauth` is set.
+   - **JSON API flow** (revoke-session, revoke-other-sessions, /api/billing/cancel proxy): return `403 {error, fresh_auth_required: true, reauth_url}`. The portal `CRAI.api()` wrapper detects this and bounces the browser to `reauth_url` with a toast; sessions.js does the same with an `alert()`.
+6. **Post-reauth UX is intentional, not lossy.** When a user clicked "Sign out everywhere" → got redirected to log in again → succeeded → they land on `/sessions`, NOT a re-execution of the original POST. From `/sessions` they can use the safer per-device revoke (revoke-other-sessions, leaves current device intact) — which is usually what they actually wanted. If they genuinely want to nuke even the current device, they re-click the sidebar "Sign out everywhere" link and the now-fresh window allows the action through. Avoids the "click a link → suddenly logged out everywhere" surprise.
+7. **Sensitive Worker-proxy paths:** declared as `[$pattern, $sensitiveMethod]` pairs in `portal-api.php` (currently only `POST /api/billing/cancel`; commented-out slots for `/api/account/delete` and `/api/data/export` so they get fresh-auth automatically when those endpoints ship).
+
+**Explicitly NOT built:**
+- WebAuthn / passkey re-auth (separate LOW-PRIORITY TODO; deferred until usage data is in).
+- Account-delete and data-export endpoints (don't exist as Worker routes yet — when they ship, uncomment the corresponding sensitive-path entries).
+- Per-IP-ASN-change forced re-auth (we are observing, not enforcing — see point 4).
+- Backfilling `created_at` to space-separated format (DR-257 nit; deferred — never lex-compared against `datetime('now')`).
+
+**Status:** Accepted; implemented.
+**Impl:** `portal/docroot/includes/auth/db.php` (migration v2 — `session_anomalies` table + `last_ip_hash` column); `portal/docroot/includes/auth/auth.php` (`recordIpHashIfChanged`, `markFreshAuthed`, `isFreshAuth`, `requireFreshAuth`, `requireFreshAuthOrJsonError`, `FRESH_AUTH_WINDOW_SECONDS`); `portal/docroot/portal-api.php` (list-sessions / revoke-session / revoke-other-sessions actions + sensitive Worker-proxy gate); `portal/docroot/includes/pages/sessions.php` + `assets/js/sessions.js` + `assets/css/sessions-page.css` (new active-sessions UI); `portal/docroot/includes/pages/logout.php` (fresh-auth gate on `?all=1`); `portal/docroot/includes/pages/login.php` (`reason=reauth` copy variant); `portal/docroot/includes/header.php` (sidebar/mobile "Active sessions" link); `portal/docroot/index.php` (route + page title); `portal/docroot/assets/js/portal.js` (`fresh_auth_required` handling in `CRAI.api()`); `portal/docroot/assets/css/portal.css` (sidebar/mobile-menu link styles + focus-visible). Code review passed; one UX comment added to `logout.php` documenting the post-reauth flow. Pending host-side: FTP deploy (`npm run deploy:prod` with `--env portal-prod`); migration v2 auto-runs on first request.
