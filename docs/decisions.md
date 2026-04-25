@@ -28,6 +28,20 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 **Status:** Implemented — `assistant.php`, `assistant.js` (2026-04-25).
 
+### DR-265: CRAI templates — per-tenant dismissals to hide irrelevant library entries (2026-04-25)
+
+**Context:** The /templates page lists "Approved" (rows in `crai.tenant_templates`) and "Available" (`crai.templates` rows for the tenant's trade or `'other'` base pack, MINUS already-approved). For ContactReplyAI's own dogfooding tenant (`slug='contactreplyai'`, id=8, vertical=`other`), the Available section was 23 generic tradie templates — booking, quote_request, emergency, hours_query, pricing_query, service_area, arrival_eta, thanks_closer — none of which match a SaaS product handling its own inbound enquiries. The tenant_private Marcus templates seeded under DR-262 cover the real flow.
+
+`tenant_templates` is approval-only — there's no `status` column, so we couldn't represent "I've seen this and don't want it" without falsely marking it approved. Bulk-approving would have polluted the dispatch path (those bodies could be selected by the proposer at runtime).
+
+**Decision:** Add a sibling table `crai.tenant_template_dismissals (tenant_id, template_id, dismissed_at)` and exclude its rows from the `available` query in `GET /api/templates`. Approval and dismissal are now independent states — a row can be approved, dismissed, or in neither table (the default Available case). The dispatch-time `loadApprovedTemplatesForRuntime` is unchanged because dismissals never enter `tenant_templates`.
+
+For tenant 8, inserted 23 dismissals covering every standard 'other' template not already approved. Future tenants get a per-template "Hide" UI affordance later; the schema is in place.
+
+**Status:** Shipped 2026-04-25. Migration 029 applied to Neon, worker deployed (version `acb84c48`), 23 rows dismissed for tenant 8 (Available count: 23 → 0).
+
+**Impl:** `migrations/029-tenant-template-dismissals.sql` (new table), `workers/index.js` (Available query gains a second `NOT IN` subselect against the dismissals table). No portal/JS changes — UI affordance for per-template dismissal is a follow-up.
+
 ### DR-264: CRAI voicemail generate tab — replace hard-coded Charlie voice with AU voice picker (2026-04-25)
 
 **Context:** The Generate tab on `/channels` hard-coded ElevenLabs voice "Charlie" (`IKne3meq5aSn9XLyUdCD`) — a premade voice with a guaranteed AU accent that was available at the time. Charlie was never confirmed to sound right to AU tradies; it was a safe default while we evaluated options. JS + CSS scaffolding for a voice picker was already in place from DR-250; only the PHP was missing (hidden input instead of radio group).
