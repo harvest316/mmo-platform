@@ -4,6 +4,14 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-265: CRAI assistant page — unified attestation for all display name types (2026-04-25)
+
+**Context:** The `/assistant` page had two distinct attestation blurbs: one for "real staff member" names (consent required) and one for "made-up" names (non-misleading acknowledgement). The confirm section was conditionally shown only for `staff`/`custom` name types and hidden for `business`/`own`. This caused a UX bug (confirm row not hiding reliably) and added unnecessary complexity — the backend stores `sender_name_type` for rendering purposes already, so the conditional confirmation UX bought nothing legally.
+
+**Decision:** Replace the two-variant attestation with a single unified blurb shown for all name types: *"I confirm I'm authorised to use this display name in automated replies to my customers. If it's a team member's name, they've consented. It won't be used to mislead customers about who is responding."* The confirm section is always visible. Switching name type unchecks the box, requiring fresh confirmation. The attestation text is always persisted to `sender_name_attestation_text` on save (previously cleared for `business`/`own`).
+
+**Status:** Implemented — `assistant.php`, `assistant.js` (2026-04-25).
+
 ### DR-264: CRAI voicemail generate tab — replace hard-coded Charlie voice with AU voice picker (2026-04-25)
 
 **Context:** The Generate tab on `/channels` hard-coded ElevenLabs voice "Charlie" (`IKne3meq5aSn9XLyUdCD`) — a premade voice with a guaranteed AU accent that was available at the time. Charlie was never confirmed to sound right to AU tradies; it was a safe default while we evaluated options. JS + CSS scaffolding for a voice picker was already in place from DR-250; only the PHP was missing (hidden input instead of radio group).
