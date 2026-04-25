@@ -4,6 +4,16 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-267: CRAI assistant page — collapse 4-way name-type radios to a single optional input (2026-04-25)
+
+**Context:** After DR-265 unified the attestation blurb across all four name types (business / own / custom / staff), the type-of-name distinction served no legal purpose — the unified blurb covers any name choice. The four-way radio group only differed in hint text and `sender_name_type` value (which the renderer maps to "business name only" vs "Name from Business"). Asking tenants to classify their name was friction without value.
+
+**Decision:** Remove the four-way radio group. Present a single optional first-name input. Empty input → `sender_name_type = 'business'`, `sender_name = ''` (renderer falls back to `tenants.name`). Non-empty input → `sender_name_type = 'custom'`, `sender_name = <input>` (renderer outputs "Name from Business"). The `sender_name_type` column is preserved in the schema for backwards compatibility with the widget-config renderer and existing tenant data, but only takes two values going forward. The unified attestation (DR-265) is always required regardless of input value.
+
+Side fix: `updatePreview()` previously double-pluralised the business case ("Smith Plumbing's's automated assistant") because the static greeting template already appends "'s" after the name span. Simplified to put the bare name in the span.
+
+**Status:** Implemented — `assistant.php`, `assistant.js` (2026-04-25).
+
 ### DR-266: CRAI — favicon avatar type + CMS auto-detect pre-fill on widget install page (2026-04-25)
 
 **Context:** Two UX improvements that share a common theme — use what we already know about the tenant's website instead of asking them to enter it again.
