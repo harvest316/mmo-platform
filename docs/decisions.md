@@ -4649,6 +4649,21 @@ WebAuthn / passkey re-auth was deferred to LOW PRIORITY (TODO.md, ContactReplyAI
 
 **Impl:** `migrations/027-welcome-email.sql` (new); `src/services/welcomeEmail.js` (new — Worker-safe ESM module exporting `sendWelcomeEmail`, `buildHtml`, `buildText`); `tests/unit/welcomeEmail.test.js` (new — 19 tests); `scripts/test-welcome-email.js` (new — end-to-end smoke against SES success simulator); `workers/index.js` (PayPal handler + sandbox handler wired; `sendEmailViaSES` opts arg). Pending host-side: Worker deploy `cd workers && npx wrangler deploy`; set `WELCOME_TEST_EMAIL` Worker var to a QA inbox. The trigger only fires inside the new-tenant branch (`existing.length === 0` in `handlePayPalWebhook`) and the sandbox provisioning branch — existing live tenants who pre-date this change will not receive a retroactive welcome email. If retrospective sending is wanted later, point a one-shot script at `sendWelcomeEmail()` for each tenant where `welcome_email_sent_at IS NULL`.
 
+### DR-262: CRAI dogfooding tenant + Marcus product-enquiry templates (2026-04-25)
+
+**Context:** ContactReplyAI uses its own product (dogfooding) — Marcus handles inbound enquiries from tradies asking about CRAI (pricing, how it works, which trades, setup time, cancellation, data privacy, etc.). No dogfooding tenant existed in the DB and no product-specific templates existed. These can't go in the standard library (wrong trade vertical; standard templates are for tradie jobs, not SaaS enquiries).
+
+**Decision:** Create a dedicated seed script (`scripts/seed-dogfooding-tenant.js`) that:
+1. Upserts a `tenant_private` tenant (`slug = 'contactreplyai-internal'`, vertical `other`, billing_status `active`, sender_name `Marcus`).
+2. Deletes and re-inserts 19 warm_professional `tenant_private` templates covering: pricing (overview, founding vs standard, discount), generic FAQ (how it works, supported trades, data privacy, setup time, channel coexistence, vs chatbots, cancellation policy), quote/signup (ready to start, demo request, trial request), availability (trade check, area check), follow-up, thanks, and decline (timing / too expensive).
+3. Auto-approves all templates via `tenant_templates` with `approval_source = 'onboarding_auto_accept'` — since this is CRAI's own internal account, no manual approval loop is needed.
+
+Script is idempotent (delete-and-reinsert on each run). No seeder or schema changes required; `tenant_private` rows bypass the `(trade, intent, parent_slug, tone)` unique index that only covers `standard`/`candidate` tier.
+
+**Status:** Seeded 2026-04-25. Tenant id=147, 19 templates.
+
+**Impl:** `scripts/seed-dogfooding-tenant.js` (new). Run with `DATABASE_URL=… node scripts/seed-dogfooding-tenant.js`.
+
 ### DR-261: CRAI standard templates — refresh "warm & professional" tone bodies (2026-04-25)
 
 **Context:** The /templates page in the CRAI tenant portal pre-selects the "Warm & professional" lozenge as the product default — it's the body copy most tenants will actually approve and ship. The 36 base bodies in `content/templates/templates.v1.json` (seeded into 360 standard rows across 10 trades × 36 parents) had drifted into a uniform shape — most opened with "Thanks for getting in touch…" or "Hi…", leaned on stock phrasing ("happy to lock in a time that suits you"), and felt template-shaped. We wanted copy a tenant could leave largely untouched on first run.
