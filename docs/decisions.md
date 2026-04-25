@@ -4,6 +4,29 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-263: CRAI voicemail record tab — switch from WebM/MediaRecorder to client-side WAV encoder (2026-04-25)
+
+**Context:** DR-246 shipped a third "Record" tab on `/channels` using `MediaRecorder` with `audio/webm;codecs=opus`. Two compounding bugs surfaced in dogfooding:
+
+1. **Preview shows 0:00.** Chrome/Firefox MediaRecorder writes WebM with no Duration in the EBML header. `<audio>` reads `duration === Infinity`, the timer renders `0:00 / 0:00`, and the seek bar is broken. Audio bytes are fine — metadata isn't. Users assume the recording failed and re-record.
+2. **Twilio can't play it.** `<Play>` only supports MP3/WAV/AIFF/μ-law/GSM. WebM/Opus is not in the list. Even if a user pushed past the broken preview and saved, real callers would hit a play failure on the actual voicemail. The upload allowlist accepting `audio/webm` (server-side in both `portal-api.php` and `workers/index.js`) was the original sin that let the broken format through.
+
+Fixing the preview alone (e.g. ts-ebml duration shim, or a `currentTime = 1e101` seek hack) doesn't help Twilio. Server-side webm→mp3 transcode would, but Workers can't run ffmpeg, so it would mean a separate service. Not worth it.
+
+**Decision:**
+1. **Client-side WAV encoder** — replace MediaRecorder with Web Audio API. Capture the mic via `AudioContext` + `MediaStreamAudioSourceNode`, accumulate Float32 PCM frames via `AudioWorkletNode` (or `ScriptProcessorNode` fallback for Safari), encode to 16-bit PCM mono WAV with a proper RIFF header on stop. Upload as `audio/wav`. ~120 lines, no deps.
+2. **Drop `audio/webm` from server-side allowlists.** `portal/docroot/portal-api.php` `$allowedMimes` and `workers/index.js` `VOICEMAIL_ALLOWED_MIMES`. Keep mp3/wav/ogg — ogg stays because Twilio supports OGG-Vorbis (some Generate-tab paths might still produce it; mp3 is canonical for ElevenLabs).
+3. **Drop `audio/webm` from upload `<input accept>`** in `channels.php`.
+4. **Sample rate** — record at the AudioContext default (typically 48kHz on modern hardware), downsample to **16kHz mono** before encoding. Twilio resamples anyway and 16kHz is plenty for voice; smaller payload.
+
+**Why WAV not MP3?** Browser can't natively make MP3 — would need lamejs (~150KB). WAV header is 44 bytes; encoder is straightforward. File size at 16kHz mono 16-bit is ~32 KB/s, so a 60s greeting is ~1.9 MB — well under the 10 MB cap.
+
+**Why not ts-ebml + keep webm?** Solves preview only. Twilio still can't play webm. Two bugs, one fix is better.
+
+**Status:** Shipped 2026-04-25.
+
+**Impl:** `portal/docroot/assets/js/channels.js` (record tab rewritten), `portal/docroot/includes/pages/channels.php` (accept attr), `portal/docroot/portal-api.php` ($allowedMimes), `workers/index.js` (VOICEMAIL_ALLOWED_MIMES).
+
 ### DR-253: CRAI — move directory listings to dedicated /listings page (2026-04-24)
 
 **Context:** The Channels page was growing into an overloaded catch-all (VA details, escalation contacts, SMS/call-forwarding, voicemail, number porting, directory listings, email forwarding, push notifications, PWA install). Directory listings have distinct UX and will grow (more directories, status history) — making them a first-class nav destination improves discoverability and keeps Channels focused on contact-detail configuration.
@@ -4654,13 +4677,15 @@ WebAuthn / passkey re-auth was deferred to LOW PRIORITY (TODO.md, ContactReplyAI
 **Context:** ContactReplyAI uses its own product (dogfooding) — Marcus handles inbound enquiries from tradies asking about CRAI (pricing, how it works, which trades, setup time, cancellation, data privacy, etc.). No dogfooding tenant existed in the DB and no product-specific templates existed. These can't go in the standard library (wrong trade vertical; standard templates are for tradie jobs, not SaaS enquiries).
 
 **Decision:** Create a dedicated seed script (`scripts/seed-dogfooding-tenant.js`) that:
-1. Upserts a `tenant_private` tenant (`slug = 'contactreplyai-internal'`, vertical `other`, billing_status `active`, sender_name `Marcus`).
+1. Upserts a `tenant_private` tenant (`slug = 'contactreplyai-internal'`, vertical `other`, billing_status `active`, sender_name `Marcus`) — for local dev / staging only.
 2. Deletes and re-inserts 19 warm_professional `tenant_private` templates covering: pricing (overview, founding vs standard, discount), generic FAQ (how it works, supported trades, data privacy, setup time, channel coexistence, vs chatbots, cancellation policy), quote/signup (ready to start, demo request, trial request), availability (trade check, area check), follow-up, thanks, and decline (timing / too expensive).
 3. Auto-approves all templates via `tenant_templates` with `approval_source = 'onboarding_auto_accept'` — since this is CRAI's own internal account, no manual approval loop is needed.
 
 Script is idempotent (delete-and-reinsert on each run). No seeder or schema changes required; `tenant_private` rows bypass the `(trade, intent, parent_slug, tone)` unique index that only covers `standard`/`candidate` tier.
 
-**Status:** Seeded 2026-04-25. Tenant id=147, 19 templates.
+**Production note:** In Neon production the dogfooding tenant is the pre-existing `contactreplyai` tenant (`slug = 'contactreplyai'`, id=8). Templates were seeded directly into production via an inline Node.js script targeting `NEON_DIRECT_URL` on 2026-04-25 (not via `seed-dogfooding-tenant.js`, which targets `DATABASE_URL` / local). The seed script's `contactreplyai-internal` slug is a local-dev artefact only.
+
+**Status:** Seeded 2026-04-25. Production: tenant id=8 (`contactreplyai`), 19 templates. Local dev: tenant id=147 (`contactreplyai-internal`).
 
 **Impl:** `scripts/seed-dogfooding-tenant.js` (new). Run with `DATABASE_URL=… node scripts/seed-dogfooding-tenant.js`.
 
