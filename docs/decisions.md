@@ -4,6 +4,44 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-268: CRAI voicemail/generate — retry + 503 instead of 502 on ElevenLabs failure (2026-04-26)
+
+**Context:** Firefox console showed `XHRPOST portal-api.php [HTTP/3 502 2466ms]` when the voicemail Generate button was clicked. The Worker's `/api/tenant/voicemail/generate` endpoint returned HTTP 502 on any ElevenLabs failure (network error or non-2xx response), which PHP's curl proxy forwarded verbatim to the browser. Browsers and CDNs treat 502 specially; the error message also leaked internal detail (`ElevenLabs returned 429`).
+
+**Decision:** (1) Wrap the ElevenLabs fetch in a 2-attempt retry loop with 600ms backoff — catches transient network hiccups without user-visible delay on first attempt. (2) Change both failure return codes from 502 → 503 (semantically correct: the *upstream* is unavailable, not *our* gateway). (3) Replace internal error strings with user-readable messages that surface directly via `channels.js`'s `vmg-status--err` element.
+
+**Status:** Implemented and deployed (Worker version 564eeffc). 2026-04-26.
+
+**Impl:** `workers/index.js` voicemail/generate handler (~line 5731). No changes to portal-api.php or channels.js.
+
+### DR-269: CRAI feature waitlists — generic `feature_waitlists` table for gated features (2026-04-26)
+
+**Context:** Live phone answering (and future gated features) aren't ready to ship but we want to gauge demand and notify tenants when they become available. Rather than one-off opt-in flags scattered across the tenants table, we need a reusable pattern.
+
+**Decision:** Add a generic `crai.feature_waitlists` table (tenant_id, feature TEXT, joined_at, left_at) with a unique constraint on (tenant_id, feature). A tenant is "on the waitlist" when a row exists with `left_at IS NULL`. Re-joining after leaving is supported via `ON CONFLICT … DO UPDATE SET joined_at = NOW(), left_at = NULL`. Three REST endpoints cover the lifecycle: `GET /api/waitlist/live-answering/status`, `POST /api/waitlist/live-answering/join`, `POST /api/waitlist/live-answering/leave`. Feature names must match `^[a-z_-]+$` (DB check constraint). Routes added to portal-api.php allowlist.
+
+**Status:** Implemented. Migration 030 applied to production Neon 2026-04-26.
+
+**Impl:** `migrations/030-feature-waitlists.sql` (new table + index); `workers/index.js` (3 new routes); `portal/docroot/portal-api.php` (3 allowlist entries).
+
+### DR-268: CRAI onboarding — Phone Setup step + call-forwarding tel: links + AU network selector (2026-04-26)
+
+**Context:** Three phone-side tasks (call forwarding, PWA install, push notifications) were buried in /channels and not part of onboarding. Tenants were missing them. The call forwarding UI used copy buttons + `<code>` elements — useless on mobile where you can't copy from a dialler. AU tenants saw Telstra/Vodafone and Optus codes simultaneously with no guidance on which applied to them.
+
+**Decision:**
+1. Insert a new Onboarding Step 5 (Phone Setup) between FAQ (step 4) and Channels (step 6 — was 5). Desktop shows a checklist of 3 pending tasks + "Send me a link" button that SMS-deep-links to `/channels#phone-setup`. Mobile shows direct action buttons to `/channels#phone-setup`.
+2. Move call forwarding, Install App, and Push Notifications into a new `#phone-setup` section in channels.php. The old locations are removed.
+3. Replace all copy buttons and `<code>` elements with `<a class="cfw-dial-link" data-cfw-code="...">` links whose `href` is `tel:CODE` (with `#` encoded as `%23`). JS builds hrefs using full E.164 smsNumber (preserving `+`).
+4. Add AU network selector radios (Telstra / Optus) that show/hide `#cfw-au-other` / `#cfw-au-optus` sub-divs.
+5. Add "Your Direct Mobile" (04xx format) + "Your Direct Email" to onboarding step 3. Mobile auto-prefills the send-link input on the Phone Setup step.
+6. Total step count: 6 → 7. `OB.totalSteps`, `gatherStepData`, `bindStepSpecific`, `applyPrefill`, `populateReview` all updated. `kb.step5` is now phone (no data), `kb.step6` is channels (was `kb.step5`).
+
+**Why:** Tradies need these steps completed on the phone where they actually receive calls. Onboarding must surface this explicitly, not leave it discoverable after go-live. The tel: link approach works in a browser on any OS — no clipboard required.
+
+**Status:** Implemented 2026-04-26.
+
+**Impl:** `portal/docroot/includes/pages/onboarding/step-5.php` (new), `step-6.php` (renamed from step-5), `step-7.php` (renamed from step-6), `portal/docroot/index.php`, `portal/docroot/includes/partials/onboarding-progress.php`, `portal/docroot/assets/js/onboarding.js`, `portal/docroot/includes/pages/onboarding/step-3.php`, `portal/docroot/includes/pages/channels.php`, `portal/docroot/assets/js/channels.js`, `portal/docroot/assets/css/onboarding.css`.
+
 ### DR-267: CRAI assistant page — collapse 4-way name-type radios to a single optional input (2026-04-25)
 
 **Context:** After DR-265 unified the attestation blurb across all four name types (business / own / custom / staff), the type-of-name distinction served no legal purpose — the unified blurb covers any name choice. The four-way radio group only differed in hint text and `sender_name_type` value (which the renderer maps to "business name only" vs "Name from Business"). Asking tenants to classify their name was friction without value.
