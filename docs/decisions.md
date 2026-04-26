@@ -4,6 +4,35 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-274: CRAI KB editor — rule-based content validator for hardcoding, placeholders, AI artifacts, compliance, PII (2026-04-26)
+
+**Context:** The KB editor at [portal/docroot/includes/pages/knowledge-base.php](ContactReplyAI/portal/docroot/includes/pages/knowledge-base.php) feeds the AI assistant. The only existing content check was a hardcoded `/\bMarcus\b/i` regex (later made dynamic via `/api/settings.sender_name`) that flagged hardcoded VA names — a single rule, single field of failure. The KB sees plenty of other authoring hazards: leftover ChatGPT output ("As an AI language model…"), unfilled `{{placeholders}}`, hardcoded owner emails / inbound channel numbers that go stale on porting/email change, absolute-promise wording the consumer law won't tolerate, hardcoded prices that drift from the structured Pricing section, accidentally-pasted PII (BSB, TFN, card numbers), and prompt-injection-shaped phrases that the LLM may treat as instructions.
+
+**Decision:** Refactor `validateKbContent` ([portal/docroot/assets/js/kb-editor.js:902+](ContactReplyAI/portal/docroot/assets/js/kb-editor.js#L902)) from a one-pattern detector to a `KB_RULES` array of `{id, test(value, ctx), message(value, ctx), skipFieldId?, suppressIfOtherWarning?}` rules. 24 rules across six tiers:
+- **Tier 1 — tenant identifier hardcoding:** VA name, owner email, website host, inbound AI email, inbound AI SMS, escalation phone. All sourced from `/api/settings` already loaded by `loadTenantChannelContext`.
+- **Tier 2 — placeholders/unfinished:** `{{mustache}}`, `[BRACKET_PLACEHOLDER]` (uppercase or `your/insert/enter/add` prefix), `TODO/TBD/FIXME/XXX`, `lorem ipsum`, `example.com / yourdomain.com`, `555-0100 / 4XX XXX XXX`.
+- **Tier 3 — AI artifacts + injection bait:** `as an AI language model`, `I'm sorry I cannot`, `ignore previous instructions`, `system prompt`, `you are now`.
+- **Tier 4 — compliance/expectation:** absolute promises (`guarantee`, `100%`, `lifetime warranty`, `always on time`, `never late`), specific response-time promises (`respond within 5 minutes`, `instant reply`, `same-day callback`), `24/7` claims that contradict the hours grid, hardcoded prices ($/£/€) outside the Pricing section.
+- **Tier 5 — PII the AI must not recite:** AU BSB, TFN, credit-card number patterns.
+- **Tier 6 — cross-field consistency:** phones/emails the AI doesn't recognise (suppressed if any other warning already fires on the field, so a hardcoded-inbound-SMS hit doesn't double up).
+
+**Why this and not promptfoo:** Three different defence layers, often confused. (1) **Edit-time KB validator** = catches careless authoring before save. (2) **promptfoo** = regression-tests our system prompts when we change them. (3) **Runtime injection defence** = wraps KB content in clearly delimited LLM context so injected commands read as data. This DR is layer 1 only. Layer 3 is a separate piece of work — KB content is currently passed to the LLM with no structural delimiter that distinguishes "user-authored data" from "system instruction." That gap should be closed even with the validator in place, because the validator is a hint to the human, not a security boundary. (`333Method/TODO-promptfoo.md` from 2026-03-18 is the layer-2 follow-up — parked due to a `@aws-sdk/core` CVE and not affected by this work.)
+
+**Implementation:**
+- Rule architecture is additive — new check = one entry in `KB_RULES`, no surgery elsewhere.
+- Structured fields excluded by id (`KB_EXCLUDED_IDS`: `kb-biz-name`, `kb-biz-vertical-custom`, `kb-biz-location`, `kb-biz-phone`, `kb-biz-email`, `kb-biz-website`, `kb-pricing-range`) so e.g. the owner-email field doesn't flag itself as a hardcoded owner email.
+- Rule-level field exclusions for `hardcoded-price`: skips `.kb-svc-price` (the price-hint input by definition) and `kb-pol-cancellation` / `kb-pol-booking` (legitimately quote specific fees: "$75 callout", "$100 deposit").
+- `suppressIfOtherWarning: true` on the cross-field rules (`unknown-phone`, `unknown-email`) so a BSB hit (which has phone-shaped digit runs) doesn't pile a redundant unknown-phone warning on the same field.
+- Phone equivalence accepts AU `+61412…` ↔ `0412…` via `normalisePhone` + leading-`61`-to-`0` swap, reusing the helper from `validateFallbackContacts`.
+- Hours-grid state collected directly from DOM toggles (`kb-hours-toggle-*` `is-on` class) rather than from `kb` state, so the validator runs synchronously without needing a fresh `collectFormData`.
+- CSS update in [portal/docroot/assets/css/knowledge-base.css](ContactReplyAI/portal/docroot/assets/css/knowledge-base.css): `.kb-field-warning + .kb-field-warning` gets a dotted hairline `border-top` so stacked warnings on a single field are visually distinct, not one wrapped sentence.
+- All warnings are red and inline-appended to the field label via `flex-basis: 100%` (existing pattern from the original Marcus check).
+- `validateKbContent` continues to be called from `updateCompletionDots` on every populateForm and every dirty-mark, so warnings update live as the user types.
+
+**Smoke-tested** with a 31-case battery (one positive per rule + clean controls + AU-format phone equivalence). All rules fired correctly on intended cases; cross-rule overlaps (BSB digits looking phone-shaped, etc.) are correctly suppressed at DOM-write time by `suppressIfOtherWarning`. Standalone Node smoke harness is throwaway — DOM-side suppression isn't simulated, but logic is identical.
+
+**Status:** Implemented. Pending deploy via `npm run deploy:prod` from `~/code/ContactReplyAI/`. Future work: surface a per-rule severity (warn vs. block-save) once rule maturity is proven; layer-3 runtime injection defence (delimit KB context in LLM calls) is tracked separately.
+
 ### DR-273: CRAI channels page — provider logos for email setup guides (2026-04-26)
 
 **Context:** Channels page email-forwarding section ([portal/docroot/includes/pages/channels.php:436-442](portal/docroot/includes/pages/channels.php#L436-L442)) listed five email providers as plain-text links: Gmail, Google Workspace, Outlook / Microsoft 365, iCloud Mail, Yahoo. User asked whether logos could be added without legal exposure.
