@@ -4,6 +4,42 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-275: CRAI Worker integration test harness + 20 priority integration tests + push-subscribe ctx bug fix (2026-04-26)
+
+**Context:** CRAI's test suite was unit-test-only (`tests/unit/*.test.js`, all heavy `vi.mock` of `pg`/`twilio`/`anthropic`). The 7,163-line CF Worker (`workers/index.js`) — which serves all 51 prod routes — had zero direct test coverage; the playwright `tests/e2e/api/` project still pointed at a Node `src/api/server.js` that was deleted in commit `b25e1b0` (2026-04-10). API E2E tests were silently broken. Coverage report claimed 87.8% but only measured `src/`, ignoring the Worker entirely. No tests existed for the core inbound-message → reply flow, PayPal webhooks, opt-out, emergency, archive enforcement (DR-223), webhook replay protection, or tenant isolation.
+
+**Decision:** Build a Worker fetch harness (`tests/integration/worker-harness.js`) that mocks `@neondatabase/serverless` `neon()` to a tagged-template translator backed by a per-test query handler, mocks `postal-mime`, and provides `fetchWorker(method, path, opts)` + `signTenantToken()` + `signPortalAuth()` helpers. Add 20 prioritised integration tests grouped by topic (inbound-pipeline, billing-paypal-onboarding, portal-routes, security-adversarial) plus a billing.js unit test closing the 0% coverage gap on that module.
+
+**Why this and not Miniflare/`wrangler dev`:** The harness exercises the JavaScript code paths in `workers/index.js` against stubbed I/O — no edge runtime. That's adequate for route-shape and SQL-shape regression. True edge-runtime fidelity (KV semantics, DurableObjects, `ctx.waitUntil` timing) needs Miniflare and is parked as a follow-up. The harness lets us add Worker tests today without forcing a bigger infra commit.
+
+**Module mock hoisting gotcha:** vitest's `vi.mock(path, factory)` hoists *above all imports*. Computing the absolute path at module load (via `fileURLToPath`) runs *after* the hoist → `ReferenceError`. Worked around by hard-coding the absolute path in `tests/integration/setup-mocks.js`. The bare-name mock `vi.mock('@neondatabase/serverless')` doesn't fire because the Worker resolves `@neondatabase/serverless` from `workers/node_modules/` (where its `package.json` declares the dep), not the root.
+
+**Bug surfaced and fixed:** Test #13 (POST `/api/notifications/subscribe`) returned 500 because `handleNotifications` calls `ctx.waitUntil(refreshSetupProgress(...))` but doesn't accept `ctx` as a parameter. Real prod hits this on every push subscribe — the row inserts (visible in logs as `[push-subscribe] tenant=…`) but the response is 500 and `refreshSetupProgress` never runs. Fix: pass `ctx` through the call site at `workers/index.js:6986` and the function signature at `workers/index.js:2052`. This matches the pattern used by `handleApi`/`handleHandoffMint`/etc.
+
+**Coverage delta:**
+- Before: 83.66% statements (1163/1390 in src/) — already failing the 85% threshold from DR-181.
+- After: 85.19% statements (1174/1378 in src/) — threshold cleared.
+- Tests: 728 → 794 (+66 tests across 5 new files: integration/inbound-pipeline, billing-paypal-onboarding, portal-routes, security-adversarial; plus unit/billing and unit/twilio-client-extra).
+
+**Out of scope (next):**
+- Add `workers/index.js` to the coverage threshold once the harness reaches ~60% route coverage. Currently ~30% of routes are exercised; counting the whole 11k-line Worker would mask src/ regressions.
+- Miniflare-based runtime tests for ctx/KV/queue semantics.
+- Restoring the deleted `src/api/server.js` or rewiring playwright `tests/e2e/api/` to hit the Worker via Miniflare.
+
+**Files:**
+- `tests/integration/worker-harness.js`, `tests/integration/setup-mocks.js`, `tests/integration/_harness-smoke.test.js`
+- `tests/integration/inbound-pipeline.test.js` (P0 #1-5)
+- `tests/integration/billing-paypal-onboarding.test.js` (P1 #6-9)
+- `tests/integration/portal-routes.test.js` (P2 #10-15)
+- `tests/integration/security-adversarial.test.js` (P3 #16-20)
+- `tests/unit/billing.test.js` (closed 0% gap on billing.js — DR-196 first-reply trial activation)
+- `tests/unit/twilio-client-extra.test.js` (lifted twilio-client.js coverage to clear 85% threshold)
+- `tests/unit/optOuts.test.js` (added isOptedOut + revokeOptOut paths — fewer uncovered lines on optOuts.js)
+- `vitest.config.js` (added `tests/integration/**`, `setupFiles`, excluded `src/loop/entry.js` startup script from coverage)
+- `workers/index.js:2052,6986` (pass `ctx` into `handleNotifications`)
+
+**Status:** Implemented. Worker bug fix deployed via `wrangler deploy`.
+
 ### DR-274: CRAI KB editor — rule-based content validator for hardcoding, placeholders, AI artifacts, compliance, PII (2026-04-26)
 
 **Context:** The KB editor at [portal/docroot/includes/pages/knowledge-base.php](ContactReplyAI/portal/docroot/includes/pages/knowledge-base.php) feeds the AI assistant. The only existing content check was a hardcoded `/\bMarcus\b/i` regex (later made dynamic via `/api/settings.sender_name`) that flagged hardcoded VA names — a single rule, single field of failure. The KB sees plenty of other authoring hazards: leftover ChatGPT output ("As an AI language model…"), unfilled `{{placeholders}}`, hardcoded owner emails / inbound channel numbers that go stale on porting/email change, absolute-promise wording the consumer law won't tolerate, hardcoded prices that drift from the structured Pricing section, accidentally-pasted PII (BSB, TFN, card numbers), and prompt-injection-shaped phrases that the LLM may treat as instructions.
