@@ -17,17 +17,28 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 - Move Google Fonts CSS to a nonced inline `<script>` that appends the `<link>` after parse — CSP `strict-dynamic` blocks `onload="..."` attributes on `<link>` tags so the standard `media="print"` swap trick is unsafe; nonced DOM injection works under strict-dynamic. `<noscript>` fallback retains blocking-style for JS-disabled clients.
 - Kept `chat-widget.css` blocking because the floating button needs styling on first paint (3 KB br is acceptable).
 
-**Tier 2 — server TTFB + parse-time wins (TBD):** persist tenant cache to `portal.sqlite` and bump `TENANT_CACHE_TTL`; add `<link rel="preload" as="script">` hints for active page's main JS; move `portal.js` to head with `defer` and wrap inline page scripts in `DOMContentLoaded` listeners.
+**Tier 2 — server TTFB + parse-time wins:**
+- Two-layer tenant cache. Layer 1 = `$_SESSION` (no I/O, TTL bumped 60 s → 300 s). Layer 2 = new `tenant_cache` table in `portal.sqlite` (TTL 900 s, shared across browser sessions for the same tenant). Migration v3 added in [auth/db.php](portal/docroot/includes/auth/db.php) with `getCachedTenant()` / `setCachedTenant()` / `invalidateCachedTenant()` helpers. `getTenant()` ([auth/auth.php](portal/docroot/includes/auth/auth.php)) walks layer 1 → 2 → Worker.
+- Cache invalidation wired into [portal-api.php](portal/docroot/portal-api.php): non-GET to `/api/settings`, `/api/trust-stage`, `/api/avatar`, `/api/onboarding/*`, or voicemail activate clears both layers. Means writes are visible on next render; reads stay cheap.
+- Move `portal.js` from body-top sync to head `defer`. Add a per-page preload manifest in [render.php](portal/docroot/includes/render.php) that emits `<link rel="preload" as="script|style">` hints in `<head>` for the active page's main JS/CSS.
+- Add `defer` to every page-specific `<script src>` tag across all 14 portal pages and 7 onboarding steps. Wrap inline `CRAIxxx.init()` / `OB.init()` / IIFE bodies that touch CRAI globals in `DOMContentLoaded` listeners so they run after deferred scripts execute.
 
-**Tier 3 — pipeline wins (TBD):** add minification step (esbuild/lightningcss) to `scripts/deploy.js`; extract critical-CSS subset of `portal.css` and inline it in `<head>`.
+**Tier 3 — pipeline + critical-path wins:**
+- Add minification to [scripts/deploy.js](scripts/deploy.js): esbuild for `assets/js/*.js`, lightningcss for `assets/css/*.css`. Source files in git stay readable; minified bytes go to FTP. Hash uses minified output so the manifest tracks bytes-on-the-wire. ~40 % JS / ~57 % CSS pre-compression reduction (eg. channels.js 65 KB → 26 KB; portal.css 53 KB → 30 KB). Brotli closes most of the on-wire gap, but parse time on slow Android still benefits.
+- Inline a critical-CSS partial ([includes/critical-css.php](portal/docroot/includes/critical-css.php), ~2 KB) covering design tokens, body typography, sidebar/topbar/tabbar layout primitives. Inlined in `<head>` so first paint renders the layout shell without waiting for portal.css. Full `portal.css` still loads immediately after and provides everything else.
+- Skipped: self-hosting Nunito (Google Fonts CDN cache hit-rate is decent and the preconnect already minimises the round trip; not worth the operational complexity).
 
-**Why:** Combined Tier 1+2+3 should drop authenticated TTFB by 200–400 ms (tenant cache) and TTI by 100–200 ms (defer + preload + lazy-load). All changes are reversible PHP/JS edits behind the existing CRAI_ASSET_VERSION cache-busting.
+**Why:** Combined Tier 1+2+3 targets ~200–400 ms TTFB drop on authenticated routes (tenant cache) plus ~100–200 ms TTI improvement (defer + preload + critical CSS + lazy-load chat-widget). All changes are reversible PHP/JS edits behind the existing `CRAI_ASSET_VERSION` cache-buster, which the deploy script auto-bumps.
 
-**How to apply:** Future portal pages should: (1) never load page-specific JS without `defer`, (2) declare `$pagePreloadScripts[]` (Tier 2 mechanism) for the head preload hints, (3) wrap inline `CRAI.*` calls in `DOMContentLoaded`.
+**How to apply:** Future portal pages should:
+1. Never load page-specific JS without `defer`.
+2. Add an entry to the `$preloadManifest` map in [render.php](portal/docroot/includes/render.php) so the page's main JS/CSS is preloaded.
+3. Wrap inline `CRAIxxx.init()` / IIFE bodies in `DOMContentLoaded` listeners.
+4. Update [critical-css.php](portal/docroot/includes/critical-css.php) only when changing layout primitives in `portal.css` — visual polish does not belong there.
 
-**Status:** Tier 1 implemented and committed 2026-04-26. Tiers 2 & 3 in progress.
+**Status:** All three tiers implemented and committed 2026-04-26.
 
-**Impl:** [portal/docroot/includes/head-common.php](portal/docroot/includes/head-common.php), [portal/docroot/includes/render.php](portal/docroot/includes/render.php).
+**Impl:** Tier 1 — [head-common.php](portal/docroot/includes/head-common.php), [render.php](portal/docroot/includes/render.php). Tier 2 — [auth/db.php](portal/docroot/includes/auth/db.php), [auth/auth.php](portal/docroot/includes/auth/auth.php), [portal-api.php](portal/docroot/portal-api.php), every `portal/docroot/includes/pages/*.php`. Tier 3 — [scripts/deploy.js](scripts/deploy.js), [includes/critical-css.php](portal/docroot/includes/critical-css.php), [head-common.php](portal/docroot/includes/head-common.php).
 
 ### DR-271: CRAI channels widget guide — keep generic CMS deep links, no per-platform editor URLs (2026-04-26)
 
