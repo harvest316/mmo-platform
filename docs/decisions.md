@@ -4,6 +4,20 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-270: CRAI channels — active call-forwarding test with Ian voice + 3-phase Twilio call sequence (2026-04-26)
+
+**Context:** Tenants set up call forwarding by entering dial codes, but had no way to verify it actually worked. Support requests were coming in because tenants couldn't tell if forwarding was active. We also had stale "Forward all calls" dial codes on the page — these codes put callers in a forwarding loop (all calls, including the test call, would forward), breaking the test; and operators now only care about the unanswered/busy forwarding cases which are the commercially relevant ones.
+
+**Decision:** (1) Remove "Forward all calls" (`**21*`) dial codes from all country blocks on the channels page. (2) Add an active live-test flow: user clicks "Test call forwarding" → Phase 1: Ian-voice ElevenLabs call to the user's escalation_phone (script explains the test) → Phase 2: while user is on the phone (in-progress callback), make a second call to test busy forwarding → Phase 3: after user hangs up (completed callback), make a third call to test unanswered forwarding → results (`busy_result`, `unanswered_result`) written when forwarded calls arrive at `/twiml/voice` and the endpoint detects an active test. Pass/fail shown with retry buttons.
+
+**Pass detection:** Forwarded calls hit the existing `/twiml/voice?t={tenantId}` endpoint. Modified to query `crai.forwarding_tests` for active phase2/phase3 tests — when found, writes `busy_result='pass'` or `unanswered_result='pass'` and returns `<Hangup/>`. Auto-fail computed at status-poll time: if `phase2_sent_at`/`phase3_sent_at` is >35s old with no result, it's a fail. No Worker sleep needed.
+
+**Audio caching:** Ian voice MP3 (voice ID `v7AjIzCg6vdhCmXwBrb1`) generated once via ElevenLabs at first test and cached indefinitely in `CRAI_MEDIA_KV` under key `forwarding_test_audio_v1`. Rate limit: 1 test per tenant per 5 minutes.
+
+**Status:** Implemented 2026-04-26.
+
+**Impl:** `migrations/032-forwarding-tests.sql` (new table); `workers/index.js` (5 new routes + modified `/twiml/voice`); `portal/docroot/includes/pages/channels.php` (UI + removed "Forward all calls" entries); `portal/docroot/assets/js/channels.js` (`initForwardingTest`).
+
 ### DR-268: CRAI voicemail/generate — retry + 503 instead of 502 on ElevenLabs failure (2026-04-26)
 
 **Context:** Firefox console showed `XHRPOST portal-api.php [HTTP/3 502 2466ms]` when the voicemail Generate button was clicked. The Worker's `/api/tenant/voicemail/generate` endpoint returned HTTP 502 on any ElevenLabs failure (network error or non-2xx response), which PHP's curl proxy forwarded verbatim to the browser. Browsers and CDNs treat 502 specially; the error message also leaked internal detail (`ElevenLabs returned 429`).
