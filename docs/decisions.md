@@ -18,7 +18,7 @@ Lightweight ADR format grouped by domain. Each entry records what we decided, wh
 
 **Implementation:** Inline SVGs rather than external assets, to keep the page CSP-clean (no extra origins to allowlist), avoid extra HTTP requests, and stay consistent with the page's existing inline-SVG icon approach. SVGs are simplified brand-colour approximations sized at 16–18 px so they read as functional cues, not decorative usage. Yahoo uses the iconic "Y!" wordmark in Yahoo purple (#5F01D1). Outlook uses the blue square (#0072C6) with a white "O" envelope and right-hand flap. Gmail uses the multi-colour envelope (Google red/blue/green/yellow). New CSS rules added to the existing nonce'd `<style>` block: `.email-providers .email-provider` (inline-flex container, 0.3 rem gap, vertical-align middle, white-space nowrap) and `.email-provider__icon` (flex-shrink 0). No external assets, no new HTTP requests, no CSP changes.
 
-**Status:** Implemented. Deployed via `npm run deploy:prod -- --env portal-prod`.
+**Status:** Reverted same day — legal posture is sound but the visual layout was rough (icons + text + bullet separators flowing inside a `<p>` looked busy and uneven). Reverted in commit `f22d6df`; parked as a TODO in `ContactReplyAI/TODO.md` for a future pass that uses a proper logo-card grid rather than inline icons. Re-promote this entry to "Implemented" when the layout work re-lands. Original implementation: commit `9b2a426`, deployed via `node scripts/deploy.js --env portal-prod --force`.
 
 ### DR-272: CRAI portal — page-load optimization across all pages (2026-04-26)
 
