@@ -4,6 +4,41 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-272: CRAI portal — page-load optimization across all pages (2026-04-26)
+
+**Context:** Audited portal page-load on `contactreply.app`. Cloudflare Brotli, immutable caching, and asset-versioning were already in place, but authenticated TTFB was 800–900 ms and every `<script src>` (push-notifications, pwa-install, chat-widget, next-steps, page-specific JS) was loaded synchronously without `defer`. `getTenant()` ([portal/docroot/includes/auth/auth.php:161-180](portal/docroot/includes/auth/auth.php#L161-L180)) called the Worker's `/api/settings` on every render with a 60 s session-only cache, so any cold/expired cache forced a remote round trip during PHP rendering. Compressed page weight was already small (~30–40 KB), so the wins were in render-blocking sequence, server TTFB, and parse-time work, not byte count.
+
+**Decision:** Three tiers of optimization, each independently committed and deployable.
+
+**Tier 1 — render-blocking reduction (autonomous, low risk):**
+- Add `defer` to `push-notifications.js`, `pwa-install.js`, `next-steps.js` in [render.php](portal/docroot/includes/render.php) — none expose globals depended on by inline page scripts (verified by grep).
+- Lazy-load `chat-widget.js` on first click via a small nonced bootstrap that captures clicks on `#crai-btn` / `[data-crai-action="open"|"toggle"]`, injects the script, removes itself, then calls `window.CRAI.openChat()`. Saves ~3 KB compressed JS on every authenticated page (most users never open the widget).
+- Add `<link rel="preconnect">` for `CRAI_API_URL` host when authenticated (chat-widget + portal-api both target it).
+- Move Google Fonts CSS to a nonced inline `<script>` that appends the `<link>` after parse — CSP `strict-dynamic` blocks `onload="..."` attributes on `<link>` tags so the standard `media="print"` swap trick is unsafe; nonced DOM injection works under strict-dynamic. `<noscript>` fallback retains blocking-style for JS-disabled clients.
+- Kept `chat-widget.css` blocking because the floating button needs styling on first paint (3 KB br is acceptable).
+
+**Tier 2 — server TTFB + parse-time wins (TBD):** persist tenant cache to `portal.sqlite` and bump `TENANT_CACHE_TTL`; add `<link rel="preload" as="script">` hints for active page's main JS; move `portal.js` to head with `defer` and wrap inline page scripts in `DOMContentLoaded` listeners.
+
+**Tier 3 — pipeline wins (TBD):** add minification step (esbuild/lightningcss) to `scripts/deploy.js`; extract critical-CSS subset of `portal.css` and inline it in `<head>`.
+
+**Why:** Combined Tier 1+2+3 should drop authenticated TTFB by 200–400 ms (tenant cache) and TTI by 100–200 ms (defer + preload + lazy-load). All changes are reversible PHP/JS edits behind the existing CRAI_ASSET_VERSION cache-busting.
+
+**How to apply:** Future portal pages should: (1) never load page-specific JS without `defer`, (2) declare `$pagePreloadScripts[]` (Tier 2 mechanism) for the head preload hints, (3) wrap inline `CRAI.*` calls in `DOMContentLoaded`.
+
+**Status:** Tier 1 implemented and committed 2026-04-26. Tiers 2 & 3 in progress.
+
+**Impl:** [portal/docroot/includes/head-common.php](portal/docroot/includes/head-common.php), [portal/docroot/includes/render.php](portal/docroot/includes/render.php).
+
+### DR-271: CRAI channels widget guide — keep generic CMS deep links, no per-platform editor URLs (2026-04-26)
+
+**Context:** Reviewed whether the channels page CMS instructions ("most likely here ›" link beside each platform's snippet-paste guide, [portal/docroot/assets/js/settings-channels.js:76-85](portal/docroot/assets/js/settings-channels.js#L76-L85)) should deep link to the actual editor page inside each CMS rather than the platform's login/dashboard. Detection itself already works: `detectCMS()` ([workers/index.js:3267](workers/index.js#L3267)) fingerprints the homepage HTML for WordPress, Squarespace, Wix, Webflow, Shopify, GoDaddy and caches the result on tenant settings; the widget calls `GET /api/onboarding/cms` ([workers/index.js:3924](workers/index.js#L3924)) on load and pre-selects the dropdown.
+
+**Decision:** Do **not** add per-platform editor deep links. Keep the existing login/dashboard URLs as-is.
+
+**Why:** Only WordPress (`{origin}/wp-admin/theme-editor.php`) and Shopify (`{origin}/admin/themes/current?key=layout%2Ftheme.liquid`) can be deep-linked from data we already hold. Squarespace, Wix, and Webflow editor URLs require a site-id/slug we don't have without an additional fetch or scrape; GoDaddy is too variable. A two-platform-only improvement isn't worth the asymmetry — users hitting the WordPress link would expect the same precision on Wix and be confused when they get a generic dashboard. The current "login URL + written instructions" pattern is consistent across all six and good enough.
+
+**How to apply:** Future requests to "make the platform guide more helpful" should target the *instructional copy* (CMS_INSTRUCTIONS strings at [settings-channels.js:58-65](portal/docroot/assets/js/settings-channels.js#L58-L65)) or the screenshot/loom path, not deeper URLs. Revisit only if we start collecting site-id/slug for Wix/Webflow/Squarespace as part of onboarding (no current plan to).
+
 ### DR-270: CRAI channels — active call-forwarding test with Ian voice + 3-phase Twilio call sequence (2026-04-26)
 
 **Context:** Tenants set up call forwarding by entering dial codes, but had no way to verify it actually worked. Support requests were coming in because tenants couldn't tell if forwarding was active. We also had stale "Forward all calls" dial codes on the page — these codes put callers in a forwarding loop (all calls, including the test call, would forward), breaking the test; and operators now only care about the unanswered/busy forwarding cases which are the commercially relevant ones.
