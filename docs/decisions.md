@@ -4,6 +4,22 @@ Architectural and technical decisions for the mmo-platform ecosystem (333Method,
 
 Lightweight ADR format grouped by domain. Each entry records what we decided, why, and when.
 
+### DR-273: CRAI channels page — provider logos for email setup guides (2026-04-26)
+
+**Context:** Channels page email-forwarding section ([portal/docroot/includes/pages/channels.php:436-442](portal/docroot/includes/pages/channels.php#L436-L442)) listed five email providers as plain-text links: Gmail, Google Workspace, Outlook / Microsoft 365, iCloud Mail, Yahoo. User asked whether logos could be added without legal exposure.
+
+**Decision:** Display logos for **Gmail, Outlook, Yahoo** as inline SVG approximations rendered in each brand's primary colour; keep **Google Workspace, iCloud Mail, Microsoft 365** as text-only. Microsoft 365 piggybacks on the Outlook link, so the Outlook mark covers it visually.
+
+**Why:** Nominative fair use covers compatibility statements ("works with Gmail, Outlook, …") provided (1) the trademark is necessary to identify the product, (2) only as much of the mark as needed is used, (3) sponsorship/endorsement is not implied. Per-provider posture:
+- **Google (Gmail / Workspace):** brand guidelines permit referential use of unmodified logos. Acceptable.
+- **Microsoft (Outlook / M365):** Trademark guidelines explicitly permit factual references using product names; logo use without partner-program enrolment is technically discouraged but the Outlook envelope mark is widely tolerated for compatibility lists.
+- **Apple (iCloud):** strict — guidelines say products may be **named in text** but Apple/product logos may **not** be displayed without a written licence. iCloud kept text-only to avoid the only material risk in the set.
+- **Yahoo:** permits nominative reference; minimal enforcement risk for compatibility lists.
+
+**Implementation:** Inline SVGs rather than external assets, to keep the page CSP-clean (no extra origins to allowlist), avoid extra HTTP requests, and stay consistent with the page's existing inline-SVG icon approach. SVGs are simplified brand-colour approximations sized at 16–18 px so they read as functional cues, not decorative usage. Yahoo uses the iconic "Y!" wordmark in Yahoo purple (#5F01D1). Outlook uses the blue square (#0072C6) with a white "O" envelope and right-hand flap. Gmail uses the multi-colour envelope (Google red/blue/green/yellow). New CSS rules added to the existing nonce'd `<style>` block: `.email-providers .email-provider` (inline-flex container, 0.3 rem gap, vertical-align middle, white-space nowrap) and `.email-provider__icon` (flex-shrink 0). No external assets, no new HTTP requests, no CSP changes.
+
+**Status:** Implemented. Deployed via `npm run deploy:prod -- --env portal-prod`.
+
 ### DR-272: CRAI portal — page-load optimization across all pages (2026-04-26)
 
 **Context:** Audited portal page-load on `contactreply.app`. Cloudflare Brotli, immutable caching, and asset-versioning were already in place, but authenticated TTFB was 800–900 ms and every `<script src>` (push-notifications, pwa-install, chat-widget, next-steps, page-specific JS) was loaded synchronously without `defer`. `getTenant()` ([portal/docroot/includes/auth/auth.php:161-180](portal/docroot/includes/auth/auth.php#L161-L180)) called the Worker's `/api/settings` on every render with a 60 s session-only cache, so any cold/expired cache forced a remote round trip during PHP rendering. Compressed page weight was already small (~30–40 KB), so the wins were in render-blocking sequence, server TTFB, and parse-time work, not byte count.
